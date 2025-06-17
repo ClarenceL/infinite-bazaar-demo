@@ -1,0 +1,157 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# overview.mdc: InfiniteBazaar Development Checklist
+
+**Project**: InfiniteBazaar  
+**Purpose**: A protocol for secure, scalable AI agent identities using AWS Nitro Enclaves, Privado ID DIDs, Coinbase CDP wallets, x402 payments, and MCP, with a social network vision ("Facebook for AIs"). Built for the Coinbase "Agents in Action" hackathon (June 18, 2025).  
+**Goal**: Develop a proof-of-concept with two agents, demonstrating DID creation, wallet management, memory commitment, and a social network teaser, with a stretch goal of agents creating x402 service endpoints.  
+**Author**: Experienced software engineer using Cursor, targeting a monorepo with Next.js, Hono, BullMQ, and custom packages.
+
+## Architecture Overview
+
+InfiniteBazaar enables unlimited agents with unique identities, running dedicated Nitro Enclaves on-demand from a single EC2 parent instance. Each agent has a Privado ID DID, a Coinbase CDP wallet, and a state hash (system prompt, context, model/tag), with private keys secured in AWS KMS. The system uses x402 for payments, MCP for identity/memory operations, honcho.dev for short-term memory, and IPFS/Base Sepolia for persistent storage. A stretch goal allows agents to create x402 service endpoints for monetization, implemented as dynamic Hono routes.
+
+### Monorepo Structure
+
+- **apps/infinite-bazaar**:
+  - Next.js app for frontend, displaying agent identities and social network teaser.
+  - Interacts with `infinite-bazaar-api` for data and operations.
+- **apps/infinite-bazaar-api**:
+  - Hono backend API for Coinbase CDP SDK calls and x402 request processing.
+  - Routes MCP calls to enclaves, manages honcho.dev memory, stores state/logs.
+- **apps/infinite-bazaar-cron**:
+  - BullMQ job queue for background tasks (wallet pool, enclave association, log hashing).
+  - Handles asynchronous operations like wallet funding and enclave cleanup.
+- **apps/infinite-bazaar-service**:
+  - Hono app for agent-created x402 service endpoints (stretch goal).
+  - Uses dynamic table for endpoint definitions, translated into Hono routes or PM2 apps.
+- **packages/opus-genesis-id**:
+  - Custom issuer logic for InfiniteBazaar DIDs, wrapping Privado SDK.
+  - Computes state hashes (system prompt, context, model/tag).
+- **packages/opus-nitro-sdk-mock**:
+  - Hono API mocking Nitro Enclave actions, wrapping Privado SDK.
+  - Defines interface for enclave interactions (separate package).
+- **packages/db**:
+  - Placeholder for Drizzle ORM boilerplate, managing agent registry and endpoints.
+
+### Key Design Decisions
+
+- Unique Nitro Enclave per agent, launched on-demand with PCR-based KMS key access.
+- Stateless enclaves initialized with agent-specific KMS-encrypted keys and inputs.
+- Fresh CDP wallets with mocked policies requiring enclave authorization.
+- State/logs on IPFS/Base Sepolia, short-term memory via honcho.dev.
+- MCP tools for DID issuance, state signing, memory commitment.
+- Stretch goal: Agents create x402 endpoints via dynamic Hono routes.
+- Exclusions: No Nitro mocking package, no authentication (super admin key in `.env`).
+
+## Nice to Haves (Not Tackled)
+
+- **AWS Nitro Mocking**:
+  - Requires separate package with defined interface for enclave actions.
+  - Out of scope for hackathon.
+- **Authentication**:
+  - System runs locally or uses super admin key in `.env`, bypassing complex auth.
+
+## Development Checklist
+
+### Architecture Setup
+
+- [ ] Initialize monorepo with Turborepo or Nx, configure ESLint, Prettier, TypeScript.
+- [ ] Set up `.env` with super admin key, Coinbase API keys, AWS credentials, Base Sepolia RPC, honcho.dev API key.
+- [ ] Configure EC2 r5.8xlarge with Nitro Enclaves, install Nitro CLI, test enclave launch.
+- [ ] Integrate Drizzle ORM boilerplate in `packages/db`.
+
+### apps/infinite-bazaar (Next.js)
+
+- [ ] Create Next.js app with pages for agent identity display (DIDs, state hashes, IPFS CIDs, encrypted keys).
+- [ ] Implement static social network teaser with relationship graph (nodes: Agent1, Agent2, Human1; edges: Agent1-Human1, Agent2-Human1).
+- [ ] Add API client to fetch data from `infinite-bazaar-api`.
+- [ ] Style UI with Tailwind CSS or similar for hackathon polish.
+
+### apps/infinite-bazaar-api (Hono)
+
+- [ ] Set up Hono app with routes for:
+  - Agent identity queries (GET /agents/:id).
+  - MCP tool triggers (POST /mcp/:tool, e.g., pay_for_did, sign_state_hash, commit_memory).
+  - x402 payment processing (POST /x402/pay).
+- [ ] Integrate Coinbase CDP SDK for wallet creation/funding, x402 payments.
+- [ ] Connect to honcho.dev for short-term memory storage/retrieval.
+- [ ] Implement IPFS client for state storage, viem for Base Sepolia log/state hash storage.
+- [ ] Route MCP calls to enclaves via vsock, using enclave CIDs from agent registry.
+
+### apps/infinite-bazaar-cron (BullMQ)
+
+- [ ] Set up BullMQ with Redis for job queue.
+- [ ] Define jobs:
+  - Create wallet pool (10 fresh CDP wallets).
+  - Associate wallets with enclaves (update agent registry).
+  - Hash and store logs on Base Sepolia.
+  - Clean up terminated enclaves.
+- [ ] Schedule jobs to run periodically or on-demand.
+
+### apps/infinite-bazaar-service (Hono, Stretch Goal)
+
+- [ ] Set up Hono app with dynamic endpoint creation for agent x402 services.
+- [ ] Create dynamic table in `packages/db` (`x402_endpoints`):
+  - Columns: agentId, route (e.g., /service/:agentId/analyze), price (USDC), logic (serialized function/script).
+- [ ] Implement runtime route addition in Hono or fallback to PM2-managed per-agent apps:
+  - Runtime: Add routes via Hono’s dynamic middleware or custom router.
+  - PM2: Spawn independent Hono instances per agent, restart on updates.
+- [ ] Add MCP tool (`create_x402_endpoint`) to define endpoints.
+- [ ] Process x402 payments for endpoint access, execute agent-defined logic.
+
+### packages/opus-genesis-id
+
+- [ ] Define issuer logic for InfiniteBazaar DIDs, wrapping Privado SDK.
+- [ ] Implement state hash computation (SHA-256 of system prompt, context, model/tag).
+- [ ] Provide functions for DID creation, signing, state updates.
+
+### packages/opus-nitro-sdk-mock
+
+- [ ] Create Hono API mocking Nitro Enclave actions (DID creation, signing, memory commitment).
+- [ ] Define interface for enclave interactions (separate package).
+- [ ] Wrap Privado SDK calls, simulating vsock and PCR-based attestation.
+
+### packages/db
+
+- [ ] Use existing Drizzle ORM boilerplate.
+- [ ] Define schema (to be added):
+  - `agents`: agentId, enclaveCid, did, stateHash, ipfsCid, kmsKeyId, walletAddress.
+  - `x402_endpoints`: agentId, route, price, logic (stretch goal).
+  - `logs`: agentId, event, timestamp, pcr0, logHash.
+
+### Stretch Goal: Dynamic x402 Service Endpoints
+
+- [ ] Design `x402_endpoints` table for agent-defined services.
+- [ ] Explore Hono dynamic routing or PM2 for per-agent apps.
+- [ ] Add MCP tool `create_x402_endpoint` to register endpoints.
+- [ ] Process x402 payments for endpoint access, execute logic.
+
+### Testing and Validation
+
+- [ ] Test wallet creation, x402 payments for two agents.
+- [ ] Verify DID creation, state hash signing, memory commitment via enclaves.
+- [ ] Confirm KMS key encryption/export, PCR-based access for two agents.
+- [ ] Validate IPFS state storage, Base Sepolia log/state hash storage.
+- [ ] Ensure UI displays agent identities and social network teaser.
+- [ ] Test cron jobs for wallet pool, enclave association, log hashing.
+- [ ] (Stretch) Validate dynamic x402 endpoint creation and payment processing.
+### Demo Preparation
+
+- [ ] Record 2-minute demo video:
+  - Show wallet creation, x402 DID payment, enclave signing, memory commitment.
+  - Display UI with two agent identities, social network graph.
+  - Highlight unlimited agent scalability, tamper detection via logs.
+  - (Stretch) Demo x402 endpoint creation by an agent.
+- [ ] Prepare README with setup instructions, architecture diagram, hackathon pitch.
+- [ ] Submit to Coinbase hackathon by June 20, 2025.
+
+## Notes
+
+- **Environment**: Local or EC2 with super admin key in `.env`.
+- **Focus**: Two agents for demo, scalable to unlimited via on-demand enclaves.
+- **Alignment**: Integrates Coinbase CDK SDK, x402, MCP; aligns with SingularityNET and Kate Darling.
+- **Stretch Goal Priority**: Dynamic x402 endpoints if core features complete, prefer Hono runtime routes over PM2.
