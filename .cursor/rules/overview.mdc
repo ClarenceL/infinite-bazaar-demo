@@ -22,10 +22,10 @@ InfiniteBazaar enables unlimited agents with unique identities, running dedicate
 - **apps/api**:
   - Hono backend API for Coinbase CDP SDK calls and x402 request processing.
   - Routes MCP calls to enclaves, manages honcho.dev memory, stores state/logs.
-- **apps/infinite-bazaar-cron**:
+- **apps/cron**:
   - BullMQ job queue for background tasks (wallet pool, enclave association, log hashing).
   - Handles asynchronous operations like wallet funding and enclave cleanup.
-- **apps/infinite-bazaar-service**:
+- **apps/service**:
   - Hono app for agent-created x402 service endpoints (stretch goal).
   - Uses dynamic table for endpoint definitions, translated into Hono routes or PM2 apps.
 - **packages/opus-genesis-id**:
