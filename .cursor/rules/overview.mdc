@@ -16,10 +16,10 @@ InfiniteBazaar enables unlimited agents with unique identities, running dedicate
 
 ### Monorepo Structure
 
-- **apps/infinite-bazaar**:
+- **apps/web**:
   - Next.js app for frontend, displaying agent identities and social network teaser.
   - Interacts with `infinite-bazaar-api` for data and operations.
-- **apps/infinite-bazaar-api**:
+- **apps/api**:
   - Hono backend API for Coinbase CDP SDK calls and x402 request processing.
   - Routes MCP calls to enclaves, manages honcho.dev memory, stores state/logs.
 - **apps/infinite-bazaar-cron**:

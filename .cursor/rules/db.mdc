@@ -1,0 +1,54 @@
+---
+description: 
+globs: packages/db/**/*
+alwaysApply: false
+---
+NEVER RUN DATABASE MIGRATIONS, I can do those, just prompt me and I will do it.
+
+For Enums take a hybrid approach, leveraging strings with drizzle types, instead of enums:
+`status: text("status").$type<pending | cancelled |error >().notNull()`
+
+But also use pgEnums, see this example:
+
+```
+// Define the type for better TypeScript support
+export type ApiKeyStatus = "INACTIVE" | "ACTIVE" | "REVOKED" | "EXPIRED";
+
+// Define the enum for database constraints and GUI support
+export const apiKeyStatusEnum = pgEnum("api_key_status", [
+  "INACTIVE",
+  "ACTIVE",
+  "REVOKED",
+  "EXPIRED",
+] as const);
+```
+
+Then in pgTable: `status: apiKeyStatusEnum("status").default("INACTIVE").notNull(),`
+
+Only use varchar for ids, similiar to the users table. Otherwise use text.
+
+When creating a new table, leverage the id util `packages/id/src/generate.ts`
+<new_table_prefix>
+```ts
+`packages/id/generate.ts`
+
+const prefixes = {
+  post: "post",
+  property: "prop",
+  // Add new prefixes here
+} as const;
+```
+For generate.ts, all you have to do is add the table name (or varation) as a key to the const. No need to use nanoid or change any other code.
+Also abbreviate longer words, i.e   property: "cust",
+
+Then inside `packages/db/schema.ts` you can use it like so:
+```ts
+export const properties = pgTable("properties", {
+  id: varchar("id", { length: 255 })
+    .primaryKey()
+    .$defaultFn(() => newId("property"))
+}
+```
+</new_table_prefix>
+
+Users table doesn't need items like avatar or name, unless specificially required to sync via clerk/

@@ -1,0 +1,43 @@
+{
+  "name": "@infinite-bazaar-demo/infinite-bazaar-ui",
+  "version": "0.0.1",
+  "description": "",
+  "scripts": {
+    "build": "turbo run build",
+    "build:be": "turbo run build --filter=!@infinite-bazaar-demo/infinite-bazaar-ui",
+    "build:force": "turbo run build --force",
+    "build:staging": "turbo run build:staging",
+    "build:vercel": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "lint:fix-unsafe": "turbo run lint:fix-unsafe",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean",
+    "clean:node_modules": "rimraf ./node_modules ./packages/*/node_modules ./apps/*/node_modules",
+    "test": "turbo run test",
+    "setup:foundry": "./scripts/install-foundry.sh"
+  },
+  "keywords": [],
+  "author": "Clarence Liu",
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^10.1.1",
+    "@biomejs/biome": "1.9.4",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.13.9",
+    "js-yaml": "^4.1.0",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.4.2",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "axios": "^1.8.4",
+    "form-data": "^4.0.2",
+    "pino-pretty": "^13.0.0"
+  },
+  "license": "GPL3"
+}

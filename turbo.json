@@ -1,0 +1,105 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalDependencies": [
+    ".env"
+  ],
+  "tasks": {
+    "build": {
+      "env": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "CLERK_SECRET_KEY",
+        "CLERK_PUBLISHABLE_KEY",
+        "CLERK_WEBHOOK_SECRET",
+        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+        "NEXT_PUBLIC_API_URL"
+      ],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "build/**",
+        "dist/**",
+        "lib/**",
+        "out/**",
+        "src/abi/**"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "^lint"
+      ],
+      "outputs": []
+    },
+    "lint:fix": {
+      "dependsOn": [
+        "^lint:fix"
+      ]
+    },
+    "lint:fix-unsafe": {
+      "dependsOn": [
+        "^lint:fix-unsafe"
+      ]
+    },
+    "format": {},
+    "type-check": {
+      "dependsOn": [
+        "^type-check"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "DATABASE_URL",
+        "PGUSER",
+        "PGPASSWORD",
+        "PGHOST",
+        "PGPORT",
+        "PGDATABASE",
+        "NODE_ENV"
+      ],
+      "outputs": []
+    },
+    "build:ts": {
+      "dependsOn": [
+        "build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "build:all": {
+      "dependsOn": [
+        "build",
+        "build:ts"
+      ],
+      "outputs": [
+        "dist/**",
+        "out/**",
+        "src/abi/**"
+      ]
+    },
+    "db:push": {},
+    "db:generate": {},
+    "db:migrate": {},
+    "db:studio": {},
+    "db:seed": {},
+    "utils": {}
+  }
+}

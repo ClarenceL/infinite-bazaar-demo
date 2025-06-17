@@ -1,0 +1,55 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+.turbo
+
+*.secret
+
+# Dependencies
+node_modules
+
+# Local env files
+deploy-secrets.env
+.env
+.env.dev
+.env.vars
+.env.local
+.env.test.local
+.env.prod
+.env.production
+.env.production.local
+.env.staging
+.env.staging.local  
+*.secret
+.dev.vars
+
+# Testing
+coverage
+
+# Turbo
+.turbo
+
+# Vercel
+.vercel
+
+# Build Outputs
+.next/
+.esbuild/
+out/
+build
+dist
+.serverless
+.wrangler
+
+# Reference - Ignored Folders
+apps/core-trpc
+reference
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug-later.txt
+
+# Misc
+.DS_Store
+archive
+*.pem

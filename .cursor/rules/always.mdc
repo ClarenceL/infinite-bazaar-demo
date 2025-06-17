@@ -1,0 +1,20 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+NO ERROR MASKING, no workarounds in development to get things to work, such as bypasses, always allow it to fail in development and force the developer to troubleshoot on the spot.
+
+If using `mkdir` always check the current directory you're in first.
+
+The folder /reference is not used by any code, it's reference material only
+
+NEVER DO DATABSE MIGRATIONS, I CAN DO THOSE, prompt me to
+
+NEVER check process.env vars in @packages/db in a constructor, this is due to using bun built packages that may run dependencies before it loads env vars
+
+NEVER MASK AUTHENTICATION ISSUES IN DEVELOPMENT BY CREATING FAKE / TEST USERS.
+
+For typecheck, we run `pnpm type-check`
+
+For logging we are using pino, the correct format is logger.info(object, message), or logger.error(error, message), we put the data object first always.

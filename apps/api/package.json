@@ -1,0 +1,30 @@
+{
+  "name": "@infinite-bazaar-demo/infinite-bazaar-api",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun --sourcemap",
+    "test": "NODE_ENV=test bun src/tests/run-tests.ts",
+    "format": "biome format --write .",
+    "type-check": "bun build ./src/index.ts --no-emit --target=bun > /dev/null && echo 'Types checked successfully' || echo 'Type check failed with errors'",
+    "clean": "rimraf dist",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "lint:fix-unsafe": "biome check --fix --unsafe ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "axios": "^1.8.4",
+    "cache-manager": "^6.4.1",
+    "dotenv": "^16.4.7",
+    "form-data": "^4.0.2",
+    "hono": "^4",
+    "viem": "^2.24.3",
+    "vitest": "^3.0.6",
+    "zod": "^3.24.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

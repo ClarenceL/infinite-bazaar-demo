@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Checklist planning of tasks:
+
+1. Create the mock nitro SDK package, this imports Privado SDK and is intended to wrap everything in a trusted env. This has a Hono API that instantiates and creates an identity on Base. In prod we have KMS authentication, but for now we are mocking this.
+
+2. Modify boilerplate MCP worker code to work on Hono standalone, with the MCP tool call that directs to the mock nitro SDK package.
+
+3. Set up the BullMQ cron process to trigger the cycles for the MCP worker process.

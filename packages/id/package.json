@@ -1,0 +1,23 @@
+{
+  "name": "@lyra-mcp/id",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "keywords": [],
+  "scripts": {
+    "test": "vitest run -c ./vitest.config.ts",
+    "build": "tsc",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@infinite-bazaar-demo/typescript-config": "workspace:*",
+    "@types/node": "^22.13.4",
+    "typescript": "^5",
+    "vitest": "^3.0.6"
+  },
+  "dependencies": {
+    "base-x": "^5.0.0"
+  }
+}
