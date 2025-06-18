@@ -7,7 +7,7 @@ const projectRoot = join(__dirname, "../../");
 
 console.log("🧪 Running cron service tests...\n");
 
-const result = spawnSync("bun", ["--bun", "vitest", "run"], {
+const result = spawnSync("npx", ["vitest", "run"], {
   cwd: projectRoot,
   stdio: "inherit",
   env: {

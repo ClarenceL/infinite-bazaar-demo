@@ -12,7 +12,7 @@ describe("Cron Service", () => {
       host: "localhost",
       port: 6379,
       db: 1, // Use different database for tests
-      lazyConnect: true,
+      maxRetriesPerRequest: null, // Required for BullMQ
     });
 
     queue = new Queue("test-health-check", { connection: redis });
