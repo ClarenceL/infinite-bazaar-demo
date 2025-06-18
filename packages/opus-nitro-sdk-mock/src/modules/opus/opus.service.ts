@@ -52,12 +52,13 @@ export class OpusService {
   /**
    * Load message history for the agent from database
    */
-  async loadMessages(chatId?: string): Promise<Message[]> {
+  async loadMessages(chatId?: string, entityId?: string): Promise<Message[]> {
+    const actualEntityId = entityId || OPUS_ENTITY_ID;
     try {
-      logger.info({ chatId, entityId: OPUS_ENTITY_ID }, "Loading message history from database");
+      logger.info({ chatId, entityId: actualEntityId }, "Loading message history from database");
 
       // Build query conditions
-      const conditions = [eq(entityContext.entityId, OPUS_ENTITY_ID)];
+      const conditions = [eq(entityContext.entityId, actualEntityId)];
       if (chatId) {
         conditions.push(eq(entityContext.chatId, chatId));
       }
@@ -111,9 +112,13 @@ export class OpusService {
   /**
    * Save a message to database
    */
-  async saveMessage(message: Message): Promise<void> {
+  async saveMessage(message: Message, entityId?: string): Promise<void> {
+    const actualEntityId = entityId || OPUS_ENTITY_ID;
     try {
-      logger.info({ role: message.role, chatId: message.chatId }, "Saving message to database");
+      logger.info(
+        { role: message.role, chatId: message.chatId, entityId: actualEntityId },
+        "Saving message to database",
+      );
 
       // Get next sequence number for this entity/chat combination
       const maxSequenceResult = await db
@@ -122,17 +127,17 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-                eq(entityContext.entityId, OPUS_ENTITY_ID),
+                eq(entityContext.entityId, actualEntityId),
                 eq(entityContext.chatId, message.chatId),
               )
-            : eq(entityContext.entityId, OPUS_ENTITY_ID),
+            : eq(entityContext.entityId, actualEntityId),
         );
 
       const nextSequence = (maxSequenceResult[0]?.maxSeq || 0) + 1;
 
       // Prepare the database record
       const dbRecord: any = {
-        entityId: OPUS_ENTITY_ID,
+        entityId: actualEntityId,
         role: message.role,
         sequence: nextSequence,
         chatId: message.chatId || null,
@@ -174,12 +179,17 @@ export class OpusService {
       await db.insert(entityContext).values(dbRecord);
 
       logger.info(
-        { role: message.role, chatId: message.chatId, sequence: nextSequence },
+        {
+          role: message.role,
+          chatId: message.chatId,
+          sequence: nextSequence,
+          entityId: actualEntityId,
+        },
         "Message saved to database",
       );
     } catch (error) {
       logger.error(
-        { error, role: message.role, chatId: message.chatId },
+        { error, role: message.role, chatId: message.chatId, entityId: actualEntityId },
         "Error saving message to database",
       );
       throw error;
@@ -226,19 +236,21 @@ export class OpusService {
     messages: Message[],
     writer: WritableStreamDefaultWriter<Uint8Array>,
     encoder: TextEncoder,
+    entityId?: string,
   ): Promise<void> {
-    return generateStreamingResponse(messages, writer, encoder);
+    return generateStreamingResponse(messages, writer, encoder, entityId);
   }
 
   /**
    * Reset conversation history in database
    */
-  async resetConversation(chatId?: string): Promise<void> {
+  async resetConversation(chatId?: string, entityId?: string): Promise<void> {
+    const actualEntityId = entityId || OPUS_ENTITY_ID;
     try {
-      logger.info({ chatId, entityId: OPUS_ENTITY_ID }, "Resetting conversation in database");
+      logger.info({ chatId, entityId: actualEntityId }, "Resetting conversation in database");
 
       // Build delete conditions
-      const conditions = [eq(entityContext.entityId, OPUS_ENTITY_ID)];
+      const conditions = [eq(entityContext.entityId, actualEntityId)];
       if (chatId) {
         conditions.push(eq(entityContext.chatId, chatId));
       }
@@ -246,9 +258,12 @@ export class OpusService {
       // Delete messages from database
       const deleteResult = await db.delete(entityContext).where(and(...conditions));
 
-      logger.info({ chatId, entityId: OPUS_ENTITY_ID }, "Conversation reset in database");
+      logger.info({ chatId, entityId: actualEntityId }, "Conversation reset in database");
     } catch (error) {
-      logger.error({ error, chatId }, "Error resetting conversation in database");
+      logger.error(
+        { error, chatId, entityId: actualEntityId },
+        "Error resetting conversation in database",
+      );
       throw error;
     }
   }

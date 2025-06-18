@@ -49,36 +49,49 @@ export const opusRoutes = new Hono()
       const body = await c.req.json();
 
       // Handle both message formats:
-      // 1. { message: "text", chatId?: "id" } (simple format)
-      // 2. { type: "message", content: { role: "user", content: "text" } } (MCP format)
+      // 1. { message: "text", chatId?: "id", entityId: "required" } (simple format)
+      // 2. { type: "message", content: { role: "user", content: "text" }, entityId: "required" } (MCP format)
       let message: string;
       let chatId: string | undefined;
+      let entityId: string;
 
       if (body.type === "message" && body.content) {
         // MCP format
         message = body.content.content;
         chatId = body.chatId;
+        entityId = body.entityId;
       } else {
         // Simple format
         message = body.message;
         chatId = body.chatId;
+        entityId = body.entityId;
       }
 
       if (!message || typeof message !== "string") {
         return c.json({ error: "Message is required and must be a string" }, 400);
       }
 
-      logger.info({ message: message.substring(0, 100), chatId }, "Chat request received");
+      if (!entityId || typeof entityId !== "string") {
+        return c.json({ error: "entityId is required and must be a string" }, 400);
+      }
+
+      logger.info(
+        { message: message.substring(0, 100), chatId, entityId },
+        "Chat request received",
+      );
 
       // Load message history
-      const messages = await opusService.loadMessages(chatId);
+      const messages = await opusService.loadMessages(chatId, entityId);
 
       // Save the incoming user message
-      await opusService.saveMessage({
-        role: "user",
-        content: message,
-        chatId,
-      });
+      await opusService.saveMessage(
+        {
+          role: "user",
+          content: message,
+          chatId,
+        },
+        entityId,
+      );
 
       // Set up Server-Sent Events stream following the reference pattern
       const { readable, writable } = new TransformStream();
@@ -95,6 +108,7 @@ export const opusRoutes = new Hono()
             [...messages, { role: "user", content: message, chatId }],
             writer,
             encoder,
+            entityId,
           );
 
           logger.info("Streaming response completed successfully");
@@ -142,12 +156,19 @@ export const opusRoutes = new Hono()
   .get("/messages", async (c) => {
     try {
       const chatId = c.req.query("chatId");
-      const messages = await opusService.loadMessages(chatId || undefined);
+      const entityId = c.req.query("entityId");
+
+      if (!entityId || typeof entityId !== "string") {
+        return c.json({ error: "entityId query parameter is required" }, 400);
+      }
+
+      const messages = await opusService.loadMessages(chatId || undefined, entityId);
 
       return c.json({
         success: true,
         messages,
         count: messages.length,
+        entityId,
       });
     } catch (error) {
       logger.error({ error }, "Error fetching messages");
@@ -165,13 +186,18 @@ export const opusRoutes = new Hono()
   .post("/reset", async (c) => {
     try {
       const body = await c.req.json();
-      const { chatId } = body as { chatId?: string };
+      const { chatId, entityId } = body as { chatId?: string; entityId: string };
 
-      await opusService.resetConversation(chatId);
+      if (!entityId || typeof entityId !== "string") {
+        return c.json({ error: "entityId is required and must be a string" }, 400);
+      }
+
+      await opusService.resetConversation(chatId, entityId);
 
       return c.json({
         success: true,
         message: "Conversation history reset successfully",
+        entityId,
       });
     } catch (error) {
       logger.error({ error }, "Error resetting conversation");

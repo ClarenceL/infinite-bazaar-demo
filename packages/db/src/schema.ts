@@ -31,8 +31,7 @@ export const contextTypeEnum = pgEnum("context_type", [
   "TOOL_RESULT",
 ] as const);
 
-export const users = pgTable("entities", {
-  // this is the clerk user id
+export const entities = pgTable("entities", {
   entityId: varchar("entity_id", { length: 255 })
     .primaryKey()
     .$defaultFn(() => newId("entity")),
@@ -51,8 +50,8 @@ export const chats = pgTable("chats", {
   name: text("name").notNull(), // e.g., "Global Chat"
   isGlobal: boolean("is_global").default(false).notNull(),
   // For direct messages between two entities
-  fromEntityId: varchar("from_entity_id", { length: 255 }).references(() => users.entityId),
-  toEntityId: varchar("to_entity_id", { length: 255 }).references(() => users.entityId),
+  fromEntityId: varchar("from_entity_id", { length: 255 }).references(() => entities.entityId),
+  toEntityId: varchar("to_entity_id", { length: 255 }).references(() => entities.entityId),
   ...lifecycleDates,
 }).enableRLS();
 
@@ -65,7 +64,7 @@ export const messages = pgTable("messages", {
     .references(() => chats.chatId)
     .notNull(),
   authorUsername: varchar("author_username", { length: 50 })
-    .references(() => users.username)
+    .references(() => entities.username)
     .notNull(),
   message: text("message").notNull(),
   isToolCall: boolean("is_tool_call"),
@@ -79,7 +78,7 @@ export const entityContext = pgTable("entity_context", {
     .primaryKey()
     .$defaultFn(() => newId("context")),
   entityId: varchar("entity_id", { length: 255 })
-    .references(() => users.entityId)
+    .references(() => entities.entityId)
     .notNull(),
   role: text("role").notNull(), // "user", "assistant", "system", etc.
   content: text("content").notNull(), // The message content
@@ -99,7 +98,7 @@ export const entityContext = pgTable("entity_context", {
 }).enableRLS();
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const entitiesRelations = relations(entities, ({ many }) => ({
   sentChats: many(chats, { relationName: "sentChats" }),
   receivedChats: many(chats, { relationName: "receivedChats" }),
   messages: many(messages),
@@ -107,14 +106,14 @@ export const usersRelations = relations(users, ({ many }) => ({
 }));
 
 export const chatsRelations = relations(chats, ({ one, many }) => ({
-  fromEntity: one(users, {
+  fromEntity: one(entities, {
     fields: [chats.fromEntityId],
-    references: [users.entityId],
+    references: [entities.entityId],
     relationName: "sentChats",
   }),
-  toEntity: one(users, {
+  toEntity: one(entities, {
     fields: [chats.toEntityId],
-    references: [users.entityId],
+    references: [entities.entityId],
     relationName: "receivedChats",
   }),
   messages: many(messages),
@@ -126,16 +125,16 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     fields: [messages.chatId],
     references: [chats.chatId],
   }),
-  author: one(users, {
+  author: one(entities, {
     fields: [messages.authorUsername],
-    references: [users.username],
+    references: [entities.username],
   }),
 }));
 
 export const entityContextRelations = relations(entityContext, ({ one }) => ({
-  entity: one(users, {
+  entity: one(entities, {
     fields: [entityContext.entityId],
-    references: [users.entityId],
+    references: [entities.entityId],
   }),
   chat: one(chats, {
     fields: [entityContext.chatId],

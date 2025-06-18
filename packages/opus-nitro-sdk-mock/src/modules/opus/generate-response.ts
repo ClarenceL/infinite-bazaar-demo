@@ -121,6 +121,7 @@ export async function generateStreamingResponse(
   messages: Message[],
   writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
+  entityId?: string,
 ): Promise<void> {
   logger.info({ messageCount: messages.length }, "Generating streaming LLM response");
 
@@ -181,7 +182,7 @@ export async function generateStreamingResponse(
       // The complete response will be saved after streaming completes
       logger.debug({ role: message.role }, "Tool call/result message ready for saving");
       const { opusService } = await import("./opus.service.js");
-      await opusService.saveMessage(message);
+      await opusService.saveMessage(message, entityId);
     };
 
     // Create initial streaming record if real-time sync is enabled
@@ -189,11 +190,11 @@ export async function generateStreamingResponse(
     if (streamingDBSync.isEnabled()) {
       // Get next sequence number for the assistant response
       const { opusService } = await import("./opus.service.js");
-      const existingMessages = await opusService.loadMessages();
+      const existingMessages = await opusService.loadMessages(undefined, entityId);
       const nextSequence = existingMessages.length + 1;
 
       const contextId = await streamingDBSync.createInitialRecord({
-        entityId: "ent_opus", // Hardcoded for now
+        entityId: entityId || "ent_opus",
         role: "assistant",
         sequence: nextSequence,
       });
@@ -234,11 +235,14 @@ export async function generateStreamingResponse(
     if (textContent && !streamingDBSync.isEnabled()) {
       logger.info("Saving complete assistant response to database");
       const { opusService } = await import("./opus.service.js");
-      await opusService.saveMessage({
-        role: "assistant",
-        content: textContent,
-        timestamp: Date.now(),
-      });
+      await opusService.saveMessage(
+        {
+          role: "assistant",
+          content: textContent,
+          timestamp: Date.now(),
+        },
+        entityId,
+      );
     } else if (streamingDBSync.isEnabled()) {
       logger.info("Real-time sync enabled - response already saved incrementally");
     }

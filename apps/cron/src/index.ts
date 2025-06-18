@@ -91,33 +91,33 @@ agenda.define("health-check", async (job: Job) => {
 });
 
 // Setup recurring health check job (only if it doesn't exist)
-async function setupHealthCheckCron() {
-  const healthCheckUrl = process.env.HEALTH_CHECK_URL || "http://localhost:3105/health";
+// async function setupHealthCheckCron() {
+//   const healthCheckUrl = process.env.HEALTH_CHECK_URL || "http://localhost:3105/health";
 
-  try {
-    // Check if the job already exists
-    const existingJobs = await agenda.jobs({ name: "health-check" });
+//   try {
+//     // Check if the job already exists
+//     const existingJobs = await agenda.jobs({ name: "health-check" });
 
-    if (existingJobs.length > 0) {
-      logger.info(
-        { url: healthCheckUrl, existingJobs: existingJobs.length },
-        "Health check jobs already exist, skipping creation",
-      );
-      return;
-    }
+//     if (existingJobs.length > 0) {
+//       logger.info(
+//         { url: healthCheckUrl, existingJobs: existingJobs.length },
+//         "Health check jobs already exist, skipping creation",
+//       );
+//       return;
+//     }
 
-    // Schedule new repeating job every 10 seconds
-    await agenda.every("10 seconds", "health-check", { url: healthCheckUrl });
+//     // Schedule new repeating job every 10 seconds
+//     await agenda.every("10 seconds", "health-check", { url: healthCheckUrl });
 
-    logger.info({ url: healthCheckUrl }, "Health check cron job scheduled every 10 seconds");
-  } catch (error) {
-    logger.error(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      "Failed to setup health check cron",
-    );
-    throw error;
-  }
-}
+//     logger.info({ url: healthCheckUrl }, "Health check cron job scheduled every 10 seconds");
+//   } catch (error) {
+//     logger.error(
+//       { error: error instanceof Error ? error.message : "Unknown error" },
+//       "Failed to setup health check cron",
+//     );
+//     throw error;
+//   }
+// }
 
 // Event handlers
 agenda.on("ready", () => {

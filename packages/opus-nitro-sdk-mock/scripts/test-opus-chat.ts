@@ -142,6 +142,7 @@ async function testOpusAPI() {
           role: "user",
           content: TEST_MESSAGE,
         },
+        entityId: "ent_opus",
       }),
     });
 
@@ -212,7 +213,8 @@ function showCurlCommand() {
   console.log(`    "content": {`);
   console.log(`      "role": "user",`);
   console.log(`      "content": "${TEST_MESSAGE}"`);
-  console.log(`    }`);
+  console.log(`    },`);
+  console.log(`    "entityId": "ent_opus"`);
   console.log(`  }'`);
 }
 
