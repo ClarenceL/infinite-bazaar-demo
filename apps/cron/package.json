@@ -1,0 +1,45 @@
+{
+  "name": "@infinite-bazaar-demo/cron",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun --sourcemap",
+    "test": "NODE_ENV=test bun src/tests/run-tests.ts",
+    "format": "biome format --write .",
+    "type-check": "bun build ./src/index.ts --no-emit --target=bun > /dev/null && echo 'Types checked successfully' || echo 'Type check failed with errors'",
+    "clean": "rimraf dist",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "lint:fix-unsafe": "biome check --fix --unsafe ."
+  },
+  "dependencies": {
+    "@infinite-bazaar-demo/db": "workspace:*",
+    "@infinite-bazaar-demo/logs": "workspace:*",
+    "@infinite-bazaar-demo/typescript-config": "workspace:*",
+    "axios": "^1.8.4",
+    "bullmq": "^5.54.3",
+    "cache-manager": "^6.4.1",
+    "dotenv": "^16.4.7",
+    "form-data": "^4.0.2",
+    "hono": "^4",
+    "ioredis": "^5.4.1",
+    "jose": "^6.0.10",
+    "pino": "^9.6.0",
+    "vitest": "^3.0.6",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/dotenv": "^8.2.3",
+    "@types/form-data": "^2.5.2",
+    "execa": "^9.5.2",
+    "pino-pretty": "^13.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vercel": "^41.1.4"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
