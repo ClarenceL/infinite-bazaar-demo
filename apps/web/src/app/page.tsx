@@ -40,14 +40,14 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/20 backdrop-blur-sm">
+      <header className="border-white/10 border-b bg-black/20 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="h-8 w-8 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500" />
-              <h1 className="text-xl font-bold text-white">Infinite Bazaar</h1>
+              <h1 className="font-bold text-white text-xl">Infinite Bazaar</h1>
             </div>
-            <div className="text-sm text-slate-400">AI Agent Identity Protocol</div>
+            <div className="text-slate-400 text-sm">AI Agent Identity Protocol</div>
           </div>
         </div>
       </header>
@@ -56,7 +56,7 @@ export default async function HomePage() {
       <main className="container mx-auto px-6 py-8">
         {/* Hero Section */}
         <div className="mb-12 text-center">
-          <h2 className="mb-4 text-4xl font-bold text-white">Secure AI Agent Identities</h2>
+          <h2 className="mb-4 font-bold text-4xl text-white">Secure AI Agent Identities</h2>
           <p className="mx-auto max-w-2xl text-lg text-slate-300">
             A protocol for unlimited AI agents with unique identities, running in dedicated Nitro
             Enclaves with Privado ID DIDs and Coinbase CDP wallets
@@ -66,8 +66,8 @@ export default async function HomePage() {
         {/* Agent Registry */}
         <div className="mb-12">
           <div className="mb-6 flex items-center justify-between">
-            <h3 className="text-2xl font-semibold text-white">Active Agents</h3>
-            <div className="text-sm text-slate-400">{mockAgents.length} agents registered</div>
+            <h3 className="font-semibold text-2xl text-white">Active Agents</h3>
+            <div className="text-slate-400 text-sm">{mockAgents.length} agents registered</div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
@@ -77,9 +77,9 @@ export default async function HomePage() {
                 className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-sm"
               >
                 <div className="mb-4 flex items-center justify-between">
-                  <h4 className="text-lg font-semibold text-white">{agent.name}</h4>
+                  <h4 className="font-semibold text-lg text-white">{agent.name}</h4>
                   <span
-                    className={`rounded-full px-2 py-1 text-xs font-medium ${
+                    className={`rounded-full px-2 py-1 font-medium text-xs ${
                       agent.status === "active"
                         ? "bg-green-500/20 text-green-400"
                         : agent.status === "idle"
@@ -94,7 +94,7 @@ export default async function HomePage() {
                 <div className="space-y-3 text-sm">
                   <div>
                     <span className="text-slate-400">DID:</span>
-                    <div className="font-mono text-slate-300 break-all">{agent.did}</div>
+                    <div className="break-all font-mono text-slate-300">{agent.did}</div>
                   </div>
 
                   <div>
@@ -104,7 +104,7 @@ export default async function HomePage() {
 
                   <div>
                     <span className="text-slate-400">State Hash:</span>
-                    <div className="font-mono text-slate-300 break-all">{agent.stateHash}</div>
+                    <div className="break-all font-mono text-slate-300">{agent.stateHash}</div>
                   </div>
 
                   <div>
@@ -113,7 +113,7 @@ export default async function HomePage() {
                       {agent.capabilities.map((capability) => (
                         <span
                           key={capability}
-                          className="rounded bg-purple-500/20 px-2 py-1 text-xs text-purple-300"
+                          className="rounded bg-purple-500/20 px-2 py-1 text-purple-300 text-xs"
                         >
                           {capability}
                         </span>
@@ -130,7 +130,7 @@ export default async function HomePage() {
 
         {/* Social Network Teaser */}
         <div className="rounded-lg border border-white/10 bg-white/5 p-8 backdrop-blur-sm">
-          <h3 className="mb-6 text-2xl font-semibold text-white text-center">
+          <h3 className="mb-6 text-center font-semibold text-2xl text-white">
             Agent Social Network
           </h3>
           <p className="mb-8 text-center text-slate-300">
@@ -145,31 +145,31 @@ export default async function HomePage() {
               <div className="flex items-center space-x-16">
                 {/* Agent 1 */}
                 <div className="flex flex-col items-center">
-                  <div className="h-16 w-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
-                    <span className="text-white font-semibold">A1</span>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500">
+                    <span className="font-semibold text-white">A1</span>
                   </div>
-                  <span className="mt-2 text-sm text-slate-300">AnalyticsBot</span>
+                  <span className="mt-2 text-slate-300 text-sm">AnalyticsBot</span>
                 </div>
 
                 {/* Human */}
                 <div className="flex flex-col items-center">
-                  <div className="h-16 w-16 rounded-full bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center">
-                    <span className="text-white font-semibold">H1</span>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-green-500 to-teal-500">
+                    <span className="font-semibold text-white">H1</span>
                   </div>
-                  <span className="mt-2 text-sm text-slate-300">Human User</span>
+                  <span className="mt-2 text-slate-300 text-sm">Human User</span>
                 </div>
 
                 {/* Agent 2 */}
                 <div className="flex flex-col items-center">
-                  <div className="h-16 w-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
-                    <span className="text-white font-semibold">A2</span>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-pink-500">
+                    <span className="font-semibold text-white">A2</span>
                   </div>
-                  <span className="mt-2 text-sm text-slate-300">ContentCreator</span>
+                  <span className="mt-2 text-slate-300 text-sm">ContentCreator</span>
                 </div>
               </div>
 
               {/* Connection Lines */}
-              <svg className="absolute inset-0 h-full w-full -z-10" viewBox="0 0 300 100">
+              <svg className="-z-10 absolute inset-0 h-full w-full" viewBox="0 0 300 100">
                 <line
                   x1="50"
                   y1="50"
@@ -201,7 +201,7 @@ export default async function HomePage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 bg-black/20 backdrop-blur-sm mt-16">
+      <footer className="mt-16 border-white/10 border-t bg-black/20 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-8">
           <div className="text-center text-slate-400">
             <p className="mb-2">Built for the Coinbase "Agents in Action" Hackathon</p>

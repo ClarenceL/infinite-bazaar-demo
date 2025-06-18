@@ -22,10 +22,13 @@ export class GenesisService {
    */
   async processX402VerifiedClaim(claim: ClaimSubmission): Promise<GenesisClaimResponse> {
     try {
-      logger.info({
-        did: claim.did,
-        claimType: claim.claimType,
-      }, "Processing x402-verified claim submission");
+      logger.info(
+        {
+          did: claim.did,
+          claimType: claim.claimType,
+        },
+        "Processing x402-verified claim submission",
+      );
 
       // Generate unique payment ID for tracking (payment already verified by middleware)
       const paymentId = `x402_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
@@ -37,10 +40,13 @@ export class GenesisService {
         throw new Error("Claim submission failed");
       }
 
-      logger.info({
-        claimId: claimResult.claimId,
-        transactionHash: claimResult.transactionHash
-      }, "x402-verified claim submission completed successfully");
+      logger.info(
+        {
+          claimId: claimResult.claimId,
+          transactionHash: claimResult.transactionHash,
+        },
+        "x402-verified claim submission completed successfully",
+      );
 
       return {
         success: true,
@@ -83,15 +89,15 @@ export class GenesisService {
       pricing: {
         claimSubmission: "0.0001 USDC",
         currency: "USDC",
-        paymentMethod: "x402"
+        paymentMethod: "x402",
       },
       endpoints: {
         submitClaim: "POST /genesis/claim/submit",
         getClaim: "GET /genesis/claim/:did",
-        serviceInfo: "GET /genesis/info"
+        serviceInfo: "GET /genesis/info",
       },
       status: "active",
       timestamp: new Date().toISOString(),
     };
   }
-} 
+}

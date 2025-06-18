@@ -94,4 +94,4 @@ function sanitizeUrl(url: string): string {
     logger.warn({ error }, "Failed to sanitize URL");
     return url;
   }
-} 
+}

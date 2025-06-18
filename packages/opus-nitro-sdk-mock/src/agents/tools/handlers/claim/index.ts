@@ -1,10 +1,10 @@
 import { logger } from "@infinite-bazaar-demo/logs";
-import type { ToolCallResult } from "../../../../types/message";
-import { processApiResponse } from "../utils";
+import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 // @ts-ignore
-import { wrapFetchWithPayment, decodeXPaymentResponse } from "x402-fetch";
-import type { Hex } from "viem";
+import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
+import type { ToolCallResult } from "../../../../types/message";
+import { processApiResponse } from "../utils";
 
 /**
  * Sample DID and claim data for testing
@@ -61,10 +61,13 @@ export async function handleClaim(): Promise<ToolCallResult> {
     const account = privateKeyToAccount(PRIVATE_KEY);
     const fetchWithPayment = wrapFetchWithPayment(fetch, account);
 
-    logger.info({
-      accountAddress: account.address,
-      x402Enabled: serviceInfo.x402Enabled
-    }, "Created x402-enabled fetch client");
+    logger.info(
+      {
+        accountAddress: account.address,
+        x402Enabled: serviceInfo.x402Enabled,
+      },
+      "Created x402-enabled fetch client",
+    );
 
     // Step 3: Prepare claim data
     const claimData = {
@@ -136,7 +139,6 @@ export async function handleClaim(): Promise<ToolCallResult> {
         timestamp: new Date().toISOString(),
       },
     };
-
   } catch (error) {
     logger.error({ error }, "Error in handleClaim function");
 

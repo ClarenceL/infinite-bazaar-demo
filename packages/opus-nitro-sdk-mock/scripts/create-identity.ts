@@ -36,13 +36,16 @@ async function createIdentity(): Promise<void> {
     const data: IdentityResponse = await response.json();
 
     if (data.success && data.identity) {
-      logger.info({
-        did: data.identity.did,
-        keyId: data.identity.keyId,
-        filePath: data.identity.filePath,
-        timestamp: data.identity.timestamp,
-        mock: data.mock,
-      }, "✅ Identity created successfully!");
+      logger.info(
+        {
+          did: data.identity.did,
+          keyId: data.identity.keyId,
+          filePath: data.identity.filePath,
+          timestamp: data.identity.timestamp,
+          mock: data.mock,
+        },
+        "✅ Identity created successfully!",
+      );
 
       console.log("\n🎉 Identity Creation Results:");
       console.log("================================");
@@ -64,16 +67,16 @@ async function createIdentity(): Promise<void> {
         console.log(`Issuer: ${data.credential.issuer || "Unknown"}`);
         console.log(`Subject: ${data.credential.credentialSubject?.id || "Unknown"}`);
       }
-
     } else {
       logger.error({ error: data.error }, "❌ Identity creation failed");
       console.error(`\n❌ Error: ${data.error || "Unknown error"}`);
       process.exit(1);
     }
-
   } catch (error) {
     logger.error({ error }, "❌ Failed to create identity");
-    console.error(`\n❌ Failed to create identity: ${error instanceof Error ? error.message : "Unknown error"}`);
+    console.error(
+      `\n❌ Failed to create identity: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
 
     if (error instanceof Error && error.message.includes("ECONNREFUSED")) {
       console.error("\n💡 Make sure the Opus Nitro SDK Mock server is running:");
@@ -121,10 +124,11 @@ async function listIdentities(): Promise<void> {
     } else {
       console.error(`\n❌ Error: ${data.error || "Unknown error"}`);
     }
-
   } catch (error) {
     logger.error({ error }, "❌ Failed to list identities");
-    console.error(`\n❌ Failed to list identities: ${error instanceof Error ? error.message : "Unknown error"}`);
+    console.error(
+      `\n❌ Failed to list identities: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
 
@@ -150,4 +154,4 @@ if (import.meta.main) {
     console.error("Script failed:", error);
     process.exit(1);
   });
-} 
+}

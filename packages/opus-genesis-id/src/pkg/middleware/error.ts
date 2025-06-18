@@ -1,5 +1,5 @@
-import { Context, Next } from "hono";
 import { logger } from "@infinite-bazaar-demo/logs";
+import { Context, Next } from "hono";
 
 export function errorHandler() {
   return async (c: Context, next: Next) => {
@@ -15,7 +15,7 @@ export function errorHandler() {
             error: error.message,
             timestamp: new Date().toISOString(),
           },
-          500
+          500,
         );
       }
 
@@ -25,8 +25,8 @@ export function errorHandler() {
           error: "Internal server error",
           timestamp: new Date().toISOString(),
         },
-        500
+        500,
       );
     }
   };
-} 
+}

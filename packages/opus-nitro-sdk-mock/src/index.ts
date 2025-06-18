@@ -71,4 +71,4 @@ export default {
   port: PORT,
   fetch: app.fetch,
   idleTimeout: 30,
-}; 
+};

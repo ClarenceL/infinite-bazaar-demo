@@ -1,10 +1,14 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   BjjProvider,
-  CredentialStatusType,
-  CredentialWallet,
-  CredentialStorage,
   CredentialStatusResolverRegistry,
+  CredentialStatusType,
+  CredentialStorage,
+  CredentialWallet,
   EthStateStorage,
+  type IDataStorage,
+  type Identity,
   IdentityStorage,
   IdentityWallet,
   InMemoryDataSource,
@@ -13,20 +17,16 @@ import {
   IssuerResolver,
   KMS,
   KmsKeyType,
-  RHSResolver,
-  defaultEthConnectionConfig,
-  type W3CCredential,
-  type Identity,
   type Profile,
-  type IDataStorage,
+  RHSResolver,
+  type W3CCredential,
   core,
+  defaultEthConnectionConfig,
 } from "@0xpolygonid/js-sdk";
 import { logger } from "@infinite-bazaar-demo/logs";
-import * as fs from "node:fs";
-import * as path from "node:path";
 
 // Network configuration - change this to switch between mainnet and testnet
-const NETWORK_ENV: 'MAINNET' | 'TESTNET' = 'TESTNET';
+const NETWORK_ENV: "MAINNET" | "TESTNET" = "TESTNET";
 
 // Network configurations
 const NETWORK_CONFIG = {
@@ -34,16 +34,16 @@ const NETWORK_CONFIG = {
     rpcUrl: "https://polygon-rpc.com",
     contractAddress: "0x624ce98D2d27b20b8f8d521723Df8fC4db71D79D", // Polygon mainnet State contract
     chainId: 137,
-    networkId: 'main',
-    networkName: 'main'
+    networkId: "main",
+    networkName: "main",
   },
   TESTNET: {
     rpcUrl: "https://rpc-amoy.polygon.technology/",
     contractAddress: "0x1a4cC30f2aA0377b0c3bc9848766D90cb4404124", // Amoy testnet State contract
     chainId: 80002,
-    networkId: 'amoy',
-    networkName: 'amoy'
-  }
+    networkId: "amoy",
+    networkName: "amoy",
+  },
 };
 
 export interface IdentityCreationResult {
@@ -77,17 +77,20 @@ export class IdentityService {
       chainId: currentConfig.chainId,
     };
 
-    logger.info({
-      network: NETWORK_ENV,
-      chainId: currentConfig.chainId,
-      rpcUrl: currentConfig.rpcUrl
-    }, "Initializing data storage with network configuration");
+    logger.info(
+      {
+        network: NETWORK_ENV,
+        chainId: currentConfig.chainId,
+        rpcUrl: currentConfig.rpcUrl,
+      },
+      "Initializing data storage with network configuration",
+    );
 
     return {
       credential: new CredentialStorage(new InMemoryDataSource<W3CCredential>()),
       identity: new IdentityStorage(
         new InMemoryDataSource<Identity>(),
-        new InMemoryDataSource<Profile>()
+        new InMemoryDataSource<Profile>(),
       ),
       mt: new InMemoryMerkleTreeStorage(40),
       states: new EthStateStorage(networkConfig),
@@ -96,13 +99,10 @@ export class IdentityService {
 
   private initCredentialWallet(dataStorage: IDataStorage): CredentialWallet {
     const resolvers = new CredentialStatusResolverRegistry();
-    resolvers.register(
-      CredentialStatusType.SparseMerkleTreeProof,
-      new IssuerResolver()
-    );
+    resolvers.register(CredentialStatusType.SparseMerkleTreeProof, new IssuerResolver());
     resolvers.register(
       CredentialStatusType.Iden3ReverseSparseMerkleTreeProof,
-      new RHSResolver(dataStorage.states)
+      new RHSResolver(dataStorage.states),
     );
 
     return new CredentialWallet(dataStorage, resolvers);
@@ -110,7 +110,7 @@ export class IdentityService {
 
   private initIdentityWallet(
     dataStorage: IDataStorage,
-    credentialWallet: CredentialWallet
+    credentialWallet: CredentialWallet,
   ): IdentityWallet {
     const memoryKeyStore = new InMemoryPrivateKeyStore();
     const bjjProvider = new BjjProvider(KmsKeyType.BabyJubJub, memoryKeyStore);
@@ -133,8 +133,8 @@ export class IdentityService {
       // Create identity with proper IdentityCreationOptions
       // Using SparseMerkleTreeProof instead of reverse proof to avoid URL validation
       const { did, credential } = await this.identityWallet.createIdentity({
-        method: 'iden3',
-        blockchain: 'polygon',
+        method: "iden3",
+        blockchain: "polygon",
         networkId: currentConfig.networkId,
         seed: seedPhrase,
         revocationOpts: {
@@ -159,9 +159,9 @@ export class IdentityService {
         privateKey,
         keyId: keyId.id,
         createdAt: new Date().toISOString(),
-        blockchain: 'polygon',
+        blockchain: "polygon",
         networkId: currentConfig.networkName,
-        method: 'iden3',
+        method: "iden3",
         network: NETWORK_ENV,
       };
 
@@ -178,14 +178,16 @@ export class IdentityService {
       };
     } catch (error) {
       logger.error({ error, network: NETWORK_ENV }, "Failed to create identity");
-      throw new Error(`Identity creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Identity creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   }
 
   private generateMockPrivateKey(): string {
     // Generate a mock private key (64 hex characters)
-    const chars = '0123456789abcdef';
-    let result = '0x';
+    const chars = "0123456789abcdef";
+    let result = "0x";
     for (let i = 0; i < 64; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
@@ -193,9 +195,9 @@ export class IdentityService {
   }
 
   private async saveIdentityToFile(identityData: any): Promise<string> {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const fileName = `identity-${timestamp}.json`;
-    const filePath = path.join(process.cwd(), 'out', 'identities', fileName);
+    const filePath = path.join(process.cwd(), "out", "identities", fileName);
 
     // Ensure directory exists
     const dirPath = path.dirname(filePath);
@@ -213,23 +215,26 @@ export class IdentityService {
 
   async getIdentityFromFile(filePath: string): Promise<any> {
     try {
-      const data = fs.readFileSync(filePath, 'utf8');
+      const data = fs.readFileSync(filePath, "utf8");
       return JSON.parse(data);
     } catch (error) {
       logger.error({ error, filePath }, "Failed to read identity from file");
-      throw new Error(`Failed to read identity file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to read identity file: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   }
 
   async listIdentityFiles(): Promise<string[]> {
-    const identitiesDir = path.join(process.cwd(), 'out', 'identities');
+    const identitiesDir = path.join(process.cwd(), "out", "identities");
 
     if (!fs.existsSync(identitiesDir)) {
       return [];
     }
 
-    return fs.readdirSync(identitiesDir)
-      .filter(file => file.endsWith('.json'))
-      .map(file => path.join(identitiesDir, file));
+    return fs
+      .readdirSync(identitiesDir)
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => path.join(identitiesDir, file));
   }
-} 
+}

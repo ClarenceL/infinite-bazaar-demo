@@ -2,16 +2,16 @@
 
 /**
  * Test script for x402 integration between opus-genesis-id (server) and opus-nitro-sdk-mock (client)
- * 
+ *
  * This script:
  * 1. Tests the service info endpoint (no payment required)
  * 2. Tests claim submission with x402 payment
  * 3. Demonstrates the full x402 payment flow
  */
 
-import { privateKeyToAccount } from "viem/accounts";
-import { wrapFetchWithPayment, decodeXPaymentResponse } from "x402-fetch";
 import type { Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 
 // Configuration
 const OPUS_GENESIS_ID_URL = process.env.OPUS_GENESIS_ID_URL || "http://localhost:3106";
@@ -121,12 +121,13 @@ async function main() {
       console.log("✅ x402 is enabled on the server");
       await testX402ClaimSubmission();
     } else {
-      console.log("⚠️ x402 is not enabled on the server (X402_SERVICE_WALLET_ADDRESS not configured)");
+      console.log(
+        "⚠️ x402 is not enabled on the server (X402_SERVICE_WALLET_ADDRESS not configured)",
+      );
       console.log("🔧 To enable x402, set X402_SERVICE_WALLET_ADDRESS environment variable");
     }
 
     console.log("\n🎉 x402 integration test completed successfully!");
-
   } catch (error) {
     console.error("\n💥 x402 integration test failed:", error);
     process.exit(1);
@@ -134,4 +135,4 @@ async function main() {
 }
 
 // Run the test
-main().catch(console.error); 
+main().catch(console.error);

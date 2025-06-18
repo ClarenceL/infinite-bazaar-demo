@@ -22,13 +22,7 @@
     "lint:fix-unsafe": "biome check --fix --unsafe .",
     "create-identity": "bun run scripts/create-identity.ts"
   },
-  "keywords": [
-    "nitro",
-    "enclave",
-    "mock",
-    "aws",
-    "infinite-bazaar"
-  ],
+  "keywords": ["nitro", "enclave", "mock", "aws", "infinite-bazaar"],
   "author": "",
   "license": "ISC",
   "dependencies": {

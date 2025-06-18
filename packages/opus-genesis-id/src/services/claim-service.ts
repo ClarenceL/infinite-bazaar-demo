@@ -1,8 +1,8 @@
-import { logger } from "@infinite-bazaar-demo/logs";
-import { z } from "zod";
-import { createPublicClient, http, formatUnits, parseAbi } from "viem";
-import { baseSepolia } from "viem/chains";
 import { Coinbase } from "@coinbase/coinbase-sdk";
+import { logger } from "@infinite-bazaar-demo/logs";
+import { http, createPublicClient, formatUnits, parseAbi } from "viem";
+import { baseSepolia } from "viem/chains";
+import { z } from "zod";
 // For now, I'll implement a simplified x402 integration
 // The x402 package has module resolution issues with the current setup
 // TODO: Fix module resolution to use proper x402 imports
@@ -59,39 +59,47 @@ export interface X402PaymentResult {
 
 export class ClaimService {
   private readonly CLAIM_PRICE_USDC = "1000000"; // 1 USDC in 6 decimals
-  private readonly SUPPORTED_CURRENCIES = ['USDC', 'usdc'];
+  private readonly SUPPORTED_CURRENCIES = ["USDC", "usdc"];
   private readonly SERVICE_WALLET_ADDRESS: string;
   private publicClient;
-  private readonly USDC_CONTRACT_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'; // Base Sepolia USDC
+  private readonly USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Base Sepolia USDC
   private readonly BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 
   constructor() {
     // Service wallet address for receiving payments
-    this.SERVICE_WALLET_ADDRESS = process.env.X402_SERVICE_WALLET_ADDRESS || '';
+    this.SERVICE_WALLET_ADDRESS = process.env.X402_SERVICE_WALLET_ADDRESS || "";
 
     // Initialize viem client for Base Sepolia
     this.publicClient = createPublicClient({
       chain: baseSepolia,
-      transport: http(process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org'),
+      transport: http(process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org"),
     });
 
     if (!this.SERVICE_WALLET_ADDRESS) {
-      logger.warn("X402_SERVICE_WALLET_ADDRESS not configured - payment verification will use mock mode");
+      logger.warn(
+        "X402_SERVICE_WALLET_ADDRESS not configured - payment verification will use mock mode",
+      );
     }
   }
 
   /**
- * Simulate blockchain transaction using Coinbase CDP
- * This demonstrates how claims would be stored on-chain after payment
- */
-  async simulateBlockchainTransaction(claim: ClaimSubmission, claimId: string): Promise<{
+   * Simulate blockchain transaction using Coinbase CDP
+   * This demonstrates how claims would be stored on-chain after payment
+   */
+  async simulateBlockchainTransaction(
+    claim: ClaimSubmission,
+    claimId: string,
+  ): Promise<{
     success: boolean;
     transactionHash?: string;
     accountName?: string;
     error?: string;
   }> {
     try {
-      logger.info({ claimId, did: claim.did }, "Simulating blockchain transaction with Coinbase CDP");
+      logger.info(
+        { claimId, did: claim.did },
+        "Simulating blockchain transaction with Coinbase CDP",
+      );
 
       // Initialize Coinbase CDP client
       const coinbase = Coinbase.configure({
@@ -107,28 +115,33 @@ export class ClaimService {
         // For now, we'll simulate the process
         const mockWalletId = `wallet-${Math.random().toString(36).substring(2, 15)}`;
 
-        logger.info({
-          accountName,
-          mockWalletId,
-          claimId
-        }, "Simulated CDP wallet creation for claim storage");
+        logger.info(
+          {
+            accountName,
+            mockWalletId,
+            claimId,
+          },
+          "Simulated CDP wallet creation for claim storage",
+        );
 
         // Simulate a transaction (in real implementation, this would interact with a smart contract)
         const mockTransactionHash = `0x${Math.random().toString(16).substring(2, 66)}`;
 
-        logger.info({
-          claimId,
-          transactionHash: mockTransactionHash,
-          accountName,
-          did: claim.did
-        }, "Simulated blockchain transaction for claim storage");
+        logger.info(
+          {
+            claimId,
+            transactionHash: mockTransactionHash,
+            accountName,
+            did: claim.did,
+          },
+          "Simulated blockchain transaction for claim storage",
+        );
 
         return {
           success: true,
           transactionHash: mockTransactionHash,
           accountName,
         };
-
       } catch (cdpError) {
         logger.warn({ error: cdpError }, "CDP simulation failed, using fallback mock transaction");
 
@@ -141,7 +154,6 @@ export class ClaimService {
           accountName: `mock-${accountName}`,
         };
       }
-
     } catch (error) {
       logger.error({ error, claimId }, "Failed to simulate blockchain transaction");
       return {
@@ -156,11 +168,14 @@ export class ClaimService {
    */
   async submitClaim(claim: ClaimSubmission, paymentId: string): Promise<ClaimSubmissionResult> {
     try {
-      logger.info({
-        did: claim.did,
-        claimType: claim.claimType,
-        paymentId
-      }, "Submitting claim to blockchain");
+      logger.info(
+        {
+          did: claim.did,
+          claimType: claim.claimType,
+          paymentId,
+        },
+        "Submitting claim to blockchain",
+      );
 
       // Generate unique claim ID
       const claimId = `claim_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
@@ -171,7 +186,9 @@ export class ClaimService {
         return result;
       } else {
         // Mock submission for development
-        logger.warn("Using mock claim submission - configure blockchain contract for real submission");
+        logger.warn(
+          "Using mock claim submission - configure blockchain contract for real submission",
+        );
         return await this.mockClaimSubmission(claim, claimId, paymentId);
       }
     } catch (error) {
@@ -183,7 +200,11 @@ export class ClaimService {
   /**
    * Submit claim to actual blockchain contract
    */
-  private async submitClaimToContract(claim: ClaimSubmission, claimId: string, paymentId: string): Promise<ClaimSubmissionResult> {
+  private async submitClaimToContract(
+    claim: ClaimSubmission,
+    claimId: string,
+    paymentId: string,
+  ): Promise<ClaimSubmissionResult> {
     try {
       // Simulate blockchain transaction with Coinbase CDP
       const blockchainResult = await this.simulateBlockchainTransaction(claim, claimId);
@@ -192,13 +213,16 @@ export class ClaimService {
         throw new Error(`Blockchain simulation failed: ${blockchainResult.error}`);
       }
 
-      logger.info({
-        claimId,
-        transactionHash: blockchainResult.transactionHash,
-        accountName: blockchainResult.accountName,
-        did: claim.did,
-        paymentId
-      }, "Claim submitted to blockchain using CDP simulation");
+      logger.info(
+        {
+          claimId,
+          transactionHash: blockchainResult.transactionHash,
+          accountName: blockchainResult.accountName,
+          did: claim.did,
+          paymentId,
+        },
+        "Claim submitted to blockchain using CDP simulation",
+      );
 
       return {
         success: true,
@@ -216,18 +240,25 @@ export class ClaimService {
   /**
    * Mock claim submission for development
    */
-  private async mockClaimSubmission(claim: ClaimSubmission, claimId: string, paymentId: string): Promise<ClaimSubmissionResult> {
+  private async mockClaimSubmission(
+    claim: ClaimSubmission,
+    claimId: string,
+    paymentId: string,
+  ): Promise<ClaimSubmissionResult> {
     // Simulate blockchain interaction delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     const mockTransactionHash = `0x${Math.random().toString(16).substring(2, 66)}`;
 
-    logger.info({
-      claimId,
-      transactionHash: mockTransactionHash,
-      did: claim.did,
-      paymentId
-    }, "Claim submitted successfully (mock)");
+    logger.info(
+      {
+        claimId,
+        transactionHash: mockTransactionHash,
+        did: claim.did,
+        paymentId,
+      },
+      "Claim submitted successfully (mock)",
+    );
 
     return {
       success: true,
@@ -280,4 +311,4 @@ export class ClaimService {
       throw error;
     }
   }
-} 
+}

@@ -2,7 +2,7 @@
 
 /**
  * Test script for Coinbase CDP claim handler
- * 
+ *
  * This script tests the claim-cdp tool which uses Coinbase CDP SDK
  * instead of private keys for x402 payments.
  */
@@ -31,16 +31,16 @@ async function testClaimCdp(): Promise<TestResult> {
 
     // Check required environment variables
     const requiredEnvVars = [
-      'CDP_API_KEY_ID',
-      'CDP_API_KEY_SECRET',
-      'CDP_WALLET_SECRET',
-      'OPUS_GENESIS_ID_URL'
+      "CDP_API_KEY_ID",
+      "CDP_API_KEY_SECRET",
+      "CDP_WALLET_SECRET",
+      "OPUS_GENESIS_ID_URL",
     ];
 
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
     if (missingVars.length > 0) {
-      const errorMsg = `Missing required environment variables: ${missingVars.join(', ')}`;
+      const errorMsg = `Missing required environment variables: ${missingVars.join(", ")}`;
       logger.error(errorMsg);
       result.error = errorMsg;
       return result;
@@ -61,7 +61,6 @@ async function testClaimCdp(): Promise<TestResult> {
       result.error = claimResult.data?.error || "Unknown error from claim handler";
       result.data = claimResult.data;
     }
-
   } catch (error) {
     logger.error({ error }, "❌ Test execution failed");
     result.error = error instanceof Error ? error.message : "Unknown error";
@@ -92,12 +91,12 @@ function generateTestReport(result: TestResult): void {
     }
 
     if (result.data.paymentDetails) {
-      console.log(`  Payment Method: ${result.data.paymentDetails.method || 'x402-cdp'}`);
-      console.log(`  Payment Status: ${result.data.paymentDetails.status || 'processed'}`);
+      console.log(`  Payment Method: ${result.data.paymentDetails.method || "x402-cdp"}`);
+      console.log(`  Payment Status: ${result.data.paymentDetails.status || "processed"}`);
     }
 
     if (result.data.claimSubmission) {
-      console.log(`  Claim ID: ${result.data.claimSubmission.claimId || 'N/A'}`);
+      console.log(`  Claim ID: ${result.data.claimSubmission.claimId || "N/A"}`);
       console.log(`  Payment Verified: ${result.data.claimSubmission.paymentVerified || false}`);
     }
   }
@@ -142,20 +141,20 @@ async function main() {
 }
 
 // Handle uncaught errors
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error({ reason, promise }, 'Unhandled Rejection in CDP test');
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error({ reason, promise }, "Unhandled Rejection in CDP test");
   process.exit(1);
 });
 
-process.on('uncaughtException', (error) => {
-  logger.error({ error }, 'Uncaught Exception in CDP test');
+process.on("uncaughtException", (error) => {
+  logger.error({ error }, "Uncaught Exception in CDP test");
   process.exit(1);
 });
 
 // Run the script if executed directly
-if (process.argv[1] === import.meta.url.replace('file://', '')) {
+if (process.argv[1] === import.meta.url.replace("file://", "")) {
   main().catch((error) => {
     logger.error({ error }, "Failed to run CDP claim test");
     process.exit(1);
   });
-} 
+}

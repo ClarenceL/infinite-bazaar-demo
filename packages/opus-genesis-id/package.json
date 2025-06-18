@@ -16,14 +16,7 @@
     "lint:fix": "biome check --fix .",
     "lint:fix-unsafe": "biome check --fix --unsafe ."
   },
-  "keywords": [
-    "x402",
-    "privado-id",
-    "blockchain",
-    "identity",
-    "coinbase",
-    "cdp"
-  ],
+  "keywords": ["x402", "privado-id", "blockchain", "identity", "coinbase", "cdp"],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -34,7 +27,7 @@
     "dotenv": "^16.4.7",
     "hono": "^4.6.14",
     "viem": "^2.24.3",
-    "x402": "^0.4.0",
+    "@infinite-bazaar-demo/x402": "workspace:*",
     "x402-hono": "^0.4.0",
     "zod": "^3.24.2"
   },

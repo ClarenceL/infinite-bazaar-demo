@@ -1,4 +1,4 @@
-import { IdentityService, type IdentityCreationResult } from "@/services/identity-service";
+import { type IdentityCreationResult, IdentityService } from "@/services/identity-service";
 import { logger } from "@infinite-bazaar-demo/logs";
 
 export interface EnclaveInfo {
@@ -123,7 +123,9 @@ export class EnclaveService {
       return identities;
     } catch (error) {
       logger.error({ error }, "Error listing identities");
-      throw new Error(`Failed to list identities: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list identities: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   }
 
@@ -196,4 +198,4 @@ export class EnclaveService {
 }
 
 // Export singleton instance
-export const enclaveService = new EnclaveService(); 
+export const enclaveService = new EnclaveService();

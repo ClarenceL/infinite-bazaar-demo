@@ -23,7 +23,6 @@ async function testClaimHandler() {
       console.log(`Error: ${result.data?.error}`);
       console.log(`Details: ${result.data?.details}`);
     }
-
   } catch (error) {
     console.error("\n💥 Test failed with error:");
     console.error(error);
@@ -34,4 +33,4 @@ async function testClaimHandler() {
 // Run the test
 if (import.meta.main) {
   testClaimHandler().catch(console.error);
-} 
+}

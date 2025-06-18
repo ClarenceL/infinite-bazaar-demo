@@ -1,11 +1,11 @@
+import { CdpClient } from "@coinbase/cdp-sdk";
 import { logger } from "@infinite-bazaar-demo/logs";
+import type { LocalAccount } from "viem";
+import { toAccount } from "viem/accounts";
+// @ts-ignore
+import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 import type { ToolCallResult } from "../../../../types/message.js";
 import { processApiResponse } from "../utils.js";
-import { CdpClient } from "@coinbase/cdp-sdk";
-import { toAccount } from "viem/accounts";
-import type { LocalAccount } from "viem";
-// @ts-ignore
-import { wrapFetchWithPayment, decodeXPaymentResponse } from "x402-fetch";
 
 /**
  * Sample DID and claim data for testing
@@ -27,6 +27,7 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
   const CDP_API_KEY_ID = process.env.CDP_API_KEY_ID;
   const CDP_API_KEY_SECRET = process.env.CDP_API_KEY_SECRET;
   const CDP_WALLET_SECRET = process.env.CDP_WALLET_SECRET;
+  const CDP_PAY_FROM_ADDRESS_NAME = process.env.CDP_PAY_FROM_ADDRESS_NAME;
 
   try {
     logger.info("Starting claim submission process with CDP SDK and x402 payment");
@@ -37,7 +38,19 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
       return {
         data: {
           success: false,
-          error: "CDP_API_KEY_ID, CDP_API_KEY_SECRET, and CDP_WALLET_SECRET environment variables are required",
+          error:
+            "CDP_API_KEY_ID, CDP_API_KEY_SECRET, and CDP_WALLET_SECRET environment variables are required",
+        },
+      };
+    }
+
+    if (!CDP_PAY_FROM_ADDRESS_NAME) {
+      logger.error("CDP_PAY_FROM_ADDRESS_NAME environment variable is required");
+      return {
+        data: {
+          success: false,
+          error:
+            "CDP_PAY_FROM_ADDRESS_NAME environment variable is required (wallet name for payment account)",
         },
       };
     }
@@ -52,21 +65,27 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
 
     logger.info("Creating or retrieving CDP account...");
     const cdpAccount = await cdpClient.evm.getOrCreateAccount({
-      name: "infinite-bazaar-x402",
+      name: CDP_PAY_FROM_ADDRESS_NAME,
     });
 
-    logger.info({
-      accountName: cdpAccount.name,
-      accountId: (cdpAccount as any).id || 'unknown'
-    }, "CDP account ready");
+    logger.info(
+      {
+        accountName: cdpAccount.name,
+        accountId: (cdpAccount as any).id || "unknown",
+      },
+      "CDP account ready",
+    );
 
     // Step 2: Convert CDP account to viem LocalAccount for x402-fetch
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const viemAccount = toAccount<LocalAccount>(cdpAccount as any);
 
-    logger.info({
-      accountAddress: viemAccount.address
-    }, "Converted CDP account to viem account");
+    logger.info(
+      {
+        accountAddress: viemAccount.address,
+      },
+      "Converted CDP account to viem account",
+    );
 
     // Step 3: Get service information and pricing (no payment required)
     logger.info("Fetching service information from opus-genesis-id");
@@ -90,11 +109,14 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
     // Step 4: Create x402-enabled fetch client using CDP account
     const fetchWithPayment = wrapFetchWithPayment(fetch, viemAccount);
 
-    logger.info({
-      accountAddress: viemAccount.address,
-      x402Enabled: serviceInfo.x402Enabled,
-      cdpAccountName: cdpAccount.name
-    }, "Created x402-enabled fetch client with CDP account");
+    logger.info(
+      {
+        accountAddress: viemAccount.address,
+        x402Enabled: serviceInfo.x402Enabled,
+        cdpAccountName: cdpAccount.name,
+      },
+      "Created x402-enabled fetch client with CDP account",
+    );
 
     // Step 5: Prepare claim data
     const claimData = {
@@ -127,14 +149,19 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
         body: JSON.stringify(claimData),
       });
 
-      logger.info({
-        status: testResponse.status,
-        statusText: testResponse.statusText,
-        headers: Object.fromEntries(testResponse.headers.entries())
-      }, `📋 FIRST REQUEST RESULT: ${testResponse.status === 402 ? 'HTTP 402 Payment Required (GOOD!)' : 'Unexpected status (BAD!)'}`);
+      logger.info(
+        {
+          status: testResponse.status,
+          statusText: testResponse.statusText,
+          headers: Object.fromEntries(testResponse.headers.entries()),
+        },
+        `📋 FIRST REQUEST RESULT: ${testResponse.status === 402 ? "HTTP 402 Payment Required (GOOD!)" : "Unexpected status (BAD!)"}`,
+      );
 
       if (testResponse.status !== 402) {
-        logger.warn("⚠️  Expected HTTP 402 but got different status - payment middleware may not be working");
+        logger.warn(
+          "⚠️  Expected HTTP 402 but got different status - payment middleware may not be working",
+        );
       }
     } catch (error) {
       logger.error({ error }, "❌ Test request failed");
@@ -145,10 +172,13 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
 
     // Log the CDP account balance before payment
     try {
-      logger.info({
-        cdpAddress: viemAccount.address,
-        network: "base-sepolia"
-      }, "🏦 CDP Account before payment");
+      logger.info(
+        {
+          cdpAddress: viemAccount.address,
+          network: "base-sepolia",
+        },
+        "🏦 CDP Account before payment",
+      );
     } catch (error) {
       logger.warn({ error }, "Could not check CDP account balance");
     }
@@ -163,10 +193,13 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
 
     // Log the CDP account after payment
     try {
-      logger.info({
-        cdpAddress: viemAccount.address,
-        network: "base-sepolia"
-      }, "🏦 CDP Account after payment");
+      logger.info(
+        {
+          cdpAddress: viemAccount.address,
+          network: "base-sepolia",
+        },
+        "🏦 CDP Account after payment",
+      );
     } catch (error) {
       logger.warn({ error }, "Could not check CDP account balance after payment");
     }
@@ -203,17 +236,23 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
       allResponseHeaders[key] = value;
     });
 
-    logger.info({
-      responseStatus: claimResponse.status,
-      responseHeaders: allResponseHeaders
-    }, "📋 Full response details from x402-enabled request");
+    logger.info(
+      {
+        responseStatus: claimResponse.status,
+        responseHeaders: allResponseHeaders,
+      },
+      "📋 Full response details from x402-enabled request",
+    );
 
     // Check if we actually made a payment
-    logger.info({
-      hasPaymentDetails: !!paymentDetails,
-      paymentResponseHeader: !!paymentResponseHeader,
-      responseStatus: claimResponse.status
-    }, "💰 PAYMENT ANALYSIS - Did we actually pay?");
+    logger.info(
+      {
+        hasPaymentDetails: !!paymentDetails,
+        paymentResponseHeader: !!paymentResponseHeader,
+        responseStatus: claimResponse.status,
+      },
+      "💰 PAYMENT ANALYSIS - Did we actually pay?",
+    );
 
     logger.info({ claimResult: claimResult.data }, "Successfully submitted claim using CDP");
 
@@ -230,13 +269,12 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
         },
         cdpAccount: {
           name: cdpAccount.name,
-          id: (cdpAccount as any).id || 'unknown',
+          id: (cdpAccount as any).id || "unknown",
           address: viemAccount.address,
         },
         timestamp: new Date().toISOString(),
       },
     };
-
   } catch (error) {
     logger.error({ error }, "Error in handleClaimCdp function");
 
@@ -249,4 +287,4 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
       },
     };
   }
-} 
+}

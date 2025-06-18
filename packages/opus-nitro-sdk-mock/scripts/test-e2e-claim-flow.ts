@@ -2,7 +2,7 @@
 
 /**
  * End-to-End Test Script for InfiniteBazaar Claim Flow
- * 
+ *
  * This script tests the complete flow:
  * 1. Start both opus-nitro-sdk-mock and opus-genesis-id services
  * 2. Call the test endpoint on opus-nitro-sdk-mock
@@ -61,9 +61,9 @@ class E2ETestRunner {
       const serviceStatus = await this.checkServiceHealth();
       result.services = serviceStatus;
 
-      const unhealthyServices = serviceStatus.filter(s => !s.healthy);
+      const unhealthyServices = serviceStatus.filter((s) => !s.healthy);
       if (unhealthyServices.length > 0) {
-        const errorMsg = `Services not healthy: ${unhealthyServices.map(s => s.name).join(', ')}`;
+        const errorMsg = `Services not healthy: ${unhealthyServices.map((s) => s.name).join(", ")}`;
         result.errors.push(errorMsg);
         logger.error({ unhealthyServices }, errorMsg);
         return result;
@@ -84,8 +84,8 @@ class E2ETestRunner {
       logger.info("✅ Claim submission flow completed successfully");
 
       // Step 2b: Test CDP claim submission flow (if CDP env vars are available)
-      const cdpEnvVars = ['CDP_API_KEY_ID', 'CDP_API_KEY_SECRET', 'CDP_WALLET_SECRET'];
-      const hasCdpEnv = cdpEnvVars.every(varName => process.env[varName]);
+      const cdpEnvVars = ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET", "CDP_WALLET_SECRET"];
+      const hasCdpEnv = cdpEnvVars.every((varName) => process.env[varName]);
 
       if (hasCdpEnv) {
         logger.info("🔄 Testing CDP claim submission flow...");
@@ -126,9 +126,8 @@ class E2ETestRunner {
 
       result.success = true;
       logger.info("🎉 E2E test suite completed successfully!");
-
     } catch (error) {
-      const errorMsg = `E2E test failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const errorMsg = `E2E test failed: ${error instanceof Error ? error.message : "Unknown error"}`;
       result.errors.push(errorMsg);
       logger.error({ error }, errorMsg);
     } finally {
@@ -204,11 +203,14 @@ class E2ETestRunner {
       const responseData = await response.json();
 
       if (!response.ok) {
-        logger.error({
-          status: response.status,
-          statusText: response.statusText,
-          responseData
-        }, "Claim submission request failed");
+        logger.error(
+          {
+            status: response.status,
+            statusText: response.statusText,
+            responseData,
+          },
+          "Claim submission request failed",
+        );
 
         return {
           success: false,
@@ -230,7 +232,6 @@ class E2ETestRunner {
         success: true,
         data: responseData.data,
       };
-
     } catch (error) {
       logger.error({ error }, "Error during claim submission test");
       return {
@@ -260,11 +261,14 @@ class E2ETestRunner {
       const responseData = await response.json();
 
       if (!response.ok) {
-        logger.error({
-          status: response.status,
-          statusText: response.statusText,
-          responseData
-        }, "CDP claim submission request failed");
+        logger.error(
+          {
+            status: response.status,
+            statusText: response.statusText,
+            responseData,
+          },
+          "CDP claim submission request failed",
+        );
 
         return {
           success: false,
@@ -286,7 +290,6 @@ class E2ETestRunner {
         success: true,
         data: responseData.data,
       };
-
     } catch (error) {
       logger.error({ error }, "Error during CDP claim submission test");
       return {
@@ -306,7 +309,7 @@ class E2ETestRunner {
     console.log(`✅ Overall Success: ${result.success ? "PASS" : "FAIL"}`);
 
     console.log("\n📊 SERVICE STATUS:");
-    result.services.forEach(service => {
+    result.services.forEach((service) => {
       const status = service.healthy ? "✅ HEALTHY" : "❌ UNHEALTHY";
       console.log(`  ${service.name}: ${status}`);
       if (service.error) {
@@ -336,7 +339,9 @@ class E2ETestRunner {
 
     if (result.testResults.paymentFlow) {
       console.log("\n💳 PAYMENT FLOW:");
-      console.log(`  x402 Payment: ${result.testResults.paymentFlow.paymentProcessed ? "✅ PROCESSED" : "❌ FAILED"}`);
+      console.log(
+        `  x402 Payment: ${result.testResults.paymentFlow.paymentProcessed ? "✅ PROCESSED" : "❌ FAILED"}`,
+      );
       if (result.testResults.paymentFlow.accountAddress) {
         console.log(`  Account: ${result.testResults.paymentFlow.accountAddress}`);
       }
@@ -365,7 +370,9 @@ class E2ETestRunner {
       console.log("✅ End-to-end claim submission flow is complete");
     } else {
       console.log("❌ TESTS FAILED! Please check the errors above and ensure:");
-      console.log("  1. Both services are running (opus-nitro-sdk-mock on :3105, opus-genesis-id on :3106)");
+      console.log(
+        "  1. Both services are running (opus-nitro-sdk-mock on :3105, opus-genesis-id on :3106)",
+      );
       console.log("  2. Environment variables are properly configured");
       console.log("  3. x402 payment configuration is correct");
     }
@@ -385,13 +392,13 @@ async function main() {
 }
 
 // Handle uncaught errors
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error({ reason, promise }, 'Unhandled Rejection');
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error({ reason, promise }, "Unhandled Rejection");
   process.exit(1);
 });
 
-process.on('uncaughtException', (error) => {
-  logger.error({ error }, 'Uncaught Exception');
+process.on("uncaughtException", (error) => {
+  logger.error({ error }, "Uncaught Exception");
   process.exit(1);
 });
 
@@ -399,4 +406,4 @@ process.on('uncaughtException', (error) => {
 main().catch((error) => {
   logger.error({ error }, "Failed to run E2E tests");
   process.exit(1);
-}); 
+});

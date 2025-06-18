@@ -4,9 +4,9 @@
 // import { mcpTools } from "..";
 import type { ToolCallResult } from "../../../types/message.js";
 
+import { handleClaimCdp } from "./claim-cdp/index.js";
 // Import handlers from their new locations
 import { handleClaim } from "./claim/index.js";
-import { handleClaimCdp } from "./claim-cdp/index.js";
 
 /**
  * Process a tool call and return the result

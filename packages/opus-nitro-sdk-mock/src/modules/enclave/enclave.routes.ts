@@ -1,9 +1,9 @@
-import { errorHandler } from "../../pkg/middleware/error.js";
-import { Hono } from "hono";
-import { enclaveService } from "./enclave.service.js";
 import { logger } from "@infinite-bazaar-demo/logs";
-import { handleClaim } from "../../agents/tools/handlers/claim/index.js";
+import { Hono } from "hono";
 import { handleClaimCdp } from "../../agents/tools/handlers/claim-cdp/index.js";
+import { handleClaim } from "../../agents/tools/handlers/claim/index.js";
+import { errorHandler } from "../../pkg/middleware/error.js";
+import { enclaveService } from "./enclave.service.js";
 
 // Create the enclave router
 export const enclaveRoutes = new Hono()
@@ -15,10 +15,13 @@ export const enclaveRoutes = new Hono()
       const info = await enclaveService.getEnclaveInfo();
       return c.json(info);
     } catch (error) {
-      return c.json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }, 500);
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+        500,
+      );
     }
   })
 
@@ -40,11 +43,14 @@ export const enclaveRoutes = new Hono()
         message: "Identity created using Privado ID JS SDK",
       });
     } catch (error) {
-      return c.json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        mock: false,
-      }, 500);
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          mock: false,
+        },
+        500,
+      );
     }
   })
 
@@ -60,11 +66,14 @@ export const enclaveRoutes = new Hono()
         mock: false,
       });
     } catch (error) {
-      return c.json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        mock: false,
-      }, 500);
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          mock: false,
+        },
+        500,
+      );
     }
   })
 
@@ -75,11 +84,14 @@ export const enclaveRoutes = new Hono()
       const result = await enclaveService.createMockDid(body);
       return c.json(result);
     } catch (error) {
-      return c.json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        mock: true,
-      }, 500);
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          mock: true,
+        },
+        500,
+      );
     }
   })
 
@@ -90,11 +102,14 @@ export const enclaveRoutes = new Hono()
       const result = await enclaveService.signState(body);
       return c.json(result);
     } catch (error) {
-      return c.json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        mock: true,
-      }, 500);
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          mock: true,
+        },
+        500,
+      );
     }
   })
 
@@ -105,11 +120,14 @@ export const enclaveRoutes = new Hono()
       const result = await enclaveService.commitMemory(body);
       return c.json(result);
     } catch (error) {
-      return c.json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        mock: true,
-      }, 500);
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          mock: true,
+        },
+        500,
+      );
     }
   })
 
@@ -119,11 +137,14 @@ export const enclaveRoutes = new Hono()
       const result = await enclaveService.generateAttestation();
       return c.json(result);
     } catch (error) {
-      return c.json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        mock: true,
-      }, 500);
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          mock: true,
+        },
+        500,
+      );
     }
   })
 
@@ -152,7 +173,7 @@ export const enclaveRoutes = new Hono()
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        500
+        500,
       );
     }
   })
@@ -183,11 +204,11 @@ export const enclaveRoutes = new Hono()
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        500
+        500,
       );
     }
   })
 
   .get("/health", (c) => {
     return c.json({ status: "healthy", timestamp: new Date().toISOString() });
-  }); 
+  });

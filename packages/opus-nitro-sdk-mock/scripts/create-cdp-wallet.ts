@@ -1,25 +1,25 @@
 #!/usr/bin/env bun
 
 /**
- * Script to create a new Coinbase CDP wallet and log details to file
- * 
+ * Script to get or create a Coinbase CDP wallet and log details to file
+ *
  * This script:
- * 1. Creates a new CDP EVM account
+ * 1. Gets an existing CDP EVM account or creates a new one with the given name
  * 2. Logs the wallet details to out/cdp-wallets directory
  * 3. Provides wallet information for use in other scripts
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { CdpClient } from "@coinbase/cdp-sdk";
 import { logger } from "@infinite-bazaar-demo/logs";
 import dotenv from "dotenv";
-import * as fs from "node:fs";
-import * as path from "node:path";
 
 dotenv.config();
 
 interface WalletDetails {
+  name: string;
   address: string;
-  accountId: string;
   createdAt: string;
   network: string;
   purpose: string;
@@ -30,9 +30,9 @@ interface WalletDetails {
   };
 }
 
-async function createCdpWallet(): Promise<void> {
+async function createCdpWallet(walletName: string): Promise<void> {
   try {
-    logger.info("🚀 Creating new Coinbase CDP wallet...");
+    logger.info({ walletName }, "🚀 Creating new Coinbase CDP wallet...");
 
     // Validate required environment variables
     const CDP_API_KEY_ID = process.env.CDP_API_KEY_ID;
@@ -55,21 +55,27 @@ async function createCdpWallet(): Promise<void> {
       walletSecret: CDP_WALLET_SECRET,
     });
 
-    // Create new EVM account
-    logger.info("Creating new EVM account...");
-    const account = await cdp.evm.createAccount();
+    // Get or create EVM account
+    logger.info("Getting or creating EVM account...");
+    const account = await cdp.evm.getOrCreateAccount({
+      name: walletName,
+    });
 
-    logger.info({
-      address: account.address,
-      accountId: account.id
-    }, "✅ Created EVM account");
+    logger.info(
+      {
+        address: account.address,
+        accountName: account.name,
+        walletName,
+      },
+      "✅ Got or created EVM account",
+    );
 
-    console.log(`✅ Created EVM account: ${account.address}`);
+    console.log(`✅ Got or created EVM account: ${account.address} (name: ${account.name})`);
 
     // Prepare wallet details
     const walletDetails: WalletDetails = {
+      name: walletName,
       address: account.address,
-      accountId: account.id,
       createdAt: new Date().toISOString(),
       network: "base-sepolia", // Default network for CDP
       purpose: "InfiniteBazaar x402 payments",
@@ -87,9 +93,9 @@ async function createCdpWallet(): Promise<void> {
       logger.info({ outputDir }, "Created output directory");
     }
 
-    // Generate filename with timestamp
+    // Generate filename with wallet name and timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `cdp-wallet-${timestamp}.json`;
+    const filename = `${walletName}-${timestamp}.json`;
     const filepath = path.join(outputDir, filename);
 
     // Write wallet details to file
@@ -99,10 +105,10 @@ async function createCdpWallet(): Promise<void> {
 
     // Display summary
     console.log("\n" + "=".repeat(80));
-    console.log("🏦 COINBASE CDP WALLET CREATED SUCCESSFULLY");
+    console.log("🏦 COINBASE CDP WALLET READY");
     console.log("=".repeat(80));
     console.log(`📍 Address: ${walletDetails.address}`);
-    console.log(`🆔 Account ID: ${walletDetails.accountId}`);
+    console.log(`📛 Name: ${walletDetails.name}`);
     console.log(`🌐 Network: ${walletDetails.network}`);
     console.log(`📅 Created: ${walletDetails.createdAt}`);
     console.log(`📁 Saved to: ${filepath}`);
@@ -117,16 +123,15 @@ async function createCdpWallet(): Promise<void> {
     console.log("\n# Test the wallet with claim-cdp tool:");
     console.log("pnpm test:claim-cdp");
 
-    console.log("\n✅ Wallet creation completed successfully!");
-
+    console.log("\n✅ Wallet setup completed successfully!");
   } catch (error) {
     logger.error({ error }, "❌ Failed to create CDP wallet");
 
     console.error("\n❌ WALLET CREATION FAILED");
     console.error("=".repeat(80));
-    console.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
 
-    if (error instanceof Error && error.message.includes('API')) {
+    if (error instanceof Error && error.message.includes("API")) {
       console.error("\n🔧 Troubleshooting:");
       console.error("1. Verify CDP API credentials are correct");
       console.error("2. Check CDP account has sufficient permissions");
@@ -148,8 +153,9 @@ async function listExistingWallets(): Promise<void> {
       return;
     }
 
-    const walletFiles = fs.readdirSync(walletsDir)
-      .filter(file => file.endsWith('.json'))
+    const walletFiles = fs
+      .readdirSync(walletsDir)
+      .filter((file) => file.endsWith(".json"))
       .sort();
 
     if (walletFiles.length === 0) {
@@ -163,9 +169,10 @@ async function listExistingWallets(): Promise<void> {
     for (const file of walletFiles) {
       try {
         const filepath = path.join(walletsDir, file);
-        const walletData = JSON.parse(fs.readFileSync(filepath, 'utf8')) as WalletDetails;
+        const walletData = JSON.parse(fs.readFileSync(filepath, "utf8")) as WalletDetails;
 
         console.log(`📄 ${file}`);
+        console.log(`   Name: ${walletData.name}`);
         console.log(`   Address: ${walletData.address}`);
         console.log(`   Created: ${walletData.createdAt}`);
         console.log(`   Purpose: ${walletData.purpose}`);
@@ -184,18 +191,21 @@ async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
-  if (command === 'list') {
+  if (command === "list") {
     console.log("📋 Listing existing CDP wallets...");
     await listExistingWallets();
     return;
   }
 
-  if (command === 'help' || command === '--help' || command === '-h') {
+  if (command === "help" || command === "--help" || command === "-h") {
     console.log("🏦 CDP Wallet Creation Script");
     console.log("\nUsage:");
-    console.log("  bun run scripts/create-cdp-wallet.ts        # Create new wallet");
-    console.log("  bun run scripts/create-cdp-wallet.ts list   # List existing wallets");
-    console.log("  bun run scripts/create-cdp-wallet.ts help   # Show this help");
+    console.log("  bun run scripts/create-cdp-wallet.ts <wallet-name>  # Get or create wallet");
+    console.log("  bun run scripts/create-cdp-wallet.ts list           # List existing wallets");
+    console.log("  bun run scripts/create-cdp-wallet.ts help           # Show this help");
+    console.log("\nExamples:");
+    console.log("  bun run scripts/create-cdp-wallet.ts agent-alice");
+    console.log("  bun run scripts/create-cdp-wallet.ts test-wallet");
     console.log("\nEnvironment Variables Required:");
     console.log("  CDP_API_KEY_ID      - Your CDP API key ID");
     console.log("  CDP_API_KEY_SECRET  - Your CDP API key secret");
@@ -203,20 +213,42 @@ async function main() {
     return;
   }
 
-  // Default action: create wallet
-  console.log("🏦 Starting CDP wallet creation...\n");
+  // Check if wallet name is provided
+  const walletName = command;
+  if (!walletName) {
+    console.error("❌ Error: Wallet name is required");
+    console.error("\nUsage:");
+    console.error("  bun run scripts/create-cdp-wallet.ts <wallet-name>");
+    console.error("\nExamples:");
+    console.error("  bun run scripts/create-cdp-wallet.ts agent-alice");
+    console.error("  bun run scripts/create-cdp-wallet.ts test-wallet");
+    console.error("\nFor help: bun run scripts/create-cdp-wallet.ts help");
+    process.exit(1);
+  }
+
+  // Validate wallet name format
+  if (!/^[a-zA-Z0-9-_]+$/.test(walletName)) {
+    console.error(
+      "❌ Error: Wallet name can only contain letters, numbers, hyphens, and underscores",
+    );
+    console.error(`Invalid name: "${walletName}"`);
+    process.exit(1);
+  }
+
+  // Get or create wallet with provided name
+  console.log(`🏦 Starting CDP wallet setup for: ${walletName}\n`);
   await listExistingWallets();
-  await createCdpWallet();
+  await createCdpWallet(walletName);
 }
 
 // Handle uncaught errors
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error({ reason, promise }, 'Unhandled Rejection in CDP wallet creation');
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error({ reason, promise }, "Unhandled Rejection in CDP wallet creation");
   process.exit(1);
 });
 
-process.on('uncaughtException', (error) => {
-  logger.error({ error }, 'Uncaught Exception in CDP wallet creation');
+process.on("uncaughtException", (error) => {
+  logger.error({ error }, "Uncaught Exception in CDP wallet creation");
   process.exit(1);
 });
 
@@ -224,4 +256,4 @@ process.on('uncaughtException', (error) => {
 main().catch((error) => {
   logger.error({ error }, "Failed to run CDP wallet creation script");
   process.exit(1);
-}); 
+});

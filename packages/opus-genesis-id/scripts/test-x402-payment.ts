@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { ClaimService } from "../src/services/claim-service";
-import type { X402Payment, ClaimSubmission } from "../src/services/claim-service";
+import type { ClaimSubmission, X402Payment } from "../src/services/claim-service";
 
 // Sample x402 payment data for testing
 const samplePayment: X402Payment = {
@@ -108,8 +108,10 @@ async function main() {
 
   // Show environment configuration
   console.log("\n🌍 Environment Configuration:");
-  console.log(`- X402_SERVICE_WALLET_ADDRESS: ${process.env.X402_SERVICE_WALLET_ADDRESS || 'Not configured (using mock mode)'}`);
-  console.log(`- BASE_SEPOLIA_RPC_URL: ${process.env.BASE_SEPOLIA_RPC_URL || 'Using default'}`);
+  console.log(
+    `- X402_SERVICE_WALLET_ADDRESS: ${process.env.X402_SERVICE_WALLET_ADDRESS || "Not configured (using mock mode)"}`,
+  );
+  console.log(`- BASE_SEPOLIA_RPC_URL: ${process.env.BASE_SEPOLIA_RPC_URL || "Using default"}`);
 
   await testX402Payment();
   await testInvalidPayment();
@@ -120,4 +122,4 @@ async function main() {
 // Run the tests
 if (import.meta.main) {
   main().catch(console.error);
-} 
+}

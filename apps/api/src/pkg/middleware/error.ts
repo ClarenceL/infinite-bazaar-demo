@@ -28,4 +28,4 @@ export const errorHandler = (): MiddlewareHandler => {
       );
     }
   };
-}; 
+};
