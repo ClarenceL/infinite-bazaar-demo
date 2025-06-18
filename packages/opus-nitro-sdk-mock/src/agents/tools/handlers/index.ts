@@ -6,6 +6,7 @@ import type { ToolCallResult } from "../../../types/message.js";
 
 // Import handlers from their new locations
 import { handleClaim } from "./claim/index.js";
+import { handleClaimCdp } from "./claim-cdp/index.js";
 
 /**
  * Process a tool call and return the result
@@ -50,6 +51,9 @@ export async function processToolCall(
   switch (toolName) {
     case "claim":
       return handleClaim();
+
+    case "claim-cdp":
+      return handleClaimCdp();
 
     default:
       console.warn(`Unknown tool called: ${toolName}`);

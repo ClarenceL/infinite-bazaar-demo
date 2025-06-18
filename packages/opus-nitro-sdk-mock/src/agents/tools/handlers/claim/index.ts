@@ -1,7 +1,8 @@
 import { logger } from "@infinite-bazaar-demo/logs";
-import type { ToolCallResult } from "../../../../types/message.js";
-import { processApiResponse } from "../utils.js";
+import type { ToolCallResult } from "../../../../types/message";
+import { processApiResponse } from "../utils";
 import { privateKeyToAccount } from "viem/accounts";
+// @ts-ignore
 import { wrapFetchWithPayment, decodeXPaymentResponse } from "x402-fetch";
 import type { Hex } from "viem";
 

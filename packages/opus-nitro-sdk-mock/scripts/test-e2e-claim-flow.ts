@@ -28,6 +28,7 @@ interface E2ETestResult {
   services: ServiceStatus[];
   testResults: {
     claimSubmission?: any;
+    cdpClaimSubmission?: any;
     paymentFlow?: any;
     blockchainSimulation?: any;
   };
@@ -81,6 +82,25 @@ class E2ETestRunner {
       }
 
       logger.info("✅ Claim submission flow completed successfully");
+
+      // Step 2b: Test CDP claim submission flow (if CDP env vars are available)
+      const cdpEnvVars = ['CDP_API_KEY_ID', 'CDP_API_KEY_SECRET', 'CDP_WALLET_SECRET'];
+      const hasCdpEnv = cdpEnvVars.every(varName => process.env[varName]);
+
+      if (hasCdpEnv) {
+        logger.info("🔄 Testing CDP claim submission flow...");
+        const cdpClaimResult = await this.testCdpClaimSubmissionFlow();
+        result.testResults.cdpClaimSubmission = cdpClaimResult;
+
+        if (!cdpClaimResult.success) {
+          logger.warn(`CDP claim submission failed: ${cdpClaimResult.error}`);
+          // Don't fail the entire test, just log the warning
+        } else {
+          logger.info("✅ CDP claim submission flow completed successfully");
+        }
+      } else {
+        logger.info("⏭️ Skipping CDP claim test - CDP environment variables not configured");
+      }
 
       // Step 3: Validate payment flow
       if (claimResult.data?.paymentDetails) {
@@ -220,7 +240,63 @@ class E2ETestRunner {
     }
   }
 
-  private generateTestReport(result: E2ETestResult): void {
+  private async testCdpClaimSubmissionFlow(): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+    statusCode?: number;
+  }> {
+    try {
+      logger.info("Calling opus-nitro-sdk-mock test-claim-cdp endpoint...");
+
+      const response = await fetch(`${this.OPUS_NITRO_URL}/enclave/test-claim-cdp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: AbortSignal.timeout(this.TEST_TIMEOUT),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        logger.error({
+          status: response.status,
+          statusText: response.statusText,
+          responseData
+        }, "CDP claim submission request failed");
+
+        return {
+          success: false,
+          error: `HTTP ${response.status}: ${response.statusText}`,
+          statusCode: response.status,
+        };
+      }
+
+      if (!responseData.success) {
+        logger.error({ responseData }, "CDP claim submission returned failure");
+        return {
+          success: false,
+          error: responseData.error || "Unknown error from CDP claim submission",
+        };
+      }
+
+      logger.info({ responseData }, "CDP claim submission completed successfully");
+      return {
+        success: true,
+        data: responseData.data,
+      };
+
+    } catch (error) {
+      logger.error({ error }, "Error during CDP claim submission test");
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  generateTestReport(result: E2ETestResult): void {
     console.log("\n" + "=".repeat(80));
     console.log("🧪 INFINITEBAZAAR E2E TEST REPORT");
     console.log("=".repeat(80));
@@ -243,6 +319,18 @@ class E2ETestRunner {
       console.log(`  Success: ${result.testResults.claimSubmission.success ? "✅" : "❌"}`);
       if (result.testResults.claimSubmission.data?.message) {
         console.log(`  Message: ${result.testResults.claimSubmission.data.message}`);
+      }
+    }
+
+    if (result.testResults.cdpClaimSubmission) {
+      console.log("\n🏦 CDP CLAIM SUBMISSION:");
+      console.log(`  Success: ${result.testResults.cdpClaimSubmission.success ? "✅" : "❌"}`);
+      if (result.testResults.cdpClaimSubmission.data?.message) {
+        console.log(`  Message: ${result.testResults.cdpClaimSubmission.data.message}`);
+      }
+      if (result.testResults.cdpClaimSubmission.data?.cdpAccount) {
+        const cdpAccount = result.testResults.cdpClaimSubmission.data.cdpAccount;
+        console.log(`  CDP Account: ${cdpAccount.name} (${cdpAccount.address})`);
       }
     }
 
@@ -307,9 +395,8 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-if (import.meta.main) {
-  main().catch((error) => {
-    logger.error({ error }, "Failed to run E2E tests");
-    process.exit(1);
-  });
-} 
+// Run if this is the main module
+main().catch((error) => {
+  logger.error({ error }, "Failed to run E2E tests");
+  process.exit(1);
+}); 

@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { enclaveService } from "./enclave.service.js";
 import { logger } from "@infinite-bazaar-demo/logs";
 import { handleClaim } from "../../agents/tools/handlers/claim/index.js";
+import { handleClaimCdp } from "../../agents/tools/handlers/claim-cdp/index.js";
 
 // Create the enclave router
 export const enclaveRoutes = new Hono()
@@ -146,6 +147,37 @@ export const enclaveRoutes = new Hono()
       });
     } catch (error) {
       logger.error({ error }, "Test claim submission failed");
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+        500
+      );
+    }
+  })
+
+  // Test endpoint for e2e claim flow using CDP SDK
+  .post("/test-claim-cdp", async (c) => {
+    try {
+      logger.info("Starting test claim submission using CDP SDK...");
+
+      // Call the CDP claim handler which will:
+      // 1. Initialize CDP client and create account
+      // 2. Make initial request to opus-genesis-id (should get 402)
+      // 3. Handle x402 payment using CDP account
+      // 4. Retry with payment
+      // 5. Return success
+      const result = await handleClaimCdp();
+
+      logger.info({ result }, "Test CDP claim submission completed");
+
+      return c.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      logger.error({ error }, "Test CDP claim submission failed");
       return c.json(
         {
           success: false,

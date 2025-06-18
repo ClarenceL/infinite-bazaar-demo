@@ -1,0 +1,187 @@
+import { logger } from "@infinite-bazaar-demo/logs";
+import type { ToolCallResult } from "../../../../types/message.js";
+import { processApiResponse } from "../utils.js";
+import { CdpClient } from "@coinbase/cdp-sdk";
+import { toAccount } from "viem/accounts";
+import type { LocalAccount } from "viem";
+// @ts-ignore
+import { wrapFetchWithPayment, decodeXPaymentResponse } from "x402-fetch";
+
+/**
+ * Sample DID and claim data for testing
+ */
+const SAMPLE_DID = "did:iden3:polygon:amoy:x3HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMeaQ2H2";
+const SAMPLE_ISSUER_DID = "did:iden3:polygon:amoy:x1HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMeaQ1H1";
+
+/**
+ * Handle claim submission with x402 payment using Coinbase CDP SDK
+ * This function:
+ * 1. Creates CDP client and account
+ * 2. Gets service info from opus-genesis-id
+ * 3. Creates x402-enabled fetch client using CDP account
+ * 4. Submits claim with automatic payment
+ * 5. Returns the result
+ */
+export async function handleClaimCdp(): Promise<ToolCallResult> {
+  const OPUS_GENESIS_ID_URL = process.env.OPUS_GENESIS_ID_URL || "http://localhost:3106";
+  const CDP_API_KEY_ID = process.env.CDP_API_KEY_ID;
+  const CDP_API_KEY_SECRET = process.env.CDP_API_KEY_SECRET;
+  const CDP_WALLET_SECRET = process.env.CDP_WALLET_SECRET;
+
+  try {
+    logger.info("Starting claim submission process with CDP SDK and x402 payment");
+
+    // Validate required environment variables
+    if (!CDP_API_KEY_ID || !CDP_API_KEY_SECRET || !CDP_WALLET_SECRET) {
+      logger.error("CDP environment variables are required");
+      return {
+        data: {
+          success: false,
+          error: "CDP_API_KEY_ID, CDP_API_KEY_SECRET, and CDP_WALLET_SECRET environment variables are required",
+        },
+      };
+    }
+
+    // Step 1: Initialize CDP client and create/get account
+    logger.info("Initializing Coinbase CDP client...");
+    const cdpClient = new CdpClient({
+      apiKeyId: CDP_API_KEY_ID,
+      apiKeySecret: CDP_API_KEY_SECRET,
+      walletSecret: CDP_WALLET_SECRET,
+    });
+
+    logger.info("Creating or retrieving CDP account...");
+    const cdpAccount = await cdpClient.evm.getOrCreateAccount({
+      name: "infinite-bazaar-x402",
+    });
+
+    logger.info({
+      accountName: cdpAccount.name,
+      accountId: cdpAccount.id
+    }, "CDP account ready");
+
+    // Step 2: Convert CDP account to viem LocalAccount for x402-fetch
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const viemAccount = toAccount<LocalAccount>(cdpAccount as any);
+
+    logger.info({
+      accountAddress: viemAccount.address
+    }, "Converted CDP account to viem account");
+
+    // Step 3: Get service information and pricing (no payment required)
+    logger.info("Fetching service information from opus-genesis-id");
+    const serviceInfoResponse = await fetch(`${OPUS_GENESIS_ID_URL}/genesis/info`);
+    const serviceInfoResult = await processApiResponse(serviceInfoResponse);
+
+    if (!serviceInfoResult.isSuccess) {
+      logger.error({ error: serviceInfoResult.error }, "Failed to get service information");
+      return {
+        data: {
+          success: false,
+          error: "Failed to get service information from opus-genesis-id",
+          details: serviceInfoResult.error,
+        },
+      };
+    }
+
+    const serviceInfo = serviceInfoResult.data;
+    logger.info({ serviceInfo }, "Retrieved service information");
+
+    // Step 4: Create x402-enabled fetch client using CDP account
+    const fetchWithPayment = wrapFetchWithPayment(fetch, viemAccount);
+
+    logger.info({
+      accountAddress: viemAccount.address,
+      x402Enabled: serviceInfo.x402Enabled,
+      cdpAccountName: cdpAccount.name
+    }, "Created x402-enabled fetch client with CDP account");
+
+    // Step 5: Prepare claim data
+    const claimData = {
+      did: SAMPLE_DID,
+      claimType: "identity_verification",
+      claimData: {
+        verified: true,
+        verificationMethod: "enclave_attestation_cdp",
+        timestamp: new Date().toISOString(),
+        source: "opus-nitro-sdk-mock-cdp",
+        cdpAccount: cdpAccount.name,
+      },
+      issuer: SAMPLE_ISSUER_DID,
+      subject: SAMPLE_DID,
+    };
+
+    logger.info({ claimData }, "Prepared claim data with CDP account info");
+
+    // Step 6: Submit claim with automatic x402 payment using CDP account
+    logger.info("Submitting claim with x402 payment using CDP account");
+
+    const claimResponse = await fetchWithPayment(`${OPUS_GENESIS_ID_URL}/genesis/claim/submit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(claimData),
+    });
+
+    const claimResult = await processApiResponse(claimResponse);
+
+    if (!claimResult.isSuccess) {
+      logger.error({ error: claimResult.error }, "Failed to submit claim");
+      return {
+        data: {
+          success: false,
+          error: "Failed to submit claim to opus-genesis-id",
+          details: claimResult.error,
+          statusCode: claimResult.statusCode,
+        },
+      };
+    }
+
+    // Step 7: Extract payment response details
+    let paymentDetails = null;
+    const paymentResponseHeader = claimResponse.headers.get("x-payment-response");
+    if (paymentResponseHeader) {
+      try {
+        paymentDetails = decodeXPaymentResponse(paymentResponseHeader);
+        logger.info({ paymentDetails }, "Extracted x402 payment response");
+      } catch (error) {
+        logger.warn({ error }, "Failed to decode x-payment-response header");
+      }
+    }
+
+    logger.info({ claimResult: claimResult.data }, "Successfully submitted claim using CDP");
+
+    // Step 8: Return success result
+    return {
+      data: {
+        success: true,
+        message: "Claim submitted successfully with x402 payment using Coinbase CDP",
+        serviceInfo: serviceInfo,
+        claimSubmission: claimResult.data,
+        paymentDetails: paymentDetails || {
+          method: "x402-cdp",
+          status: "processed",
+        },
+        cdpAccount: {
+          name: cdpAccount.name,
+          id: cdpAccount.id,
+          address: viemAccount.address,
+        },
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+  } catch (error) {
+    logger.error({ error }, "Error in handleClaimCdp function");
+
+    return {
+      data: {
+        success: false,
+        error: "Internal error during CDP claim submission",
+        details: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+} 
