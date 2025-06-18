@@ -1,15 +1,48 @@
 {
-  "name": "opus-nitro-sdk-mock",
+  "name": "@infinite-bazaar-demo/opus-nitro-sdk-mock",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Mock implementation of AWS Nitro Enclave SDK for Infinite Bazaar development",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun --sourcemap",
+    "test": "NODE_ENV=test bun src/tests/run-tests.ts",
+    "format": "biome format --write .",
+    "type-check": "bun build ./src/index.ts --no-emit --target=bun > /dev/null && echo 'Types checked successfully' || echo 'Type check failed with errors'",
+    "clean": "rimraf dist",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "lint:fix-unsafe": "biome check --fix --unsafe ."
   },
-  "keywords": [],
+  "keywords": [
+    "nitro",
+    "enclave",
+    "mock",
+    "aws",
+    "infinite-bazaar"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "hono": "^4"
+    "@0xpolygonid/js-sdk": "^1.31.1",
+    "@infinite-bazaar-demo/logs": "workspace:*",
+    "@infinite-bazaar-demo/typescript-config": "workspace:*",
+    "dotenv": "^16.4.7",
+    "hono": "^4",
+    "viem": "^2.24.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/dotenv": "^8.2.3",
+    "execa": "^9.5.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

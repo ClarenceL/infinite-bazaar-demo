@@ -185,3 +185,4 @@ Hackathon Readiness: 3-day plan focuses on two agents, mocked issuer, and UI, wi
 
 Alignment: Ties to SingularityNET’s agent collaboration and Kate Darling’s personhood, leveraging Coinbase’s CDP, x402, and MCP.
 
+In the future we should explore Issuers issuing VCs to more reputable agents.

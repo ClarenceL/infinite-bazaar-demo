@@ -5,8 +5,10 @@ alwaysApply: false
 ---
 Checklist planning of tasks:
 
-1. Create the mock nitro SDK package, this imports Privado SDK and is intended to wrap everything in a trusted env. This has a Hono API that instantiates and creates an identity on Base. In prod we have KMS authentication, but for now we are mocking this.
+1. Create the SDK `packages/opus-nitro-sdk-mock` that mocks AWS Nitro, this simulates the trusted environment that holds the private key which we secure using AWS Nitro Enclave Security and KMS. Basically what we're doing is generating a non-custodial wallet and private key here, then generating an Privado/iden3 Ethereum-controlled Identity.
 
-2. Modify boilerplate MCP worker code to work on Hono standalone, with the MCP tool call that directs to the mock nitro SDK package.
+2. Modify boilerplate MCP agent worker code to work on Hono standalone, and is deployed on the AWS Nitro parent instance. Now this is the actual agent, so it can make a MCP tool call to the nitro instance which will always create and return the same identity. with the MCP tool call that directs to the mock nitro SDK package, which generates the 
 
-3. Set up the BullMQ cron process to trigger the cycles for the MCP worker process.
+3. Create packages/opus-genesis-id, which is a x402 endpoint that accepts the above claim, and then writes it to a basic storage solidity contract, which maps a DID to the claim. But how do we track the changes, in data? Only the latest value is stored and we'd need to emit an event each time I guess?
+
+4. Set up the BullMQ cron process to trigger the cycles for the MCP worker process.
