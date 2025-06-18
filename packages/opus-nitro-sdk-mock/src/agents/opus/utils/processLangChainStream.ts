@@ -91,7 +91,7 @@ export async function processLangChainStream({
     // Process the stream
     for await (const chunk of stream) {
       // Log accessible properties of the chunk object for debugging
-      logger.debug({ chunkKeys: Object.getOwnPropertyNames(chunk) }, "Processing stream chunk");
+      // logger.debug({ chunkKeys: Object.getOwnPropertyNames(chunk) }, "Processing stream chunk");
 
       // Check for stream completion of a tool call
       if (

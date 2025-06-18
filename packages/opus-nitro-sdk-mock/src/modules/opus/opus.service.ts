@@ -1,12 +1,11 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
-import type { Message, ChatMessage, ChatRequest, OpusInfo } from "../../types/message";
+import { generateResponse, generateStreamingResponse } from "./generate-response";
+import type { Message, ChatMessage, ChatRequest, OpusInfo, ToolCall, ToolCallResult } from "../../types/message";
+import { db, entityContext, eq, and, desc, sql } from "@infinite-bazaar-demo/db";
 
 // Hardcoded entity ID for Opus agent
 const OPUS_ENTITY_ID = "ent_opus";
-
-// In-memory message storage for now (will be replaced with database later)
-const messageHistory: Message[] = [];
 
 export class OpusService {
   /**
@@ -15,10 +14,16 @@ export class OpusService {
   async getOpusInfo(): Promise<OpusInfo> {
     logger.info("Getting Opus agent information");
 
+    // Get message count from database
+    const messageCount = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(entityContext)
+      .where(eq(entityContext.entityId, OPUS_ENTITY_ID));
+
     return {
       entityId: OPUS_ENTITY_ID,
       systemPrompt: "Opus AI agent for InfiniteBazaar protocol demonstration",
-      messageCount: messageHistory.length,
+      messageCount: messageCount[0]?.count || 0,
       status: "active",
       capabilities: [
         "DID creation and management",
@@ -30,35 +35,131 @@ export class OpusService {
     };
   }
 
-
+  /**
+   * Get system prompt for Opus agent
+   */
+  getSystemPrompt(): string {
+    return "Opus AI agent for InfiniteBazaar protocol demonstration";
+  }
 
   /**
-   * Load message history for the agent
+   * Load message history for the agent from database
    */
   async loadMessages(chatId?: string): Promise<Message[]> {
     try {
-      logger.info({ chatId }, "Loading message history");
-      return messageHistory.filter(msg => !chatId || msg.chatId === chatId);
+      logger.info({ chatId, entityId: OPUS_ENTITY_ID }, "Loading message history from database");
+
+      // Build query conditions
+      const conditions = [eq(entityContext.entityId, OPUS_ENTITY_ID)];
+      if (chatId) {
+        conditions.push(eq(entityContext.chatId, chatId));
+      }
+
+      // Query database for messages
+      const dbMessages = await db
+        .select()
+        .from(entityContext)
+        .where(and(...conditions))
+        .orderBy(entityContext.sequence, entityContext.createdAt);
+
+      // Convert database records to Message format
+      const messages: Message[] = dbMessages.map(record => {
+        let content: string | ToolCall | ToolCallResult;
+
+        // Handle different context types
+        if (record.contextType === "TOOL_USE" && record.toolName) {
+          content = {
+            type: "tool_use",
+            name: record.toolName,
+            id: record.toolId || "",
+            input: record.toolInput || {},
+            tool_use_id: record.toolUseId || undefined,
+          };
+        } else if (record.contextType === "TOOL_RESULT") {
+          content = {
+            type: "tool_result",
+            tool_use_id: record.toolUseId || "",
+            data: record.toolResultData || {},
+          };
+        } else {
+          content = record.content;
+        }
+
+        return {
+          role: record.role as "user" | "assistant" | "system",
+          content,
+          timestamp: record.createdAt?.getTime(),
+          chatId: record.chatId || undefined,
+        };
+      });
+
+      logger.info({ messageCount: messages.length, chatId }, "Messages loaded from database");
+      return messages;
     } catch (error) {
-      logger.error({ error }, "Error loading messages");
+      logger.error({ error, chatId }, "Error loading messages from database");
       return [];
     }
   }
 
   /**
-   * Save a message to storage
+   * Save a message to database
    */
   async saveMessage(message: Message): Promise<void> {
     try {
-      const messageWithTimestamp: Message = {
-        ...message,
-        timestamp: message.timestamp || Date.now(),
+      logger.info({ role: message.role, chatId: message.chatId }, "Saving message to database");
+
+      // Get next sequence number for this entity/chat combination
+      const maxSequenceResult = await db
+        .select({ maxSeq: sql<number>`coalesce(max(${entityContext.sequence}), 0)` })
+        .from(entityContext)
+        .where(
+          message.chatId
+            ? and(eq(entityContext.entityId, OPUS_ENTITY_ID), eq(entityContext.chatId, message.chatId))
+            : eq(entityContext.entityId, OPUS_ENTITY_ID)
+        );
+
+      const nextSequence = (maxSequenceResult[0]?.maxSeq || 0) + 1;
+
+      // Prepare the database record
+      const dbRecord: any = {
+        entityId: OPUS_ENTITY_ID,
+        role: message.role,
+        sequence: nextSequence,
+        chatId: message.chatId || null,
       };
 
-      messageHistory.push(messageWithTimestamp);
-      logger.info({ role: message.role, chatId: message.chatId }, "Message saved");
+      // Handle different content types
+      if (typeof message.content === "string") {
+        dbRecord.content = message.content;
+        dbRecord.contextType = "MESSAGE";
+      } else if (typeof message.content === "object" && message.content !== null) {
+        if ("type" in message.content && message.content.type === "tool_use") {
+          const toolCall = message.content as ToolCall;
+          dbRecord.content = `Tool call: ${toolCall.name}`;
+          dbRecord.contextType = "TOOL_USE";
+          dbRecord.toolName = toolCall.name;
+          dbRecord.toolId = toolCall.id;
+          dbRecord.toolUseId = toolCall.tool_use_id;
+          dbRecord.toolInput = toolCall.input;
+        } else if ("type" in message.content && message.content.type === "tool_result") {
+          const toolResult = message.content as ToolCallResult;
+          dbRecord.content = `Tool result: ${JSON.stringify(toolResult.data).substring(0, 100)}`;
+          dbRecord.contextType = "TOOL_RESULT";
+          dbRecord.toolUseId = toolResult.tool_use_id;
+          dbRecord.toolResultData = toolResult.data;
+        } else {
+          // Fallback for other object types
+          dbRecord.content = JSON.stringify(message.content);
+          dbRecord.contextType = "MESSAGE";
+        }
+      }
+
+      // Insert into database
+      await db.insert(entityContext).values(dbRecord);
+
+      logger.info({ role: message.role, chatId: message.chatId, sequence: nextSequence }, "Message saved to database");
     } catch (error) {
-      logger.error({ error }, "Error saving message");
+      logger.error({ error, role: message.role, chatId: message.chatId }, "Error saving message to database");
       throw error;
     }
   }
@@ -89,49 +190,55 @@ export class OpusService {
   }
 
   /**
-   * Generate a mock AI response (will be replaced with actual LLM later)
-   */
-  async generateResponse(message: string, history: Message[]): Promise<string> {
-    logger.info({ messageLength: message.length, historyLength: history.length }, "Generating response");
-
-    // Mock response for now
-    const responses = [
-      `Hello! I'm Opus, your AI agent in the InfiniteBazaar protocol. You said: "${message}". I'm here to help you understand how secure AI agent identities work with DIDs, CDP wallets, and Nitro Enclaves.`,
-      `As an AI agent with a unique Privado ID DID, I can help you explore the capabilities of the InfiniteBazaar system. Your message "${message}" is interesting! Would you like to learn about DID creation, wallet management, or memory commitment?`,
-      `Thanks for your message: "${message}". I'm demonstrating how AI agents can have secure, verifiable identities using AWS Nitro Enclaves and blockchain technology. What aspect of the InfiniteBazaar protocol interests you most?`,
-    ];
-
-    const randomIndex = Math.floor(Math.random() * responses.length);
-    return responses[randomIndex] ?? responses[0] ?? "I'm Opus, your AI agent in the InfiniteBazaar protocol. How can I help you today?";
+ * Generate an AI response using Claude Sonnet
+ */
+  async generateAIResponse(
+    messages: Message[],
+    projectId = "infinite-bazaar-demo",
+    userId = "user_default",
+    authToken?: string
+  ): Promise<{
+    textContent: string;
+    newMessages: Message[];
+  }> {
+    return generateResponse(messages, projectId, userId, authToken);
   }
 
   /**
-   * Reset conversation history
+   * Generate a streaming AI response
+   */
+  async generateStreamingAIResponse(
+    messages: Message[],
+    writer: WritableStreamDefaultWriter,
+    encoder: TextEncoder,
+    projectId = "infinite-bazaar-demo",
+    userId = "user_default",
+    authToken?: string
+  ): Promise<string> {
+    return generateStreamingResponse(messages, projectId, userId, writer, encoder, authToken);
+  }
+
+  /**
+   * Reset conversation history in database
    */
   async resetConversation(chatId?: string): Promise<void> {
     try {
-      logger.info({ chatId }, "Resetting conversation");
+      logger.info({ chatId, entityId: OPUS_ENTITY_ID }, "Resetting conversation in database");
 
+      // Build delete conditions
+      const conditions = [eq(entityContext.entityId, OPUS_ENTITY_ID)];
       if (chatId) {
-        // Remove messages for specific chat
-        const indexesToRemove = [];
-        for (let i = messageHistory.length - 1; i >= 0; i--) {
-          const message = messageHistory[i];
-          if (message && message.chatId === chatId) {
-            indexesToRemove.push(i);
-          }
-        }
-        for (const index of indexesToRemove) {
-          messageHistory.splice(index, 1);
-        }
-      } else {
-        // Clear all messages
-        messageHistory.length = 0;
+        conditions.push(eq(entityContext.chatId, chatId));
       }
 
-      logger.info({ chatId, remainingMessages: messageHistory.length }, "Conversation reset");
+      // Delete messages from database
+      const deleteResult = await db
+        .delete(entityContext)
+        .where(and(...conditions));
+
+      logger.info({ chatId, entityId: OPUS_ENTITY_ID }, "Conversation reset in database");
     } catch (error) {
-      logger.error({ error }, "Error resetting conversation");
+      logger.error({ error, chatId }, "Error resetting conversation in database");
       throw error;
     }
   }

@@ -48,7 +48,22 @@ export const opusRoutes = new Hono()
   .post("/chat", async (c) => {
     try {
       const body = await c.req.json();
-      const { message, chatId } = body as { message?: string; chatId?: string };
+
+      // Handle both message formats:
+      // 1. { message: "text", chatId?: "id" } (simple format)
+      // 2. { type: "message", content: { role: "user", content: "text" } } (MCP format)
+      let message: string;
+      let chatId: string | undefined;
+
+      if (body.type === "message" && body.content) {
+        // MCP format
+        message = body.content.content;
+        chatId = body.chatId;
+      } else {
+        // Simple format
+        message = body.message;
+        chatId = body.chatId;
+      }
 
       if (!message || typeof message !== 'string') {
         return c.json({ error: "Message is required and must be a string" }, 400);
@@ -69,17 +84,28 @@ export const opusRoutes = new Hono()
       // Set up Server-Sent Events stream
       return stream(c, async (stream) => {
         try {
-          // Generate AI response
-          const response = await opusService.generateResponse(message, messages);
+          // Create a writer that formats output for SSE
+          const writer = {
+            write: async (chunk: Uint8Array) => {
+              // The chunk comes in the format "0:content\n\n" or "2:tool_data\n\n"
+              // We need to forward this directly to the SSE stream
+              await stream.write(chunk);
+            },
+            close: async () => {
+              // No-op for SSE
+            },
+          };
 
-          // Stream the response character by character to simulate real streaming
-          for (let i = 0; i < response.length; i++) {
-            const char = response[i];
-            await stream.write(new TextEncoder().encode(`data: ${JSON.stringify({ type: "text", data: char })}\n\n`));
+          const encoder = new TextEncoder();
 
-            // Add a small delay to simulate streaming
-            await new Promise(resolve => setTimeout(resolve, 20));
-          }
+          // Use the streaming AI response that writes directly to our writer
+          const response = await opusService.generateStreamingAIResponse(
+            [...messages, { role: "user", content: message, chatId }],
+            writer as any,
+            encoder
+          );
+
+          logger.info({ responseLength: response.length, responsePreview: response.substring(0, 100) }, "Streaming response completed");
 
           // Save the assistant response
           await opusService.saveMessage({

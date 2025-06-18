@@ -1,141 +1,229 @@
 #!/usr/bin/env tsx
 
-import { logger } from "@infinite-bazaar-demo/logs";
-import { opusService } from "../src/modules/opus/opus.service";
-import type { Message } from "../src/types/message";
+// Simple API test script for Opus chat endpoint
 
-// Test configuration
-const TEST_ENTITY_ID = "ent_opus";
-const TEST_CHAT_ID = "chat_test_123";
-const TEST_PROJECT_ID = "infinite-bazaar-demo";
+const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:3105";
+const DEFAULT_MESSAGE = "Hello Opus! Can you tell me about the InfiniteBazaar protocol?";
 
-async function testOpusChat() {
-  console.log("🚀 Starting Opus Chat Test");
+// Get message from command line argument or use default
+const TEST_MESSAGE = process.argv[2] || DEFAULT_MESSAGE;
+
+/**
+ * Parse and handle streaming response similar to use-stream-handling.ts
+ */
+async function parseStreamResponse(
+  responseBody: ReadableStream<Uint8Array>,
+  options: {
+    debug?: boolean;
+    onUpdate: (text: string, toolResult?: { tool: string; data: any }) => void;
+  }
+): Promise<void> {
+  const reader = responseBody.getReader();
+  const decoder = new TextDecoder();
 
   try {
-    // 1. Get Opus info
-    console.log("\n📋 Getting Opus agent info...");
-    const opusInfo = await opusService.getOpusInfo();
-    console.log("Opus Info:", JSON.stringify(opusInfo, null, 2));
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    // 2. Test saving a user message
-    console.log("\n💬 Saving user message...");
-    const userMessage: Message = {
-      role: "user",
-      content: "Hello Opus! Can you tell me about the InfiniteBazaar protocol?",
-      chatId: TEST_CHAT_ID,
-      timestamp: Date.now(),
-    };
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
 
-    await opusService.saveMessage(userMessage);
-    console.log("✅ User message saved");
+      for (const line of lines) {
+        if (!line.trim()) continue;
 
-    // 3. Generate a response (mock for now)
-    console.log("\n🤖 Generating response...");
-    const history = await opusService.loadMessages(TEST_CHAT_ID);
-    const response = await opusService.generateResponse(userMessage.content as string, history);
-    console.log("Generated response:", response);
+        // Show progress dot for each event
+        process.stdout.write('.');
 
-    // 4. Save the assistant's response
-    console.log("\n💾 Saving assistant response...");
-    const assistantMessage: Message = {
-      role: "assistant",
-      content: response,
-      chatId: TEST_CHAT_ID,
-      timestamp: Date.now(),
-    };
+        // Handle Server-Sent Events format: "data: {...}"
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.substring(6)); // Remove 'data: ' prefix
 
-    await opusService.saveMessage(assistantMessage);
-    console.log("✅ Assistant message saved");
+            if (data.type === "text" && data.data) {
+              options.onUpdate(data.data);
+            } else if (data.type === "done") {
+              return;
+            } else if (data.type === "error") {
+              console.log(`\n❌ Stream error: ${data.data}`);
+              return;
+            } else if (data.type === "tool_result" && data.data) {
+              // Handle new tool result format
+              options.onUpdate("", { tool: data.data.name || "unknown", data: data.data });
+            } else if (data.type === "tool_call" && data.data) {
+              // Handle new tool call format
+              options.onUpdate("", { tool: data.data.name || "unknown", data: data.data });
+            }
+            // Keep backward compatibility with old format
+            else if (data.tool_result) {
+              options.onUpdate("", { tool: data.tool_result.name, data: data.tool_result });
+            } else if (data.tool_call) {
+              options.onUpdate("", { tool: data.tool_call.name, data: data.tool_call });
+            }
+          } catch (e) {
+            // Skip malformed lines silently
+          }
+        }
+        // Handle format like "0:content" from processLangChainStream.ts - THIS IS THE MAIN FORMAT
+        else if (line.includes(':')) {
+          const colonIndex = line.indexOf(':');
+          const prefix = line.substring(0, colonIndex);
+          const content = line.substring(colonIndex + 1);
 
-    // 5. Test tool call simulation
-    console.log("\n🔧 Testing tool call...");
-    const toolCallMessage: Message = {
-      role: "assistant",
-      content: {
-        type: "tool_use",
-        name: "create_did",
-        id: "tool_123",
-        input: { entityId: TEST_ENTITY_ID },
+          if (options.debug) {
+            console.log(`\n📦 Stream line: ${prefix}:${content.substring(0, 50)}...`);
+          }
+
+          try {
+            const parsedContent = JSON.parse(content);
+
+            if (prefix === "0") {
+              // Text content - this is the main format we expect
+              options.onUpdate(parsedContent);
+            } else if (prefix === "2") {
+              // Tool call or result
+              if (parsedContent.tool_result) {
+                options.onUpdate("", { tool: parsedContent.tool_result.name, data: parsedContent.tool_result });
+              } else if (parsedContent.tool_call) {
+                options.onUpdate("", { tool: parsedContent.tool_call.name, data: parsedContent.tool_call });
+              }
+            }
+          } catch (e) {
+            if (options.debug) {
+              console.log(`\n⚠️ Failed to parse content: ${e}`);
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function testOpusAPI() {
+  console.log("🚀 Testing Opus API with HTTP request");
+  console.log(`📍 API Base URL: ${API_BASE_URL}`);
+
+  try {
+    console.log("\n💬 Sending message to Opus...");
+    console.log(`Message: "${TEST_MESSAGE}"`);
+
+    const response = await fetch(`${API_BASE_URL}/opus/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-      chatId: TEST_CHAT_ID,
-      timestamp: Date.now(),
-    };
-
-    await opusService.saveMessage(toolCallMessage);
-    console.log("✅ Tool call message saved");
-
-    // 6. Test tool result
-    console.log("\n📊 Testing tool result...");
-    const toolResultMessage: Message = {
-      role: "user",
-      content: {
-        type: "tool_result",
-        tool_use_id: "tool_123",
-        data: {
-          success: true,
-          did: "did:privado:test123",
-          message: "DID created successfully",
+      body: JSON.stringify({
+        type: "message",
+        content: {
+          role: "user",
+          content: TEST_MESSAGE,
         },
-      },
-      chatId: TEST_CHAT_ID,
-      timestamp: Date.now(),
-    };
+      }),
+    });
 
-    await opusService.saveMessage(toolResultMessage);
-    console.log("✅ Tool result message saved");
-
-    // 7. Load all messages and display conversation
-    console.log("\n📚 Loading conversation history...");
-    const allMessages = await opusService.loadMessages(TEST_CHAT_ID);
-    console.log(`Found ${allMessages.length} messages in conversation:`);
-
-    for (const msg of allMessages) {
-      const contentPreview = typeof msg.content === 'string'
-        ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
-        : JSON.stringify(msg.content).substring(0, 100) + '...';
-
-      console.log(`  [${msg.role}] ${contentPreview}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    // 8. Test message preparation for LLM
-    console.log("\n🧠 Testing LLM message preparation...");
-    const preparedMessages = await opusService.prepareMessages(allMessages, TEST_PROJECT_ID);
-    console.log(`Prepared ${preparedMessages.length} messages for LLM`);
+    console.log("\n📝 Opus Response:");
+    console.log("Status:", response.status);
+    console.log("Content-Type:", response.headers.get("content-type"));
 
-    for (const msg of preparedMessages) {
-      const contentPreview = typeof msg.content === 'string'
-        ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
-        : `[${Array.isArray(msg.content) ? msg.content.length : 1} content blocks]`;
+    // Check if we have a streaming response
+    if (response.body) {
+      console.log("\n🔄 Processing streaming response:");
 
-      console.log(`  [${msg.role}] ${contentPreview}`);
+      let fullResponse = "";
+      const toolResults: Array<{ tool: string; data: any }> = [];
+
+      await parseStreamResponse(response.body, {
+        debug: true, // Enable debug to see what format we're actually receiving
+        onUpdate: (text: string, toolResult?: { tool: string; data: any }) => {
+          if (toolResult) {
+            toolResults.push(toolResult);
+          } else if (text) {
+            fullResponse += text;
+          }
+        }
+      });
+
+      console.log(`\n\n📝 Full Response:`);
+      console.log(fullResponse);
+
+      console.log(`\n📊 Stream Summary:`);
+      console.log(`📝 Response length: ${fullResponse.length} characters`);
+      console.log(`🔧 Tool results: ${toolResults.length}`);
+
+      if (toolResults.length > 0) {
+        console.log("\n🔧 Tool Results:");
+        toolResults.forEach((result, index) => {
+          console.log(`  ${index + 1}. ${result.tool}:`, result.data);
+        });
+      }
+    } else {
+      console.log("❌ No response body received");
     }
 
-    // 9. Test conversation reset
-    console.log("\n🗑️  Testing conversation reset...");
-    await opusService.resetConversation(TEST_CHAT_ID);
-
-    const messagesAfterReset = await opusService.loadMessages(TEST_CHAT_ID);
-    console.log(`Messages after reset: ${messagesAfterReset.length}`);
-
-    console.log("\n✅ All tests completed successfully!");
+    console.log("\n🎉 API test completed successfully!");
 
   } catch (error) {
-    console.error("❌ Test failed:", error);
-    logger.error({ error }, "Opus chat test failed");
+    console.error("❌ API test failed:", error);
+
+    if (error instanceof TypeError && error.message.includes("fetch")) {
+      console.error("\n💡 Make sure the Opus API server is running:");
+      console.error(`   cd packages/opus-nitro-sdk-mock && pnpm dev`);
+      console.error(`   Server should be available at ${API_BASE_URL}`);
+    }
+
     process.exit(1);
   }
 }
 
+// Equivalent curl command for reference
+function showCurlCommand() {
+  console.log("\n📋 Equivalent curl command:");
+  console.log(`curl -X POST ${API_BASE_URL}/opus/chat \\`);
+  console.log(`  -H "Content-Type: application/json" \\`);
+  console.log(`  -d '{`);
+  console.log(`    "type": "message",`);
+  console.log(`    "content": {`);
+  console.log(`      "role": "user",`);
+  console.log(`      "content": "${TEST_MESSAGE}"`);
+  console.log(`    }`);
+  console.log(`  }'`);
+}
+
 // Run the test
 if (import.meta.url === `file://${process.argv[1]}`) {
-  testOpusChat()
+  // Show usage if help is requested
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    const scriptName = process.argv[1]?.split('/').pop() || 'test-opus-chat.ts';
+    console.log("📖 Usage:");
+    console.log(`  tsx ${scriptName} [message]`);
+    console.log("");
+    console.log("📝 Examples:");
+    console.log(`  tsx ${scriptName}`);
+    console.log(`  tsx ${scriptName} "Tell me about DIDs"`);
+    console.log(`  tsx ${scriptName} "How does x402 payment work?"`);
+    process.exit(0);
+  }
+
+  console.log(`💬 Using message: "${TEST_MESSAGE}"`);
+  if (TEST_MESSAGE === DEFAULT_MESSAGE) {
+    console.log("💡 Tip: You can pass a custom message as an argument");
+  }
+
+  showCurlCommand();
+
+  testOpusAPI()
     .then(() => {
-      console.log("🎉 Test script completed");
+      console.log("✨ API test completed");
       process.exit(0);
     })
     .catch((error) => {
-      console.error("💥 Test script failed:", error);
+      console.error("💥 API test failed:", error);
       process.exit(1);
     });
 } 
