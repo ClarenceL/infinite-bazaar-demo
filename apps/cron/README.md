@@ -1,96 +1,80 @@
-# Infinite Bazaar Cron Service
+# Infinite Bazaar Cron2 Service
 
-This package provides BullMQ-based cron jobs for the Infinite Bazaar project.
+This is an alternative implementation of the cron service using [Agenda.js](https://github.com/agenda/agenda) instead of BullMQ. It provides the same functionality as the original `apps/cron` but uses MongoDB for job storage instead of Redis.
 
 ## Features
 
-- Health check cron job that calls `localhost:3105/health` every 10 seconds
-- Redis-backed job queue using BullMQ
-- Proper logging with Pino
-- Graceful shutdown handling
+- **Job Scheduling**: Uses Agenda.js for reliable job scheduling with MongoDB persistence
+- **Health Checks**: Performs periodic health checks on configured endpoints
+- **Dashboard**: Provides Agendash web interface for job monitoring
+- **Logging**: Structured logging with Pino
+- **Graceful Shutdown**: Proper cleanup on process termination
 
-## Prerequisites
+## Key Differences from Original Cron Service
 
-- Redis server running (default: localhost:6379)
-- Node.js >= 22.0.0
-- Bun runtime
+| Feature | Original (BullMQ) | Cron2 (Agenda.js) |
+|---------|-------------------|-------------------|
+| Storage | Redis | MongoDB |
+| Dashboard | Bull Board | Agendash |
+| Port | 3001 | 3002 |
+| Queue Management | BullMQ Queues & Workers | Agenda Jobs |
 
 ## Environment Variables
 
-Create a `.env` file in the cron app directory with:
+- `MONGODB_URL`: MongoDB connection string (default: `mongodb://localhost:27017/infinite-bazaar-agenda`)
+- `HEALTH_CHECK_URL`: URL to perform health checks against (default: `http://localhost:3105/health`)
+- `CRON2_DASHBOARD_PORT`: Port for the dashboard server (default: `3002`)
+- `LOG_LEVEL`: Logging level (default: `info`)
+- `NODE_ENV`: Environment (required)
 
-```env
-# Redis Configuration
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=
-
-# Health Check Configuration
-HEALTH_CHECK_URL=http://localhost:3105/health
-
-# Logging
-LOG_LEVEL=info
-```
-
-## Installation
+## Scripts
 
 ```bash
-# Install dependencies
-pnpm install
+# Development with hot reload
+pnpm dev
 
-# Install Redis (if not already installed)
-# On macOS:
-brew install redis
-# On Ubuntu:
-sudo apt-get install redis-server
+# Production start
+pnpm start
+
+# Build
+pnpm build
+
+# Run tests
+pnpm test
+
+# Type checking
+pnpm type-check
+
+# Linting
+pnpm lint
+pnpm lint:fix
 ```
 
-## Usage
+## Dashboard Access
 
-### Development
-```bash
-pnpm run dev
-```
+Once running, you can access:
 
-### Production
-```bash
-pnpm run build
-pnpm run start
-```
+- **Agendash UI**: http://localhost:3002/admin/queues
+- **Health Check**: http://localhost:3002/health  
+- **Job Stats**: http://localhost:3002/api/stats
 
-### Testing
-```bash
-pnpm run test
-```
+## Job Configuration
 
-## Architecture
+The service automatically schedules a health check job that:
+- Runs every 10 seconds
+- Makes HTTP requests to the configured health check URL
+- Logs success/failure results
+- Does not retry on failure to avoid infinite loops
 
-The cron service uses:
-- **BullMQ**: For job queue management and scheduling
-- **Redis**: As the backing store for job queues
-- **Pino**: For structured logging
-- **Axios**: For HTTP health checks
+## MongoDB Setup
 
-## Jobs
+Ensure MongoDB is running and accessible at the configured URL. Agenda.js will automatically create the required collections and indexes.
 
-### Health Check Job
-- **Schedule**: Every 10 seconds
-- **Purpose**: Monitors the API health endpoint
-- **Endpoint**: Configurable via `HEALTH_CHECK_URL` (default: `http://localhost:3105/health`)
-- **Retention**: Keeps last 10 completed jobs and 5 failed jobs
+## Comparison with BullMQ Version
 
-## Monitoring
+This implementation demonstrates how the same functionality can be achieved with different job queue libraries:
 
-The service logs all job executions, including:
-- Job start/completion
-- HTTP response status
-- Error details for failed requests
-- Redis connection status
+- **Agenda.js**: More traditional, MongoDB-based, simpler setup
+- **BullMQ**: Redis-based, more features, better performance for high-throughput scenarios
 
-## Graceful Shutdown
-
-The service handles SIGTERM and SIGINT signals for graceful shutdown:
-1. Closes BullMQ workers
-2. Closes job queues
-3. Disconnects from Redis
-4. Exits cleanly 
+Both versions provide equivalent functionality for the Infinite Bazaar project's cron needs. 

@@ -14,9 +14,9 @@ const env = process.env.NODE_ENV;
 
 if (env !== "development") {
   dotenvConfig.path = resolve(`.env.${env}`);
-  console.log(`[API] Loading environment for NODE_ENV: ${env} from ${dotenvConfig.path}`);
+  console.log(`[CRON2] Loading environment for NODE_ENV: ${env} from ${dotenvConfig.path}`);
 } else {
-  console.log(`[API] Loading environment for NODE_ENV: ${env} from .env`);
+  console.log(`[CRON2] Loading environment for NODE_ENV: ${env} from .env`);
 }
 
 const result = dotenv.config(dotenvConfig);

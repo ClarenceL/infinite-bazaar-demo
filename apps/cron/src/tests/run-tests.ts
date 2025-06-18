@@ -1,19 +1,12 @@
 #!/usr/bin/env bun
 
-import { spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { spawn } from "node:child_process";
 
-const projectRoot = join(__dirname, "../../");
-
-console.log("🧪 Running cron service tests...\n");
-
-const result = spawnSync("npx", ["vitest", "run"], {
-  cwd: projectRoot,
+const testProcess = spawn("bun", ["vitest"], {
   stdio: "inherit",
-  env: {
-    ...process.env,
-    NODE_ENV: "test",
-  },
+  cwd: process.cwd(),
 });
 
-process.exit(result.status || 0);
+testProcess.on("exit", (code) => {
+  process.exit(code || 0);
+});

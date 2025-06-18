@@ -7,21 +7,18 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": [
-      "node_modules",
-      "dist",
-      ".turbo",
-      ".vercel",
-      ".next",
-      ".wrangler",
-      "worker-configuration.d.ts"
-    ]
+    "ignore": []
   },
   "formatter": {
     "enabled": true,
+    "useEditorconfig": true,
+    "formatWithErrors": false,
     "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
     "lineWidth": 100,
-    "formatWithErrors": true
+    "attributePosition": "auto",
+    "bracketSpacing": true
   },
   "organizeImports": {
     "enabled": true
@@ -29,45 +26,63 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "recommended": false,
       "a11y": {
-        "noSvgWithoutTitle": "off",
-        "useFocusableInteractive": "off",
-        "useSemanticElements": "off"
-      },
-      "security": {
-        "noDangerouslySetInnerHtml": "off"
-      },
-      "nursery": {
-        "useSortedClasses": {
-          "level": "info",
-          "fix": "safe",
-          "options": {}
-        }
-      },
-      "style": {
-        "noNonNullAssertion": "off",
-        "useTemplate": "off",
-        "useBlockStatements": "off",
-        "noUnusedTemplateLiteral": "off",
-        "noUselessElse": "off",
-        "useImportType": "off"
-      },
-      "correctness": {
-        "useExhaustiveDependencies": "off"
-      },
-      "suspicious": {
-        "noExplicitAny": "off",
-        "noArrayIndexKey": "info"
+        "recommended": true
       },
       "complexity": {
-        "noForEach": "off"
+        "recommended": true,
+        "noExcessiveCognitiveComplexity": "error",
+        "noVoid": "off"
+      },
+      "correctness": {
+        "recommended": true,
+        "noUndeclaredVariables": "error",
+        "noUnusedVariables": "error",
+        "useExhaustiveDependencies": "warn"
+      },
+      "nursery": {},
+      "performance": {
+        "recommended": true
+      },
+      "security": {
+        "recommended": true
+      },
+      "style": {
+        "recommended": true,
+        "noNonNullAssertion": "off",
+        "useImportType": "error"
+      },
+      "suspicious": {
+        "recommended": true,
+        "noExplicitAny": "off",
+        "noArrayIndexKey": "off"
       }
     }
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double"
+      "jsxQuoteStyle": "double",
+      "quoteProperties": "asNeeded",
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "arrowParentheses": "always",
+      "bracketSameLine": false,
+      "quoteStyle": "double",
+      "attributePosition": "auto",
+      "bracketSpacing": true
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["*.ts", "*.tsx"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "off"
+          }
+        }
+      }
+    }
+  ]
 }

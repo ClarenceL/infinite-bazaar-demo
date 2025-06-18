@@ -1,13 +1,10 @@
-import { createBullBoard } from "@bull-board/api";
-import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
-import { HonoAdapter } from "@bull-board/hono";
-import { serve } from "@hono/node-server";
-import { serveStatic } from "@hono/node-server/serve-static";
+import { Agenda, type Job } from "agenda";
+// @ts-ignore - agendash doesn't have proper types
+import Agendash from "agendash";
 import axios from "axios";
-import { Queue, Worker } from "bullmq";
 import dotenv from "dotenv";
-import { Hono } from "hono";
-import Redis from "ioredis";
+import express, { type Request, type Response } from "express";
+import { MongoClient } from "mongodb";
 import pino from "pino";
 
 import "./environment";
@@ -25,125 +22,91 @@ const logger = pino({
   },
 });
 
-// Redis connection configuration
-const redisConfig = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: Number.parseInt(process.env.REDIS_PORT || "6379"),
-  password: process.env.REDIS_PASSWORD,
-  maxRetriesPerRequest: null, // Required for BullMQ blocking operations
-  retryDelayOnFailover: 100,
-};
+// MongoDB connection configuration
+const mongoUrl = process.env.MONGODB_URL || "mongodb://localhost:27017/infinite-bazaar-agenda";
 
-// Initialize Redis connection
-const redis = new Redis(redisConfig);
-
-// Initialize BullMQ components
-const healthCheckQueue = new Queue("health-check", { connection: redis });
-
-// Initialize Bull Dashboard
-const app = new Hono();
-const serverAdapter = new HonoAdapter(serveStatic);
-
-createBullBoard({
-  queues: [new BullMQAdapter(healthCheckQueue)],
-  serverAdapter,
+// Initialize Agenda
+const agenda = new Agenda({
+  db: { address: mongoUrl, collection: "agendaJobs" },
+  processEvery: "5 seconds", // Process jobs every 5 seconds
+  maxConcurrency: 20, // Maximum number of jobs to run concurrently
 });
 
-const basePath = "/admin/queues";
-serverAdapter.setBasePath(basePath);
-app.route(basePath, serverAdapter.registerPlugin());
+// Initialize Express app
+const app = express();
 
-// Health check job processor
-const healthCheckWorker = new Worker(
-  "health-check",
-  async (job) => {
-    const { url } = job.data;
+// Middleware
+app.use(express.json());
 
-    try {
-      logger.info({ jobId: job.id, url }, "Starting health check");
+// Mount Agendash dashboard at root
+app.use("/", Agendash(agenda));
 
-      const response = await axios.get(url, {
-        timeout: 5000,
-        validateStatus: (status) => status < 500, // Accept any status < 500
-      });
+// Define health check job
+agenda.define("health-check", async (job: Job) => {
+  const { url } = job.attrs.data;
+  const jobId = job.attrs._id;
 
-      logger.info(
-        {
-          jobId: job.id,
-          url,
-          status: response.status,
-          statusText: response.statusText,
-        },
-        "Health check completed successfully",
-      );
+  try {
+    logger.info({ jobId, url }, "Starting health check");
 
-      return {
-        success: true,
+    const response = await axios.get(url, {
+      timeout: 5000,
+      validateStatus: (status) => status < 500, // Accept any status < 500
+    });
+
+    logger.info(
+      {
+        jobId,
+        url,
         status: response.status,
         statusText: response.statusText,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      logger.error(
-        {
-          jobId: job.id,
-          url,
-          error: error instanceof Error ? error.message : "Unknown error",
-        },
-        "Health check failed",
-      );
+      },
+      "Health check completed successfully",
+    );
 
-      // Don't throw error to avoid infinite retries
-      return {
-        success: false,
+    return {
+      success: true,
+      status: response.status,
+      statusText: response.statusText,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    logger.error(
+      {
+        jobId,
+        url,
         error: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      };
-    }
-  },
-  { connection: redis },
-);
+      },
+      "Health check failed",
+    );
 
-// Error handling
-redis.on("error", (error: Error) => {
-  logger.error({ error: error.message }, "Redis connection error");
+    // Don't throw error to avoid infinite retries
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    };
+  }
 });
 
-redis.on("connect", () => {
-  logger.info("Connected to Redis");
-});
-
-healthCheckWorker.on("completed", (job, result) => {
-  logger.info({ jobId: job.id, result }, "Job completed");
-});
-
-healthCheckWorker.on("failed", (job, error) => {
-  logger.error({ jobId: job?.id, error: error.message }, "Job failed");
-});
-
-// Setup recurring health check job
+// Setup recurring health check job (only if it doesn't exist)
 async function setupHealthCheckCron() {
   const healthCheckUrl = process.env.HEALTH_CHECK_URL || "http://localhost:3105/health";
 
   try {
-    // Remove any existing repeatable jobs
-    const repeatableJobs = await healthCheckQueue.getRepeatableJobs();
-    for (const job of repeatableJobs) {
-      await healthCheckQueue.removeRepeatableByKey(job.key);
+    // Check if the job already exists
+    const existingJobs = await agenda.jobs({ name: "health-check" });
+
+    if (existingJobs.length > 0) {
+      logger.info(
+        { url: healthCheckUrl, existingJobs: existingJobs.length },
+        "Health check jobs already exist, skipping creation",
+      );
+      return;
     }
 
-    // Add new repeatable job every 10 seconds
-    await healthCheckQueue.add(
-      "health-check",
-      { url: healthCheckUrl },
-      {
-        repeat: {
-          every: 10000, // 10 seconds in milliseconds
-        },
-        removeOnComplete: 10, // Keep last 10 completed jobs
-        removeOnFail: 5, // Keep last 5 failed jobs
-      },
-    );
+    // Schedule new repeating job every 10 seconds
+    await agenda.every("10 seconds", "health-check", { url: healthCheckUrl });
 
     logger.info({ url: healthCheckUrl }, "Health check cron job scheduled every 10 seconds");
   } catch (error) {
@@ -155,15 +118,65 @@ async function setupHealthCheckCron() {
   }
 }
 
+// Event handlers
+agenda.on("ready", () => {
+  logger.info("Agenda connected to MongoDB and ready");
+});
+
+agenda.on("start", (job: Job) => {
+  logger.info({ jobId: job.attrs._id, jobName: job.attrs.name }, "Job started");
+});
+
+agenda.on("complete", (job: Job) => {
+  logger.info({ jobId: job.attrs._id, jobName: job.attrs.name }, "Job completed");
+});
+
+agenda.on("fail", (err: Error, job: Job) => {
+  logger.error(
+    {
+      jobId: job.attrs._id,
+      jobName: job.attrs.name,
+      error: err.message,
+    },
+    "Job failed",
+  );
+});
+
+// Health endpoint
+app.get("/health", (_req: Request, res: Response) => {
+  res.json({ status: "ok", service: "cron2-dashboard" });
+});
+
+// Job stats endpoint
+app.get("/api/stats", async (_req: Request, res: Response) => {
+  try {
+    // Get job counts from agenda
+    const jobs = await agenda.jobs({});
+    const completedJobs = jobs.filter((job) => job.attrs.lastFinishedAt);
+    const failedJobs = jobs.filter((job) => job.attrs.failedAt);
+    const runningJobs = jobs.filter((job) => job.attrs.lockedAt && !job.attrs.lastFinishedAt);
+
+    res.json({
+      queue: "health-check",
+      total: jobs.length,
+      completed: completedJobs.length,
+      failed: failedJobs.length,
+      active: runningJobs.length,
+      waiting: jobs.length - completedJobs.length - failedJobs.length - runningJobs.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 // Graceful shutdown
 async function gracefulShutdown() {
-  logger.info("Shutting down cron service...");
+  logger.info("Shutting down cron2 service...");
 
   try {
-    await healthCheckWorker.close();
-    await healthCheckQueue.close();
-    await redis.quit();
-    logger.info("Cron service shut down successfully");
+    await agenda.stop();
+    logger.info("Cron2 service shut down successfully");
     process.exit(0);
   } catch (error) {
     logger.error(
@@ -178,57 +191,39 @@ async function gracefulShutdown() {
 process.on("SIGTERM", gracefulShutdown);
 process.on("SIGINT", gracefulShutdown);
 
-// Start the Bull Dashboard server
-async function startBullDashboard() {
-  const port = process.env.CRON_DASHBOARD_PORT || 3001;
-
-  // Add health endpoint to the Hono app
-  app.get("/health", (c) => {
-    return c.json({ status: "ok", service: "cron-dashboard" });
-  });
-
-  // Add queue stats endpoint
-  app.get("/api/stats", async (c) => {
-    try {
-      const counts = await healthCheckQueue.getJobCounts();
-      return c.json({
-        queue: "health-check",
-        ...counts,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
-    }
-  });
-
-  serve({ fetch: app.fetch, port: Number(port) }, ({ address, port: serverPort }) => {
-    logger.info({ port: serverPort, address }, "Bull Dashboard server started");
-    logger.info(`Bull Dashboard UI available at: http://localhost:${serverPort}${basePath}`);
-    logger.info(`Health check: http://localhost:${serverPort}/health`);
-    logger.info(`Queue stats: http://localhost:${serverPort}/api/stats`);
-  });
-}
-
-// Start the cron service
+// Start the service
 async function start() {
   try {
-    logger.info("Starting infinite-bazaar cron service...");
+    logger.info("Starting infinite-bazaar cron2 service...");
 
-    // Setup health check cron (BullMQ will handle Redis connection)
+    // Start agenda
+    await agenda.start();
+
+    // Setup health check cron (only if it doesn't exist)
     await setupHealthCheckCron();
 
-    logger.info("Cron service started successfully");
+    // Start Express server
+    const port = process.env.CRON2_DASHBOARD_PORT || 3002;
+
+    app.listen(port, () => {
+      logger.info({ port }, "Agenda Dashboard server started");
+      logger.info(`Agenda Dashboard UI available at: http://localhost:${port}/`);
+      logger.info(`Health check: http://localhost:${port}/health`);
+      logger.info(`Job stats: http://localhost:${port}/api/stats`);
+    });
+
+    logger.info("Cron2 service started successfully");
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : "Unknown error" },
-      "Failed to start cron service",
+      "Failed to start cron2 service",
     );
     process.exit(1);
   }
 }
 
 // Start the service
-Promise.all([start(), startBullDashboard()]).catch((error) => {
+start().catch((error) => {
   logger.error(
     { error: error instanceof Error ? error.message : "Unknown error" },
     "Unhandled error during startup",
