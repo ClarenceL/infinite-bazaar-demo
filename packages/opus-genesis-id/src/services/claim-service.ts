@@ -2,6 +2,7 @@ import { logger } from "@infinite-bazaar-demo/logs";
 import { z } from "zod";
 import { createPublicClient, http, formatUnits, parseAbi } from "viem";
 import { baseSepolia } from "viem/chains";
+import { Coinbase } from "@coinbase/coinbase-sdk";
 // For now, I'll implement a simplified x402 integration
 // The x402 package has module resolution issues with the current setup
 // TODO: Fix module resolution to use proper x402 imports
@@ -80,49 +81,72 @@ export class ClaimService {
   }
 
   /**
-   * Verify x402 payment for claim submission
-   */
-  async verifyX402Payment(paymentData: z.infer<typeof X402PaymentSchema>): Promise<{
-    isValid: boolean;
-    reason?: string;
+ * Simulate blockchain transaction using Coinbase CDP
+ * This demonstrates how claims would be stored on-chain after payment
+ */
+  async simulateBlockchainTransaction(claim: ClaimSubmission, claimId: string): Promise<{
+    success: boolean;
     transactionHash?: string;
+    accountName?: string;
+    error?: string;
   }> {
     try {
-      logger.info({ paymentData }, "Verifying x402 payment");
+      logger.info({ claimId, did: claim.did }, "Simulating blockchain transaction with Coinbase CDP");
 
-      // Use x402 verify function for proper protocol verification
-      const verificationResult = await verify({
-        x402Version: paymentData.x402Version,
-        paymentHeader: paymentData.paymentHeader,
-        paymentRequirements: paymentData.paymentRequirements as PaymentRequirements,
+      // Initialize Coinbase CDP client
+      const coinbase = Coinbase.configure({
+        apiKeyName: process.env.CDP_API_KEY_NAME || "default-key",
+        privateKey: process.env.CDP_PRIVATE_KEY || "default-private-key",
       });
 
-      if (!verificationResult.isValid) {
-        logger.warn({
-          reason: verificationResult.invalidReason,
-          paymentData
-        }, "x402 payment verification failed");
+      // Create or get account for claim storage
+      const accountName = `claim-storage-${Date.now()}`;
+
+      try {
+        // In real implementation, this would create a wallet and interact with smart contracts
+        // For now, we'll simulate the process
+        const mockWalletId = `wallet-${Math.random().toString(36).substring(2, 15)}`;
+
+        logger.info({
+          accountName,
+          mockWalletId,
+          claimId
+        }, "Simulated CDP wallet creation for claim storage");
+
+        // Simulate a transaction (in real implementation, this would interact with a smart contract)
+        const mockTransactionHash = `0x${Math.random().toString(16).substring(2, 66)}`;
+
+        logger.info({
+          claimId,
+          transactionHash: mockTransactionHash,
+          accountName,
+          did: claim.did
+        }, "Simulated blockchain transaction for claim storage");
 
         return {
-          isValid: false,
-          reason: verificationResult.invalidReason || "Payment verification failed",
+          success: true,
+          transactionHash: mockTransactionHash,
+          accountName,
+        };
+
+      } catch (cdpError) {
+        logger.warn({ error: cdpError }, "CDP simulation failed, using fallback mock transaction");
+
+        // Fallback to mock transaction
+        const mockTransactionHash = `0x${Math.random().toString(16).substring(2, 66)}`;
+
+        return {
+          success: true,
+          transactionHash: mockTransactionHash,
+          accountName: `mock-${accountName}`,
         };
       }
 
-      logger.info({
-        paymentData,
-        verificationResult
-      }, "x402 payment verified successfully");
-
-      return {
-        isValid: true,
-        transactionHash: verificationResult.txHash,
-      };
     } catch (error) {
-      logger.error({ error, paymentData }, "Error verifying x402 payment");
+      logger.error({ error, claimId }, "Failed to simulate blockchain transaction");
       return {
-        isValid: false,
-        reason: `Verification error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -161,27 +185,25 @@ export class ClaimService {
    */
   private async submitClaimToContract(claim: ClaimSubmission, claimId: string, paymentId: string): Promise<ClaimSubmissionResult> {
     try {
-      // TODO: Implement actual smart contract interaction
-      // This would involve:
-      // 1. Loading the storage contract ABI
-      // 2. Creating a contract instance
-      // 3. Calling the contract method to store the claim
-      // 4. Waiting for transaction confirmation
+      // Simulate blockchain transaction with Coinbase CDP
+      const blockchainResult = await this.simulateBlockchainTransaction(claim, claimId);
 
-      // For now, return mock data
-      const mockTransactionHash = `0x${Math.random().toString(16).substring(2, 66)}`;
+      if (!blockchainResult.success) {
+        throw new Error(`Blockchain simulation failed: ${blockchainResult.error}`);
+      }
 
       logger.info({
         claimId,
-        transactionHash: mockTransactionHash,
+        transactionHash: blockchainResult.transactionHash,
+        accountName: blockchainResult.accountName,
         did: claim.did,
         paymentId
-      }, "Claim submitted to blockchain contract");
+      }, "Claim submitted to blockchain using CDP simulation");
 
       return {
         success: true,
         claimId,
-        transactionHash: mockTransactionHash,
+        transactionHash: blockchainResult.transactionHash!,
         timestamp: new Date().toISOString(),
         gasUsed: 65000, // Estimated gas usage
       };
