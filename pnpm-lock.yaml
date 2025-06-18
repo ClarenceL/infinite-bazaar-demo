@@ -350,6 +350,9 @@ importers:
       '@types/dotenv':
         specifier: ^8.2.3
         version: 8.2.3
+      '@types/node':
+        specifier: ^22.13.4
+        version: 22.15.32
       execa:
         specifier: ^9.5.2
         version: 9.6.0

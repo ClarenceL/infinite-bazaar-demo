@@ -1,6 +1,6 @@
-import process from "node:process";
+import * as process from "node:process";
+import { enclaveRoutes } from "@/modules/enclave";
 import { customLogger } from "@/pkg/middleware/custom-logger";
-import { errorHandler } from "@/pkg/middleware/error";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
@@ -43,80 +43,8 @@ app.get("/health", (c) => {
   return c.json(status);
 });
 
-// Mock Nitro Enclave endpoints
-const routes = app
-  .basePath("/enclave")
-  .use("*", errorHandler())
-
-  // Mock enclave info endpoint
-  .get("/info", (c) => {
-    return c.json({
-      enclave_id: "mock-enclave-001",
-      pcr0: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-      pcr1: "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
-      pcr2: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-      status: "running",
-      mock: true,
-    });
-  })
-
-  // Mock DID creation endpoint
-  .post("/did/create", async (c) => {
-    const body = await c.req.json();
-
-    // Mock DID creation response
-    return c.json({
-      success: true,
-      did: `did:privado:polygon:main:mock${Date.now()}`,
-      state_hash: `0x${Math.random().toString(16).substring(2, 66)}`,
-      attestation_document: "mock_attestation_document_base64",
-      created_at: new Date().toISOString(),
-      mock: true,
-    });
-  })
-
-  // Mock state signing endpoint
-  .post("/state/sign", async (c) => {
-    const body = await c.req.json();
-
-    return c.json({
-      success: true,
-      signature: `0x${Math.random().toString(16).substring(2, 130)}`,
-      state_hash: body.state_hash || `0x${Math.random().toString(16).substring(2, 66)}`,
-      signed_at: new Date().toISOString(),
-      pcr_hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-      mock: true,
-    });
-  })
-
-  // Mock memory commitment endpoint
-  .post("/memory/commit", async (c) => {
-    const body = await c.req.json();
-
-    return c.json({
-      success: true,
-      commitment_hash: `0x${Math.random().toString(16).substring(2, 66)}`,
-      ipfs_cid: `Qm${Math.random().toString(36).substring(2, 48)}`,
-      committed_at: new Date().toISOString(),
-      memory_size: body.memory?.length || 0,
-      mock: true,
-    });
-  })
-
-  // Mock attestation endpoint
-  .get("/attestation", (c) => {
-    return c.json({
-      attestation_document: "mock_attestation_document_base64_encoded",
-      pcr_measurements: {
-        pcr0: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-        pcr1: "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
-        pcr2: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-      },
-      timestamp: new Date().toISOString(),
-      nonce: Math.random().toString(36).substring(2),
-      mock: true,
-    });
-  });
+// Register enclave routes
+const routes = app.basePath("/enclave").route("/", enclaveRoutes);
 
 export type AppType = typeof routes;
 
