@@ -22,13 +22,7 @@
     "test:opus-chat": "tsx scripts/test-opus-chat.ts",
     "seed:default-data": "tsx scripts/seed-default-data.ts"
   },
-  "keywords": [
-    "nitro",
-    "enclave",
-    "mock",
-    "aws",
-    "infinite-bazaar"
-  ],
+  "keywords": ["nitro", "enclave", "mock", "aws", "infinite-bazaar"],
   "author": "",
   "license": "ISC",
   "dependencies": {

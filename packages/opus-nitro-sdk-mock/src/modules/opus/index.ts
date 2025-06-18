@@ -1,2 +1,2 @@
 export * from "./opus.routes";
-export * from "./opus.service"; 
+export * from "./opus.service";

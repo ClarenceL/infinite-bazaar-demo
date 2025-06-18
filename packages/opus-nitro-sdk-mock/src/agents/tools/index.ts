@@ -11,11 +11,11 @@ export const mcpTools = [
       properties: {
         data: {
           type: "string",
-          description: "Data to include in the claim"
-        }
+          description: "Data to include in the claim",
+        },
       },
-      required: ["data"]
-    }
+      required: ["data"],
+    },
   },
   {
     name: "claim-cdp",
@@ -25,11 +25,11 @@ export const mcpTools = [
       properties: {
         walletData: {
           type: "object",
-          description: "Wallet data for the CDP claim"
-        }
+          description: "Wallet data for the CDP claim",
+        },
       },
-      required: ["walletData"]
-    }
+      required: ["walletData"],
+    },
   },
   {
     name: "sign_state_hash",
@@ -39,11 +39,11 @@ export const mcpTools = [
       properties: {
         stateHash: {
           type: "string",
-          description: "The state hash to sign"
-        }
+          description: "The state hash to sign",
+        },
       },
-      required: ["stateHash"]
-    }
+      required: ["stateHash"],
+    },
   },
   {
     name: "commit_memory",
@@ -53,12 +53,12 @@ export const mcpTools = [
       properties: {
         memoryData: {
           type: "object",
-          description: "Memory data to commit"
-        }
+          description: "Memory data to commit",
+        },
       },
-      required: ["memoryData"]
-    }
-  }
+      required: ["memoryData"],
+    },
+  },
 ];
 
-export { processToolCall } from "./handlers/index.js"; 
+export { processToolCall } from "./handlers/index.js";

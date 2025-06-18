@@ -4,9 +4,18 @@ import { opusRoutes } from "@/modules/opus";
 import { customLogger } from "@/pkg/middleware/custom-logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import "./environment";
 
 console.log("[OPUS-NITRO-SDK-MOCK] NODE_ENV", process.env.NODE_ENV);
 console.log("[OPUS-NITRO-SDK-MOCK] PORT", process.env.PORT || 3105);
+console.log(
+  "[OPUS-NITRO-SDK-MOCK] ANTHROPIC_API_KEY",
+  process.env.ANTHROPIC_API_KEY ? "✅ Set" : "❌ Missing",
+);
+console.log(
+  "[OPUS-NITRO-SDK-MOCK] ANTHROPIC_API_KEY length",
+  process.env.ANTHROPIC_API_KEY?.length || 0,
+);
 
 export const app = new Hono();
 

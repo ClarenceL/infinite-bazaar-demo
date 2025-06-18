@@ -1,5 +1,12 @@
 import { logger } from "@infinite-bazaar-demo/logs";
-import type { Message, LLMMessages, LLMMessage, ToolCall, ToolCallResult, AnthropicContent } from "../../../types/message";
+import type {
+  AnthropicContent,
+  LLMMessage,
+  LLMMessages,
+  Message,
+  ToolCall,
+  ToolCallResult,
+} from "../../../types/message";
 
 // Hardcoded entity ID for Opus agent
 const OPUS_ENTITY_ID = "ent_opus";
@@ -183,4 +190,4 @@ export const prepLLMMessages = async (
   }
 
   return cleanedLlmMessages;
-}; 
+};

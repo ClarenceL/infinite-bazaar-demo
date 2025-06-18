@@ -90,9 +90,6 @@ export async function processLangChainStream({
   try {
     // Process the stream
     for await (const chunk of stream) {
-      // Log accessible properties of the chunk object for debugging
-      // logger.debug({ chunkKeys: Object.getOwnPropertyNames(chunk) }, "Processing stream chunk");
-
       // Check for stream completion of a tool call
       if (
         currentToolCall &&
@@ -188,7 +185,15 @@ export async function processLangChainStream({
         continue;
       }
 
-      // chunk.content is an array of content blocks
+      // Handle direct string content (LangChain format)
+      if (typeof chunk.content === "string" && chunk.content) {
+        const content = chunk.content;
+        await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
+        currentTextContent += content;
+        continue; // Skip the array processing below
+      }
+
+      // chunk.content is an array of content blocks (alternative format)
       if (Array.isArray(chunk.content) && chunk.content.length > 0) {
         for (const block of chunk.content) {
           if (block.type === "text") {
@@ -231,7 +236,11 @@ export async function processLangChainStream({
       }
     }
 
-    logger.info("Stream processing complete");
+    logger.info({ textLength: currentTextContent.length }, "Stream processing complete");
+
+    // Send done signal to indicate stream completion
+    await writer.write(encoder.encode(`data: {"type":"done"}\n\n`));
+
     return currentTextContent;
   } catch (error) {
     logger.error({ error }, "Error processing LangChain stream");
@@ -257,4 +266,4 @@ export async function processLangChainStream({
 
     return currentTextContent;
   }
-} 
+}

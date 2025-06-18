@@ -25,7 +25,11 @@ export const entityEnum = pgEnum("entity_type", ["AI", "HUMAN"] as const);
 
 // Context type enum for entity context messages
 export type ContextType = "MESSAGE" | "TOOL_USE" | "TOOL_RESULT";
-export const contextTypeEnum = pgEnum("context_type", ["MESSAGE", "TOOL_USE", "TOOL_RESULT"] as const);
+export const contextTypeEnum = pgEnum("context_type", [
+  "MESSAGE",
+  "TOOL_USE",
+  "TOOL_RESULT",
+] as const);
 
 export const users = pgTable("entities", {
   // this is the clerk user id
@@ -88,8 +92,7 @@ export const entityContext = pgTable("entity_context", {
   toolInput: json("tool_input"), // The input parameters as JSON
   // Tool result fields - populated when contextType is TOOL_RESULT
   toolResultData: json("tool_result_data"), // The data field from tool results
-  chatId: varchar("chat_id", { length: 255 })
-    .references(() => chats.chatId), // Optional chat scoping
+  chatId: varchar("chat_id", { length: 255 }).references(() => chats.chatId), // Optional chat scoping
   ...lifecycleDates,
 }).enableRLS();
 

@@ -1,8 +1,15 @@
+import { and, db, desc, entityContext, eq, sql } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
+import type {
+  ChatMessage,
+  ChatRequest,
+  Message,
+  OpusInfo,
+  ToolCall,
+  ToolCallResult,
+} from "../../types/message";
 import { generateResponse, generateStreamingResponse } from "./generate-response";
-import type { Message, ChatMessage, ChatRequest, OpusInfo, ToolCall, ToolCallResult } from "../../types/message";
-import { db, entityContext, eq, and, desc, sql } from "@infinite-bazaar-demo/db";
 
 // Hardcoded entity ID for Opus agent
 const OPUS_ENTITY_ID = "ent_opus";
@@ -30,8 +37,8 @@ export class OpusService {
         "Wallet operations and x402 payments",
         "Memory commitment to IPFS and Base Sepolia",
         "State hash signing for tamper detection",
-        "Social interactions with other entities"
-      ]
+        "Social interactions with other entities",
+      ],
     };
   }
 
@@ -63,7 +70,7 @@ export class OpusService {
         .orderBy(entityContext.sequence, entityContext.createdAt);
 
       // Convert database records to Message format
-      const messages: Message[] = dbMessages.map(record => {
+      const messages: Message[] = dbMessages.map((record) => {
         let content: string | ToolCall | ToolCallResult;
 
         // Handle different context types
@@ -114,8 +121,11 @@ export class OpusService {
         .from(entityContext)
         .where(
           message.chatId
-            ? and(eq(entityContext.entityId, OPUS_ENTITY_ID), eq(entityContext.chatId, message.chatId))
-            : eq(entityContext.entityId, OPUS_ENTITY_ID)
+            ? and(
+                eq(entityContext.entityId, OPUS_ENTITY_ID),
+                eq(entityContext.chatId, message.chatId),
+              )
+            : eq(entityContext.entityId, OPUS_ENTITY_ID),
         );
 
       const nextSequence = (maxSequenceResult[0]?.maxSeq || 0) + 1;
@@ -157,9 +167,15 @@ export class OpusService {
       // Insert into database
       await db.insert(entityContext).values(dbRecord);
 
-      logger.info({ role: message.role, chatId: message.chatId, sequence: nextSequence }, "Message saved to database");
+      logger.info(
+        { role: message.role, chatId: message.chatId, sequence: nextSequence },
+        "Message saved to database",
+      );
     } catch (error) {
-      logger.error({ error, role: message.role, chatId: message.chatId }, "Error saving message to database");
+      logger.error(
+        { error, role: message.role, chatId: message.chatId },
+        "Error saving message to database",
+      );
       throw error;
     }
   }
@@ -190,13 +206,13 @@ export class OpusService {
   }
 
   /**
- * Generate an AI response using Claude Sonnet
- */
+   * Generate an AI response using Claude Sonnet
+   */
   async generateAIResponse(
     messages: Message[],
     projectId = "infinite-bazaar-demo",
     userId = "user_default",
-    authToken?: string
+    authToken?: string,
   ): Promise<{
     textContent: string;
     newMessages: Message[];
@@ -213,7 +229,7 @@ export class OpusService {
     encoder: TextEncoder,
     projectId = "infinite-bazaar-demo",
     userId = "user_default",
-    authToken?: string
+    authToken?: string,
   ): Promise<string> {
     return generateStreamingResponse(messages, projectId, userId, writer, encoder, authToken);
   }
@@ -232,9 +248,7 @@ export class OpusService {
       }
 
       // Delete messages from database
-      const deleteResult = await db
-        .delete(entityContext)
-        .where(and(...conditions));
+      const deleteResult = await db.delete(entityContext).where(and(...conditions));
 
       logger.info({ chatId, entityId: OPUS_ENTITY_ID }, "Conversation reset in database");
     } catch (error) {
@@ -260,4 +274,4 @@ export class OpusService {
 }
 
 // Export singleton instance
-export const opusService = new OpusService(); 
+export const opusService = new OpusService();

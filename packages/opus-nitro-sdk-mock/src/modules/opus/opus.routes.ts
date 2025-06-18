@@ -1,6 +1,5 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { Hono } from "hono";
-import { stream } from "hono/streaming";
 import { errorHandler } from "../../pkg/middleware/error.js";
 import { opusService } from "./opus.service.js";
 
@@ -31,7 +30,7 @@ export const opusRoutes = new Hono()
       return c.json({
         success: true,
         systemPrompt,
-        entityId: "ent_opus"
+        entityId: "ent_opus",
       });
     } catch (error) {
       return c.json(
@@ -65,7 +64,7 @@ export const opusRoutes = new Hono()
         chatId = body.chatId;
       }
 
-      if (!message || typeof message !== 'string') {
+      if (!message || typeof message !== "string") {
         return c.json({ error: "Message is required and must be a string" }, 400);
       }
 
@@ -81,50 +80,54 @@ export const opusRoutes = new Hono()
         chatId,
       });
 
-      // Set up Server-Sent Events stream
-      return stream(c, async (stream) => {
+      // Set up Server-Sent Events stream following the reference pattern
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const encoder = new TextEncoder();
+
+      // Start the streaming response generation in the background
+      (async () => {
         try {
-          // Create a writer that formats output for SSE
-          const writer = {
-            write: async (chunk: Uint8Array) => {
-              // The chunk comes in the format "0:content\n\n" or "2:tool_data\n\n"
-              // We need to forward this directly to the SSE stream
-              await stream.write(chunk);
-            },
-            close: async () => {
-              // No-op for SSE
-            },
-          };
+          logger.info("Starting streaming AI response generation");
 
-          const encoder = new TextEncoder();
-
-          // Use the streaming AI response that writes directly to our writer
+          // Use the streaming AI response that writes directly to the stream
           const response = await opusService.generateStreamingAIResponse(
             [...messages, { role: "user", content: message, chatId }],
-            writer as any,
-            encoder
+            writer,
+            encoder,
           );
 
-          logger.info({ responseLength: response.length, responsePreview: response.substring(0, 100) }, "Streaming response completed");
+          logger.info(
+            { responseLength: response.length, responsePreview: response.substring(0, 100) },
+            "Streaming response completed successfully",
+          );
 
-          // Save the assistant response
-          await opusService.saveMessage({
-            role: "assistant",
-            content: response,
-            chatId,
-          });
-
-          // Send completion signal
-          await stream.write(new TextEncoder().encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
-
+          // Note: The complete response is already saved by generateStreamingAIResponse
+          // No need to save again here to avoid duplicates
         } catch (error) {
-          logger.error({ error }, "Error processing chat request");
+          logger.error(
+            { error },
+            "Error in streaming route - this should not happen if fallback works",
+          );
 
           const errorMessage = error instanceof Error ? error.message : String(error);
-          await stream.write(new TextEncoder().encode(`data: ${JSON.stringify({ type: "error", data: errorMessage })}\n\n`));
+          await writer.write(
+            encoder.encode(`data: ${JSON.stringify({ type: "error", data: errorMessage })}\n\n`),
+          );
+        } finally {
+          // Always close the writer
+          await writer.close();
         }
-      });
+      })();
 
+      // Return the readable stream with proper headers
+      return new Response(readable, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
     } catch (error) {
       logger.error({ error }, "Chat endpoint error");
       return c.json({ error: "Internal server error" }, 500);
@@ -140,7 +143,7 @@ export const opusRoutes = new Hono()
       return c.json({
         success: true,
         messages,
-        count: messages.length
+        count: messages.length,
       });
     } catch (error) {
       logger.error({ error }, "Error fetching messages");
@@ -164,7 +167,7 @@ export const opusRoutes = new Hono()
 
       return c.json({
         success: true,
-        message: "Conversation history reset successfully"
+        message: "Conversation history reset successfully",
       });
     } catch (error) {
       logger.error({ error }, "Error resetting conversation");
@@ -186,7 +189,7 @@ export const opusRoutes = new Hono()
         // @ts-ignore
         status: "healthy",
         agent: "opus",
-        ...info
+        ...info,
       });
     } catch (error) {
       return c.json(
@@ -197,4 +200,4 @@ export const opusRoutes = new Hono()
         500,
       );
     }
-  }); 
+  });

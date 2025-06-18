@@ -16,27 +16,41 @@ async function parseStreamResponse(
   options: {
     debug?: boolean;
     onUpdate: (text: string, toolResult?: { tool: string; data: any }) => void;
-  }
+  },
 ): Promise<void> {
   const reader = responseBody.getReader();
   const decoder = new TextDecoder();
 
+  console.log("🔍 Starting stream parsing...");
+
   try {
+    let chunkCount = 0;
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
 
+      if (done) {
+        console.log(`\n🏁 Stream ended after ${chunkCount} chunks`);
+        break;
+      }
+
+      chunkCount++;
       const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+
+      if (options.debug) {
+        console.log(`\n📦 Chunk ${chunkCount} (${chunk.length} bytes):`, JSON.stringify(chunk));
+      }
+
+      const lines = chunk.split("\n");
 
       for (const line of lines) {
         if (!line.trim()) continue;
 
-        // Show progress dot for each event
-        process.stdout.write('.');
+        if (options.debug) {
+          console.log(`📋 Processing line:`, JSON.stringify(line));
+        }
 
         // Handle Server-Sent Events format: "data: {...}"
-        if (line.startsWith('data: ')) {
+        if (line.startsWith("data: ")) {
           try {
             const data = JSON.parse(line.substring(6)); // Remove 'data: ' prefix
 
@@ -61,12 +75,14 @@ async function parseStreamResponse(
               options.onUpdate("", { tool: data.tool_call.name, data: data.tool_call });
             }
           } catch (e) {
-            // Skip malformed lines silently
+            if (options.debug) {
+              console.log(`\n⚠️ Failed to parse SSE data:`, e);
+            }
           }
         }
         // Handle format like "0:content" from processLangChainStream.ts - THIS IS THE MAIN FORMAT
-        else if (line.includes(':')) {
-          const colonIndex = line.indexOf(':');
+        else if (line.includes(":")) {
+          const colonIndex = line.indexOf(":");
           const prefix = line.substring(0, colonIndex);
           const content = line.substring(colonIndex + 1);
 
@@ -83,9 +99,15 @@ async function parseStreamResponse(
             } else if (prefix === "2") {
               // Tool call or result
               if (parsedContent.tool_result) {
-                options.onUpdate("", { tool: parsedContent.tool_result.name, data: parsedContent.tool_result });
+                options.onUpdate("", {
+                  tool: parsedContent.tool_result.name,
+                  data: parsedContent.tool_result,
+                });
               } else if (parsedContent.tool_call) {
-                options.onUpdate("", { tool: parsedContent.tool_call.name, data: parsedContent.tool_call });
+                options.onUpdate("", {
+                  tool: parsedContent.tool_call.name,
+                  data: parsedContent.tool_call,
+                });
               }
             }
           } catch (e) {
@@ -134,25 +156,25 @@ async function testOpusAPI() {
     // Check if we have a streaming response
     if (response.body) {
       console.log("\n🔄 Processing streaming response:");
+      console.log("📝 Live response:");
 
       let fullResponse = "";
       const toolResults: Array<{ tool: string; data: any }> = [];
 
       await parseStreamResponse(response.body, {
-        debug: true, // Enable debug to see what format we're actually receiving
+        debug: true, // Turn debug back on to see what's happening
         onUpdate: (text: string, toolResult?: { tool: string; data: any }) => {
           if (toolResult) {
             toolResults.push(toolResult);
           } else if (text) {
+            // Output each character immediately without newlines
+            process.stdout.write(text);
             fullResponse += text;
           }
-        }
+        },
       });
 
-      console.log(`\n\n📝 Full Response:`);
-      console.log(fullResponse);
-
-      console.log(`\n📊 Stream Summary:`);
+      console.log(`\n\n📊 Stream Summary:`);
       console.log(`📝 Response length: ${fullResponse.length} characters`);
       console.log(`🔧 Tool results: ${toolResults.length}`);
 
@@ -167,7 +189,6 @@ async function testOpusAPI() {
     }
 
     console.log("\n🎉 API test completed successfully!");
-
   } catch (error) {
     console.error("❌ API test failed:", error);
 
@@ -198,8 +219,8 @@ function showCurlCommand() {
 // Run the test
 if (import.meta.url === `file://${process.argv[1]}`) {
   // Show usage if help is requested
-  if (process.argv.includes('--help') || process.argv.includes('-h')) {
-    const scriptName = process.argv[1]?.split('/').pop() || 'test-opus-chat.ts';
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    const scriptName = process.argv[1]?.split("/").pop() || "test-opus-chat.ts";
     console.log("📖 Usage:");
     console.log(`  tsx ${scriptName} [message]`);
     console.log("");
@@ -226,4 +247,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error("💥 API test failed:", error);
       process.exit(1);
     });
-} 
+}

@@ -1,5 +1,5 @@
-import { ChatAnthropic } from "@langchain/anthropic";
 import { logger } from "@infinite-bazaar-demo/logs";
+import { ChatAnthropic } from "@langchain/anthropic";
 import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
 import type { Message } from "../../types/message";
 
@@ -61,6 +61,12 @@ export async function generateResponse(
 
     const encoder = new TextEncoder();
 
+    // Log the actual messages being sent (for debugging)
+    logger.info(
+      { messages: JSON.stringify(llmMessages, null, 2) },
+      "LLM Messages being sent to Anthropic",
+    );
+
     // Generate tool use ID counter
     let toolUseIdCounter = 0;
     const generateToolUseId = async (): Promise<string> => {
@@ -77,7 +83,9 @@ export async function generateResponse(
 
     // Start streaming call to Anthropic
     logger.info("Starting stream call to Anthropic");
-    const stream = await llm.stream(llmMessages);
+    const stream = await llm.stream(llmMessages as any); // Cast to bypass type issues
+
+    logger.info("LLM stream created, starting processLangChainStream");
 
     // Process the stream
     textContent = await processLangChainStream({
@@ -93,13 +101,15 @@ export async function generateResponse(
       authToken,
     });
 
-    logger.info({ textLength: textContent.length, newMessageCount: newMessages.length }, "LLM response generated");
+    logger.info(
+      { textLength: textContent.length, textPreview: textContent.substring(0, 200) },
+      "processLangChainStream completed",
+    );
 
     return {
       textContent,
       newMessages,
     };
-
   } catch (error) {
     logger.error({ error }, "Error generating LLM response");
 
@@ -119,11 +129,14 @@ export async function generateResponse(
     // Create appropriate fallback response
     let fallbackResponse: string;
     if (isOverloadedError) {
-      fallbackResponse = "I'm experiencing high demand right now. Please try again in a moment. In the meantime, I'm Opus, your AI agent in the InfiniteBazaar protocol, ready to help you understand secure AI agent identities, DIDs, and blockchain technology.";
+      fallbackResponse =
+        "I'm experiencing high demand right now. Please try again in a moment. In the meantime, I'm Opus, your AI agent in the InfiniteBazaar protocol, ready to help you understand secure AI agent identities, DIDs, and blockchain technology.";
     } else if (errorMessage.includes("ANTHROPIC_API_KEY")) {
-      fallbackResponse = "I'm currently in development mode. I'm Opus, your AI agent in the InfiniteBazaar protocol. I can help you understand how secure AI agent identities work with DIDs, CDP wallets, and Nitro Enclaves, though my responses are currently simulated.";
+      fallbackResponse =
+        "I'm currently in development mode. I'm Opus, your AI agent in the InfiniteBazaar protocol. I can help you understand how secure AI agent identities work with DIDs, CDP wallets, and Nitro Enclaves, though my responses are currently simulated.";
     } else {
-      fallbackResponse = "I encountered an issue processing your request. I'm Opus, your AI agent in the InfiniteBazaar protocol. Let me try to help you with information about secure AI agent identities and the InfiniteBazaar system.";
+      fallbackResponse =
+        "I encountered an issue processing your request. I'm Opus, your AI agent in the InfiniteBazaar protocol. Let me try to help you with information about secure AI agent identities and the InfiniteBazaar system.";
     }
 
     // Add error context to the response if helpful
@@ -147,13 +160,20 @@ export async function generateStreamingResponse(
   encoder: TextEncoder,
   authToken?: string,
 ): Promise<string> {
-  logger.info({ messageCount: messages.length, projectId, userId }, "Generating streaming LLM response");
+  logger.info(
+    { messageCount: messages.length, projectId, userId },
+    "Generating streaming LLM response",
+  );
 
   try {
     // Check for required environment variables
     if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is required");
+      const errorMsg = "ANTHROPIC_API_KEY environment variable is required";
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
+
+    logger.info("ANTHROPIC_API_KEY is available, proceeding with LLM call");
 
     // Initialize ChatAnthropic with tools
     const llm = new ChatAnthropic({
@@ -170,6 +190,19 @@ export async function generateStreamingResponse(
     // Prepare messages for LLM
     const llmMessages = await prepLLMMessages(messages, projectId, authToken);
 
+    logger.info(
+      {
+        llmMessageCount: llmMessages.length,
+      },
+      "Prepared messages for LLM - streaming version",
+    );
+
+    // Log the actual messages being sent (for debugging)
+    logger.info(
+      { messages: JSON.stringify(llmMessages, null, 2) },
+      "LLM Messages being sent to Anthropic",
+    );
+
     // Generate tool use ID counter
     let toolUseIdCounter = 0;
     const generateToolUseId = async (): Promise<string> => {
@@ -181,31 +214,57 @@ export async function generateStreamingResponse(
     };
 
     const saveMessages = async (message: Message): Promise<void> => {
-      // Messages will be saved by the calling service
-      logger.debug({ role: message.role }, "Message ready for saving");
+      // This callback is used during streaming for tool calls
+      // The complete response will be saved after streaming completes
+      logger.debug({ role: message.role }, "Tool call/result message ready for saving");
+      const { opusService } = await import("./opus.service.js");
+      await opusService.saveMessage(message);
     };
 
     // Start streaming call to Anthropic
     logger.info("Starting streaming call to Anthropic");
-    const stream = await llm.stream(llmMessages);
+    const stream = await llm.stream(llmMessages as any); // Cast to bypass type issues
+
+    logger.info("LLM stream created, starting processLangChainStream");
 
     // Process the stream with real writer
-    const textContent = await processLangChainStream({
-      stream,
-      writer,
-      encoder,
-      generateToolUseId,
-      clearToolUseId,
-      saveMessages,
-      projectId,
-      userId,
-      state: {}, // Mock state object
-      authToken,
-    });
+    let textContent: string;
+    try {
+      textContent = await processLangChainStream({
+        stream,
+        writer,
+        encoder,
+        generateToolUseId,
+        clearToolUseId,
+        saveMessages,
+        projectId,
+        userId,
+        state: {}, // Mock state object
+        authToken,
+      });
+      logger.info(
+        { textLength: textContent.length, textPreview: textContent.substring(0, 200) },
+        "processLangChainStream completed",
+      );
+    } catch (error) {
+      logger.error(error, "Error in processLangChainStream");
+      textContent = "Error processing stream";
+      // Still send done signal even on error
+      writer.write(encoder.encode(`data: {"type":"done"}\n\n`));
+    }
 
-    logger.info({ textLength: textContent.length }, "Streaming response completed");
+    // Save the complete response if we have text content (like the reference implementation)
+    if (textContent) {
+      logger.info("Saving complete assistant response to database");
+      const { opusService } = await import("./opus.service.js");
+      await opusService.saveMessage({
+        role: "assistant",
+        content: textContent,
+        timestamp: Date.now(),
+      });
+    }
+
     return textContent;
-
   } catch (error) {
     logger.error({ error }, "Error generating streaming LLM response");
 
@@ -222,14 +281,16 @@ export async function generateStreamingResponse(
     // Send error to stream
     let userErrorMessage: string;
     if (isOverloadedError) {
-      userErrorMessage = "The AI service is currently overloaded. Please try again in a few moments.";
+      userErrorMessage =
+        "The AI service is currently overloaded. Please try again in a few moments.";
     } else if (errorMessage.includes("ANTHROPIC_API_KEY")) {
       userErrorMessage = "AI service is not configured. Running in development mode.";
     } else {
       userErrorMessage = `Error: ${errorMessage}`;
     }
 
+    logger.error({ userErrorMessage }, "Sending error message to stream");
     await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
     return userErrorMessage;
   }
-} 
+}

@@ -191,4 +191,4 @@ seedDefaultData()
   .catch((error) => {
     console.error("💥 Seed script failed with error:", error);
     process.exit(1);
-  }); 
+  });
