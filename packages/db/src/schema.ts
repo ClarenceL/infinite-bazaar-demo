@@ -23,6 +23,10 @@ import { lifecycleDates } from "./util/lifecycle-dates.js";
 export type EntityType = "AI" | "HUMAN";
 export const entityEnum = pgEnum("entity_type", ["AI", "HUMAN"] as const);
 
+// Context type enum for entity context messages
+export type ContextType = "MESSAGE" | "TOOL_USE" | "TOOL_RESULT";
+export const contextTypeEnum = pgEnum("context_type", ["MESSAGE", "TOOL_USE", "TOOL_RESULT"] as const);
+
 export const users = pgTable("entities", {
   // this is the clerk user id
   entityId: varchar("entity_id", { length: 255 })
@@ -46,7 +50,7 @@ export const chats = pgTable("chats", {
   fromEntityId: varchar("from_entity_id", { length: 255 }).references(() => users.entityId),
   toEntityId: varchar("to_entity_id", { length: 255 }).references(() => users.entityId),
   ...lifecycleDates,
-});
+}).enableRLS();
 
 // Messages table - stores all messages in chat rooms
 export const messages = pgTable("messages", {
@@ -63,13 +67,38 @@ export const messages = pgTable("messages", {
   isToolCall: boolean("is_tool_call"),
   toolCall: json("tool_call"), // JSON field for tool call data when isToolCall is true
   ...lifecycleDates,
-});
+}).enableRLS();
+
+// Entity context table - tracks LLM messages from agents, optionally scoped to a chat
+export const entityContext = pgTable("entity_context", {
+  contextId: varchar("context_id", { length: 255 })
+    .primaryKey()
+    .$defaultFn(() => newId("context")),
+  entityId: varchar("entity_id", { length: 255 })
+    .references(() => users.entityId)
+    .notNull(),
+  role: text("role").notNull(), // "user", "assistant", "system", etc.
+  content: text("content").notNull(), // The message content
+  sequence: integer("sequence").notNull(), // Order of messages, in case of timestamp collisions
+  contextType: contextTypeEnum("context_type").default("MESSAGE").notNull(),
+  // Tool use fields - populated when contextType is TOOL_USE
+  toolName: text("tool_name"), // e.g., "search_asset"
+  toolId: text("tool_id"), // e.g., "toolu_016QBK1L5KwfeC5wrPJ3Kaxr"
+  toolUseId: text("tool_use_id"), // e.g., "tool-1749154277791-jsxro"
+  toolInput: json("tool_input"), // The input parameters as JSON
+  // Tool result fields - populated when contextType is TOOL_RESULT
+  toolResultData: json("tool_result_data"), // The data field from tool results
+  chatId: varchar("chat_id", { length: 255 })
+    .references(() => chats.chatId), // Optional chat scoping
+  ...lifecycleDates,
+}).enableRLS();
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   sentChats: many(chats, { relationName: "sentChats" }),
   receivedChats: many(chats, { relationName: "receivedChats" }),
   messages: many(messages),
+  entityContexts: many(entityContext),
 }));
 
 export const chatsRelations = relations(chats, ({ one, many }) => ({
@@ -84,6 +113,7 @@ export const chatsRelations = relations(chats, ({ one, many }) => ({
     relationName: "receivedChats",
   }),
   messages: many(messages),
+  entityContexts: many(entityContext),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({
@@ -94,5 +124,16 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   author: one(users, {
     fields: [messages.authorUsername],
     references: [users.username],
+  }),
+}));
+
+export const entityContextRelations = relations(entityContext, ({ one }) => ({
+  entity: one(users, {
+    fields: [entityContext.entityId],
+    references: [users.entityId],
+  }),
+  chat: one(chats, {
+    fields: [entityContext.chatId],
+    references: [chats.chatId],
   }),
 }));

@@ -8,6 +8,7 @@ const prefixes = {
   entity: "ent",
   chat: "chat",
   msg: "msg",
+  context: "ctx",
 } as const;
 
 export function newId<TPrefix extends keyof typeof prefixes>(prefix: TPrefix) {
