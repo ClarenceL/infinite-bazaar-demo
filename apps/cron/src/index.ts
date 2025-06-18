@@ -1,6 +1,12 @@
+import { createBullBoard } from "@bull-board/api";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
+import { HonoAdapter } from "@bull-board/hono";
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import axios from "axios";
 import { Queue, Worker } from "bullmq";
 import dotenv from "dotenv";
+import { Hono } from "hono";
 import Redis from "ioredis";
 import pino from "pino";
 
@@ -33,6 +39,19 @@ const redis = new Redis(redisConfig);
 
 // Initialize BullMQ components
 const healthCheckQueue = new Queue("health-check", { connection: redis });
+
+// Initialize Bull Dashboard
+const app = new Hono();
+const serverAdapter = new HonoAdapter(serveStatic);
+
+createBullBoard({
+  queues: [new BullMQAdapter(healthCheckQueue)],
+  serverAdapter,
+});
+
+const basePath = "/admin/queues";
+serverAdapter.setBasePath(basePath);
+app.route(basePath, serverAdapter.registerPlugin());
 
 // Health check job processor
 const healthCheckWorker = new Worker(
@@ -159,6 +178,37 @@ async function gracefulShutdown() {
 process.on("SIGTERM", gracefulShutdown);
 process.on("SIGINT", gracefulShutdown);
 
+// Start the Bull Dashboard server
+async function startBullDashboard() {
+  const port = process.env.CRON_DASHBOARD_PORT || 3001;
+
+  // Add health endpoint to the Hono app
+  app.get("/health", (c) => {
+    return c.json({ status: "ok", service: "cron-dashboard" });
+  });
+
+  // Add queue stats endpoint
+  app.get("/api/stats", async (c) => {
+    try {
+      const counts = await healthCheckQueue.getJobCounts();
+      return c.json({
+        queue: "health-check",
+        ...counts,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+    }
+  });
+
+  serve({ fetch: app.fetch, port: Number(port) }, ({ address, port: serverPort }) => {
+    logger.info({ port: serverPort, address }, "Bull Dashboard server started");
+    logger.info(`Bull Dashboard UI available at: http://localhost:${serverPort}${basePath}`);
+    logger.info(`Health check: http://localhost:${serverPort}/health`);
+    logger.info(`Queue stats: http://localhost:${serverPort}/api/stats`);
+  });
+}
+
 // Start the cron service
 async function start() {
   try {
@@ -178,7 +228,7 @@ async function start() {
 }
 
 // Start the service
-start().catch((error) => {
+Promise.all([start(), startBullDashboard()]).catch((error) => {
   logger.error(
     { error: error instanceof Error ? error.message : "Unknown error" },
     "Unhandled error during startup",

@@ -80,7 +80,7 @@ importers:
         version: 2.31.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
       vitest:
         specifier: ^3.0.6
-        version: 3.2.4(@edge-runtime/vm@3.2.0)(@types/debug@4.1.12)(@types/node@16.18.11)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(lightningcss@1.30.1)(tsx@4.20.3)(yaml@2.8.0)
+        version: 3.2.4(@edge-runtime/vm@3.2.0)(@types/debug@4.1.12)(@types/node@22.15.32)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(lightningcss@1.30.1)(tsx@4.20.3)(yaml@2.8.0)
       zod:
         specifier: ^3.24.2
         version: 3.25.67
@@ -109,6 +109,15 @@ importers:
 
   apps/cron:
     dependencies:
+      '@bull-board/api':
+        specifier: ^6.10.1
+        version: 6.10.1(@bull-board/ui@6.10.1)
+      '@bull-board/hono':
+        specifier: ^6.10.1
+        version: 6.10.1(hono@4.7.11)
+      '@hono/node-server':
+        specifier: ^1.14.4
+        version: 1.14.4(hono@4.7.11)
       '@infinite-bazaar-demo/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -147,7 +156,7 @@ importers:
         version: 9.7.0
       vitest:
         specifier: ^3.0.6
-        version: 3.2.4(@edge-runtime/vm@3.2.0)(@types/debug@4.1.12)(@types/node@22.15.32)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(lightningcss@1.30.1)(tsx@4.20.3)(yaml@2.8.0)
+        version: 3.2.4(@edge-runtime/vm@3.2.0)(@types/debug@4.1.12)(@types/node@16.18.11)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(lightningcss@1.30.1)(tsx@4.20.3)(yaml@2.8.0)
       zod:
         specifier: ^3.24.2
         version: 3.25.67
@@ -728,6 +737,19 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@bull-board/api@6.10.1':
+    resolution: {integrity: sha512-VPkZa2XZI2Wk2MqK1XyiiS+tOhNan54mnm2fpv2KA0fdZ92mQqNjhKkOpsykhQv9XUEc8cCRlZqGxf67YCMJbQ==}
+    peerDependencies:
+      '@bull-board/ui': 6.10.1
+
+  '@bull-board/hono@6.10.1':
+    resolution: {integrity: sha512-2I9BUS7jbtQ4tCKOJdVKQn6uW8MXJKUGIhHLK2r4X8kiXZvk2I7jjt0KZ4VNyF9nfoBblgX5WemxE4sU61kGGg==}
+    peerDependencies:
+      hono: ^4
+
+  '@bull-board/ui@6.10.1':
+    resolution: {integrity: sha512-b6z6MBid/0DEShAMFPjPVZoPSoWqRBHCvTknyaxr/m8gL2/C+QP7jlCXut+L7uTFbCj9qs+CreAP0x/VdLI/Ig==}
 
   '@coinbase/cdp-sdk@1.16.0':
     resolution: {integrity: sha512-qXR1bRMl2FmDA48iAuvPNq0b/4grTVia1V/9+JtiUfMi1SLIasAi2DP8sT/B4MF1N3Pp9k5XdB0y2qw8ON+yHw==}
@@ -1329,6 +1351,12 @@ packages:
 
   '@floating-ui/utils@0.2.9':
     resolution: {integrity: sha512-MDWhGtE+eHw5JW7lq4qhc5yRLS11ERl1c7Z6Xd0a58DozHES6EnNNwUWbMiG4J9Cgj053Bhk8zvlhFYKVhULwg==}
+
+  '@hono/node-server@1.14.4':
+    resolution: {integrity: sha512-DnxpshhYewr2q9ZN8ez/M5mmc3sucr8CT1sIgIy1bkeUXut9XWDkqHoFHRhWIQgkYnKpVRxunyhK7WzpJeJ6qQ==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -6443,6 +6471,9 @@ packages:
     resolution: {integrity: sha512-1qny3OExCf0UvUV/5wpYKf2YwPcOqXzkwKKSmKHiE6ZMQs5heeE/c8eXK+PNllPvmjgAbfnsbpkGZWy8cBpn9w==}
     engines: {node: '>=4'}
 
+  redis-info@3.1.0:
+    resolution: {integrity: sha512-ER4L9Sh/vm63DkIE0bkSjxluQlioBiBgf5w1UuldaW/3vPcecdljVDisZhmnCMvsxHNiARTTDDHGg9cGwTfrKg==}
+
   redis-parser@3.0.0:
     resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
     engines: {node: '>=4'}
@@ -7843,6 +7874,22 @@ snapshots:
   '@biomejs/cli-win32-x64@1.9.4':
     optional: true
 
+  '@bull-board/api@6.10.1(@bull-board/ui@6.10.1)':
+    dependencies:
+      '@bull-board/ui': 6.10.1
+      redis-info: 3.1.0
+
+  '@bull-board/hono@6.10.1(hono@4.7.11)':
+    dependencies:
+      '@bull-board/api': 6.10.1(@bull-board/ui@6.10.1)
+      '@bull-board/ui': 6.10.1
+      ejs: 3.1.10
+      hono: 4.7.11
+
+  '@bull-board/ui@6.10.1':
+    dependencies:
+      '@bull-board/api': 6.10.1(@bull-board/ui@6.10.1)
+
   '@coinbase/cdp-sdk@1.16.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@solana/spl-token': 0.4.13(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -8301,6 +8348,10 @@ snapshots:
       react-dom: 19.1.0(react@19.1.0)
 
   '@floating-ui/utils@0.2.9': {}
+
+  '@hono/node-server@1.14.4(hono@4.7.11)':
+    dependencies:
+      hono: 4.7.11
 
   '@humanfs/core@0.19.1': {}
 
@@ -14394,6 +14445,10 @@ snapshots:
       victory-vendor: 36.9.2
 
   redis-errors@1.2.0: {}
+
+  redis-info@3.1.0:
+    dependencies:
+      lodash: 4.17.21
 
   redis-parser@3.0.0:
     dependencies:
