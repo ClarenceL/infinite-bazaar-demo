@@ -91,16 +91,13 @@ export const opusRoutes = new Hono()
           logger.info("Starting streaming AI response generation");
 
           // Use the streaming AI response that writes directly to the stream
-          const response = await opusService.generateStreamingAIResponse(
+          await opusService.generateStreamingAIResponse(
             [...messages, { role: "user", content: message, chatId }],
             writer,
             encoder,
           );
 
-          logger.info(
-            { responseLength: response.length, responsePreview: response.substring(0, 100) },
-            "Streaming response completed successfully",
-          );
+          logger.info("Streaming response completed successfully");
 
           // Note: The complete response is already saved by generateStreamingAIResponse
           // No need to save again here to avoid duplicates
@@ -115,8 +112,15 @@ export const opusRoutes = new Hono()
             encoder.encode(`data: ${JSON.stringify({ type: "error", data: errorMessage })}\n\n`),
           );
         } finally {
-          // Always close the writer
-          await writer.close();
+          // Only close the writer if it's still writable
+          try {
+            if (writer.desiredSize !== null) {
+              await writer.close();
+            }
+          } catch (closeError) {
+            // Writer was already closed or errored, which is fine
+            logger.debug({ closeError }, "Writer was already closed");
+          }
         }
       })();
 
