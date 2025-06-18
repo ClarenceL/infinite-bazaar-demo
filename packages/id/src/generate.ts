@@ -6,6 +6,8 @@ const b58 = baseX("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
 const prefixes = {
   test: "test",
   entity: "ent",
+  chat: "chat",
+  msg: "msg",
 } as const;
 
 export function newId<TPrefix extends keyof typeof prefixes>(prefix: TPrefix) {

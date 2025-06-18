@@ -150,11 +150,11 @@ async function verifyAndSettleX402Payment(c: any): Promise<{
   isValid: boolean;
   paymentRequirements?: PaymentRequirements;
   errorType?:
-  | "missing_header"
-  | "decode_error"
-  | "verification_failed"
-  | "verification_error"
-  | "settlement_failed";
+    | "missing_header"
+    | "decode_error"
+    | "verification_failed"
+    | "verification_error"
+    | "settlement_failed";
   errorMessage?: string;
   invalidReason?: string;
   settlementResult?: any;
