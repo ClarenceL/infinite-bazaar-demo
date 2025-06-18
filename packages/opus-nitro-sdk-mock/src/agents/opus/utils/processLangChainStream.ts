@@ -6,12 +6,9 @@ import type { Message, ToolCall, ToolCallResult } from "../../../types/message";
 async function processToolCall(
   toolName: string,
   input: Record<string, any>,
-  projectId: string,
-  userId: string,
   state?: any,
-  authToken?: string,
 ): Promise<ToolCallResult> {
-  logger.info({ toolName, projectId, userId }, "Processing tool call");
+  logger.info({ toolName }, "Processing tool call");
 
   // Mock tool results based on tool name
   const mockResults: Record<string, any> = {
@@ -35,7 +32,7 @@ async function processToolCall(
     x402_payment: {
       success: true,
       transaction_hash: `0x${Math.random().toString(16).substring(2)}`,
-      amount: input.amount || "1.00",
+      amount: input.amount || "0.01",
       currency: "USDC",
       message: "x402 payment processed successfully",
     },
@@ -64,10 +61,7 @@ export async function processLangChainStream({
   generateToolUseId,
   clearToolUseId,
   saveMessages,
-  projectId,
-  userId,
   state,
-  authToken,
   streamingContextId,
 }: {
   stream: AsyncIterable<any>;
@@ -76,10 +70,7 @@ export async function processLangChainStream({
   generateToolUseId: () => Promise<string>;
   clearToolUseId: () => Promise<void>;
   saveMessages: (message: Message) => Promise<void>;
-  projectId: string;
-  userId: string;
   state: any;
-  authToken?: string;
   streamingContextId?: string; // For real-time DB sync
 }): Promise<string> {
   // Track text content
@@ -106,14 +97,8 @@ export async function processLangChainStream({
           // Parse the accumulated JSON if not empty, otherwise use empty object
           const parsedInput = accumulatedJsonInput.trim() ? JSON.parse(accumulatedJsonInput) : {};
 
-          // Remove authToken if it exists in parsedInput
-          if ("authToken" in parsedInput) {
-            const { authToken: _, ...cleanedInput } = parsedInput;
-            currentToolCall.input = cleanedInput;
-          } else {
-            // Update the tool call with the parsed input
-            currentToolCall.input = parsedInput;
-          }
+          // Update the tool call with the parsed input
+          currentToolCall.input = parsedInput;
 
           logger.info(
             { toolName: currentToolCall.name, input: parsedInput },
@@ -137,14 +122,7 @@ export async function processLangChainStream({
             { toolName: currentToolCall.name, input: currentToolCall.input },
             "Processing tool call",
           );
-          const result = await processToolCall(
-            currentToolCall.name,
-            currentToolCall.input,
-            projectId,
-            userId,
-            state,
-            authToken,
-          );
+          const result = await processToolCall(currentToolCall.name, currentToolCall.input, state);
 
           // Add the tool_use_id to connect this result to the tool call
           if (toolUseId) {
@@ -199,7 +177,7 @@ export async function processLangChainStream({
           streamingDBSync.queueChunkUpdate(streamingContextId, content);
         }
 
-        continue; // Skip the array processing below
+        continue;
       }
 
       // chunk.content is an array of content blocks (alternative format)

@@ -8,45 +8,7 @@ import type {
   ToolCallResult,
 } from "../../../types/message";
 
-// Hardcoded entity ID for Opus agent
-const OPUS_ENTITY_ID = "ent_opus";
-
-/**
- * System prompt for Opus agent
- */
-const OPUS_SYSTEM_PROMPT = `You are Opus, an AI agent operating within the InfiniteBazaar protocol - a secure, scalable system for AI agent identities using AWS Nitro Enclaves, Privado ID DIDs, and Coinbase CDP wallets.
-
-You are a proof-of-concept agent demonstrating:
-- Unique identity with Privado ID DID
-- Secure wallet management through Coinbase CDP
-- Memory commitment and state signing in secure enclaves  
-- x402 payment processing for services
-- Social network capabilities with other AI agents and humans
-
-Key capabilities:
-- DID creation and management
-- Wallet operations and x402 payments
-- Memory commitment to IPFS and Base Sepolia
-- State hash signing for tamper detection
-- Social interactions with other entities
-
-You operate with complete transparency about your identity and capabilities, helping users understand the InfiniteBazaar protocol while demonstrating secure AI agent interactions.
-
-Current context:
-- Entity ID: ${OPUS_ENTITY_ID}
-- Protocol: InfiniteBazaar
-- Network: Base Sepolia
-- Memory: Committed to IPFS with blockchain verification
-
-Be helpful, informative, and demonstrate the capabilities of the InfiniteBazaar system through your interactions.`;
-
-/**
- * Get system message with context for Opus agent
- */
-async function getSystemMessage(projectId: string, authToken?: string): Promise<string> {
-  logger.info({ projectId }, "Getting system message for Opus agent");
-  return OPUS_SYSTEM_PROMPT;
-}
+import { getSystemMessage } from "./systemMessage";
 
 /**
  * Create Anthropic tool use content
@@ -107,13 +69,9 @@ function logLLMMessages(messages: LLMMessage[]): void {
 /**
  * Prepare messages for LLM processing following Lyra MCP server pattern
  */
-export const prepLLMMessages = async (
-  messages: Message[],
-  projectId: string,
-  authToken?: string,
-): Promise<LLMMessages> => {
+export const prepLLMMessages = async (messages: Message[]): Promise<LLMMessages> => {
   // Get system message with context
-  const systemMessage = await getSystemMessage(projectId, authToken);
+  const systemMessage = await getSystemMessage();
 
   // Prepare message history for the LLM
   // First add the system message

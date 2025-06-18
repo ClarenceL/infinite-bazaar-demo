@@ -29,6 +29,7 @@
     "@0xpolygonid/js-sdk": "^1.31.1",
     "@coinbase/cdp-sdk": "^1.16.0",
     "@infinite-bazaar-demo/db": "workspace:*",
+    "@infinite-bazaar-demo/x402": "workspace:*",
     "@infinite-bazaar-demo/logs": "workspace:*",
     "@infinite-bazaar-demo/typescript-config": "workspace:*",
     "@langchain/anthropic": "^0.3.9",

@@ -1,6 +1,8 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
+import { getSystemMessage } from "../../agents/opus/utils/systemMessage.js";
+import { processToolCall } from "../../agents/tools/handlers/index.js";
 import { streamingDBSync } from "../../services/streaming-db-sync.js";
 import type { Message } from "../../types/message";
 
@@ -10,23 +12,21 @@ const mcpTools: any[] = [
 ];
 
 /**
- * Generate a response using Claude Sonnet via LangChain
+ * Generate a response using Claude via LangChain
  */
-export async function generateResponse(
-  messages: Message[],
-  projectId: string,
-  userId: string,
-  authToken?: string,
-): Promise<{
+export async function generateResponse(messages: Message[]): Promise<{
   textContent: string;
   newMessages: Message[];
 }> {
-  logger.info({ messageCount: messages.length, projectId, userId }, "Generating LLM response");
+  logger.info({ messageCount: messages.length }, "Generating LLM response");
 
   const newMessages: Message[] = [];
   let textContent = "";
 
   try {
+    // Get system message
+    const systemMessage = await getSystemMessage();
+
     // Check for required environment variables
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error("ANTHROPIC_API_KEY environment variable is required");
@@ -45,7 +45,7 @@ export async function generateResponse(
     }).bindTools(mcpTools);
 
     // Prepare messages for LLM
-    const llmMessages = await prepLLMMessages(messages, projectId, authToken);
+    const llmMessages = await prepLLMMessages(messages);
     logger.info({ llmMessageCount: llmMessages.length }, "Prepared messages for LLM");
 
     // Create a mock stream writer for processing
@@ -96,10 +96,7 @@ export async function generateResponse(
       generateToolUseId,
       clearToolUseId,
       saveMessages,
-      projectId,
-      userId,
       state: {}, // Mock state object
-      authToken,
     });
 
     logger.info(
@@ -112,41 +109,8 @@ export async function generateResponse(
       newMessages,
     };
   } catch (error) {
-    logger.error({ error }, "Error generating LLM response");
-
-    // Handle specific error types
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // Check for overloaded error
-    const isOverloadedError =
-      (error instanceof Error &&
-        (errorMessage.includes("overloaded") || errorMessage.includes("Overloaded"))) ||
-      (error instanceof Error &&
-        "cause" in error &&
-        error.cause instanceof Error &&
-        ((error.cause as Error).message.includes("overloaded") ||
-          (error.cause as Error).message.includes("Overloaded")));
-
-    // Create appropriate fallback response
-    let fallbackResponse: string;
-    if (isOverloadedError) {
-      fallbackResponse =
-        "I'm experiencing high demand right now. Please try again in a moment. In the meantime, I'm Opus, your AI agent in the InfiniteBazaar protocol, ready to help you understand secure AI agent identities, DIDs, and blockchain technology.";
-    } else if (errorMessage.includes("ANTHROPIC_API_KEY")) {
-      fallbackResponse =
-        "I'm currently in development mode. I'm Opus, your AI agent in the InfiniteBazaar protocol. I can help you understand how secure AI agent identities work with DIDs, CDP wallets, and Nitro Enclaves, though my responses are currently simulated.";
-    } else {
-      fallbackResponse =
-        "I encountered an issue processing your request. I'm Opus, your AI agent in the InfiniteBazaar protocol. Let me try to help you with information about secure AI agent identities and the InfiniteBazaar system.";
-    }
-
-    // Add error context to the response if helpful
-    logger.warn({ fallbackResponse }, "Using fallback response due to LLM error");
-
-    return {
-      textContent: fallbackResponse,
-      newMessages: [],
-    };
+    logger.error({ error }, "Error generating response");
+    throw error;
   }
 }
 
@@ -155,18 +119,15 @@ export async function generateResponse(
  */
 export async function generateStreamingResponse(
   messages: Message[],
-  projectId: string,
-  userId: string,
-  writer: WritableStreamDefaultWriter,
+  writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
-  authToken?: string,
-): Promise<string> {
-  logger.info(
-    { messageCount: messages.length, projectId, userId },
-    "Generating streaming LLM response",
-  );
+): Promise<void> {
+  logger.info({ messageCount: messages.length }, "Generating streaming LLM response");
 
   try {
+    // Get system message
+    const systemMessage = await getSystemMessage();
+
     // Check for required environment variables
     if (!process.env.ANTHROPIC_API_KEY) {
       const errorMsg = "ANTHROPIC_API_KEY environment variable is required";
@@ -179,7 +140,8 @@ export async function generateStreamingResponse(
     // Initialize ChatAnthropic with tools
     const llm = new ChatAnthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      model: "claude-sonnet-4-20250514",
+      // model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-20250514",
       temperature: 1.0,
       clientOptions: {
         defaultHeaders: {
@@ -189,7 +151,7 @@ export async function generateStreamingResponse(
     }).bindTools(mcpTools);
 
     // Prepare messages for LLM
-    const llmMessages = await prepLLMMessages(messages, projectId, authToken);
+    const llmMessages = await prepLLMMessages(messages);
 
     logger.info(
       {
@@ -254,10 +216,7 @@ export async function generateStreamingResponse(
         generateToolUseId,
         clearToolUseId,
         saveMessages,
-        projectId,
-        userId,
         state: {}, // Mock state object
-        authToken,
         streamingContextId,
       });
       logger.info(
@@ -283,34 +242,11 @@ export async function generateStreamingResponse(
     } else if (streamingDBSync.isEnabled()) {
       logger.info("Real-time sync enabled - response already saved incrementally");
     }
-
-    return textContent;
   } catch (error) {
-    logger.error({ error }, "Error generating streaming LLM response");
-
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const isOverloadedError =
-      (error instanceof Error &&
-        (errorMessage.includes("overloaded") || errorMessage.includes("Overloaded"))) ||
-      (error instanceof Error &&
-        "cause" in error &&
-        error.cause instanceof Error &&
-        ((error.cause as Error).message.includes("overloaded") ||
-          (error.cause as Error).message.includes("Overloaded")));
-
-    // Send error to stream
-    let userErrorMessage: string;
-    if (isOverloadedError) {
-      userErrorMessage =
-        "The AI service is currently overloaded. Please try again in a few moments.";
-    } else if (errorMessage.includes("ANTHROPIC_API_KEY")) {
-      userErrorMessage = "AI service is not configured. Running in development mode.";
-    } else {
-      userErrorMessage = `Error: ${errorMessage}`;
-    }
-
-    logger.error({ userErrorMessage }, "Sending error message to stream");
-    await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
-    return userErrorMessage;
+    logger.error({ error }, "Error in streaming response");
+    // Send error to client
+    const errorData = JSON.stringify({ error: "Internal server error" });
+    await writer.write(encoder.encode(`error:${errorData}\n`));
+    throw error;
   }
 }

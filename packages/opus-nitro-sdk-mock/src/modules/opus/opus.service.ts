@@ -122,9 +122,9 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-              eq(entityContext.entityId, OPUS_ENTITY_ID),
-              eq(entityContext.chatId, message.chatId),
-            )
+                eq(entityContext.entityId, OPUS_ENTITY_ID),
+                eq(entityContext.chatId, message.chatId),
+              )
             : eq(entityContext.entityId, OPUS_ENTITY_ID),
         );
 
@@ -189,8 +189,8 @@ export class OpusService {
   /**
    * Prepare messages for LLM processing
    */
-  async prepareMessages(messages: Message[], projectId: string, authToken?: string) {
-    return prepLLMMessages(messages, projectId, authToken);
+  async prepareMessages(messages: Message[]) {
+    return prepLLMMessages(messages);
   }
 
   /**
@@ -203,10 +203,8 @@ export class OpusService {
     generateToolUseId: () => Promise<string>;
     clearToolUseId: () => Promise<void>;
     saveMessages: (message: Message) => Promise<void>;
-    projectId: string;
-    userId: string;
     state: any;
-    authToken?: string;
+    streamingContextId?: string;
   }): Promise<string> {
     return processLangChainStream(params);
   }
@@ -214,16 +212,11 @@ export class OpusService {
   /**
    * Generate an AI response using Claude Sonnet
    */
-  async generateAIResponse(
-    messages: Message[],
-    projectId = "infinite-bazaar-demo",
-    userId = "user_default",
-    authToken?: string,
-  ): Promise<{
+  async generateAIResponse(messages: Message[]): Promise<{
     textContent: string;
     newMessages: Message[];
   }> {
-    return generateResponse(messages, projectId, userId, authToken);
+    return generateResponse(messages);
   }
 
   /**
@@ -231,13 +224,10 @@ export class OpusService {
    */
   async generateStreamingAIResponse(
     messages: Message[],
-    writer: WritableStreamDefaultWriter,
+    writer: WritableStreamDefaultWriter<Uint8Array>,
     encoder: TextEncoder,
-    projectId = "infinite-bazaar-demo",
-    userId = "user_default",
-    authToken?: string,
-  ): Promise<string> {
-    return generateStreamingResponse(messages, projectId, userId, writer, encoder, authToken);
+  ): Promise<void> {
+    return generateStreamingResponse(messages, writer, encoder);
   }
 
   /**
@@ -281,3 +271,22 @@ export class OpusService {
 
 // Export singleton instance
 export const opusService = new OpusService();
+
+export async function generateChatResponse(messages: Message[]): Promise<{
+  textContent: string;
+  newMessages: Message[];
+}> {
+  logger.info({ messageCount: messages.length }, "Generating chat response");
+
+  return generateResponse(messages);
+}
+
+export async function generateStreamingChatResponse(
+  messages: Message[],
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  encoder: TextEncoder,
+): Promise<void> {
+  logger.info({ messageCount: messages.length }, "Generating streaming chat response");
+
+  return generateStreamingResponse(messages, writer, encoder);
+}
