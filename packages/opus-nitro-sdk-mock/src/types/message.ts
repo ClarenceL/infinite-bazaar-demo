@@ -27,6 +27,17 @@ export type AnthropicTextBlock = {
 // Union type for all Anthropic content block types
 export type AnthropicTool = AnthropicToolUse | AnthropicToolResult | AnthropicTextBlock;
 
+// Extended content type for message processing
+export interface AnthropicContent {
+  type: "text" | "tool_use" | "tool_result" | "input_json_delta";
+  text?: string;
+  name?: string;
+  id?: string;
+  input?: any;
+  tool_use_id?: string;
+  content?: any;
+}
+
 // Anthropic API compatible message format
 export type AnthropicMessage = {
   role: string;
@@ -40,11 +51,12 @@ export type AnthropicMessageCached = {
 };
 
 // Define Message type locally since it's not exported from message.ts anymore
-export type Message = {
+export interface Message {
   role: "user" | "assistant" | "system";
-  content: string | ToolCall | ToolCallResult;
+  content: string | ToolCall | ToolCallResult | AnthropicContent[];
   timestamp?: number;
-};
+  chatId?: string;
+}
 
 export type StreamChunkData = {
   type: string;
@@ -63,9 +75,9 @@ export type StreamChunkData = {
 export interface ToolCall {
   type: "tool_use";
   name: string;
-  input: Record<string, any>; // Must be an object, empty object {} is valid for tools without parameters
-  tool_use_id?: string; // Track the ID for matching with tool_result
-  id?: string; // Claude 3.7 tool use ID
+  id: string;
+  input: Record<string, any>;
+  tool_use_id?: string;
 }
 
 // Helper to validate ToolCall input is always an object
@@ -117,8 +129,10 @@ export function createAnthropicTextBlock(text: string, ephemeral = true): Anthro
 }
 
 export interface ToolCallResult {
-  data: Record<string, any> | null;
-  tool_use_id?: string; // Reference to the original tool_use id
+  type: "tool_result";
+  tool_use_id: string;
+  data: any;
+  name?: string;
 }
 
 // Tool response from the model
@@ -130,4 +144,30 @@ export interface ToolResponse {
 }
 
 // Use the updated mixed type definition
-export type LLMMessages = Array<AnthropicMessage | AnthropicMessageCached>;
+export type LLMMessages = LLMMessage[];
+
+export interface LLMMessage {
+  role: "user" | "assistant" | "system";
+  content: string | AnthropicContent[];
+  cache_control?: { type: "ephemeral" };
+}
+
+export interface ChatMessage {
+  role: string;
+  content: string;
+  timestamp: number;
+  chatId?: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  chatId?: string;
+}
+
+export interface OpusInfo {
+  entityId: string;
+  systemPrompt: string;
+  messageCount: number;
+  status: string;
+  capabilities: string[];
+}
