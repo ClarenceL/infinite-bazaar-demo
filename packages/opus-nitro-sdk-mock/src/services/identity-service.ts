@@ -34,14 +34,14 @@ const NETWORK_CONFIG = {
     rpcUrl: "https://polygon-rpc.com",
     contractAddress: "0x624ce98D2d27b20b8f8d521723Df8fC4db71D79D", // Polygon mainnet State contract
     chainId: 137,
-    networkId: core.NetworkId.Main,
+    networkId: 'main',
     networkName: 'main'
   },
   TESTNET: {
     rpcUrl: "https://rpc-amoy.polygon.technology/",
     contractAddress: "0x1a4cC30f2aA0377b0c3bc9848766D90cb4404124", // Amoy testnet State contract
     chainId: 80002,
-    networkId: core.NetworkId.Amoy,
+    networkId: 'amoy',
     networkName: 'amoy'
   }
 };
@@ -133,8 +133,8 @@ export class IdentityService {
       // Create identity with proper IdentityCreationOptions
       // Using SparseMerkleTreeProof instead of reverse proof to avoid URL validation
       const { did, credential } = await this.identityWallet.createIdentity({
-        method: core.DidMethod.Iden3,
-        blockchain: core.Blockchain.Polygon,
+        method: 'iden3',
+        blockchain: 'polygon',
         networkId: currentConfig.networkId,
         seed: seedPhrase,
         revocationOpts: {

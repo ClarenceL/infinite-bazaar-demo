@@ -1,6 +1,8 @@
-import { errorHandler } from "@/pkg/middleware/error";
+import { errorHandler } from "../../pkg/middleware/error.js";
 import { Hono } from "hono";
-import { enclaveService } from "./enclave.service";
+import { enclaveService } from "./enclave.service.js";
+import { logger } from "@infinite-bazaar-demo/logs";
+import { handleClaim } from "../../agents/tools/handlers/claim/index.js";
 
 // Create the enclave router
 export const enclaveRoutes = new Hono()
@@ -122,4 +124,38 @@ export const enclaveRoutes = new Hono()
         mock: true,
       }, 500);
     }
+  })
+
+  // Test endpoint for e2e claim flow
+  .post("/test-claim", async (c) => {
+    try {
+      logger.info("Starting test claim submission...");
+
+      // Call the claim handler which will:
+      // 1. Make initial request to opus-genesis-id (should get 402)
+      // 2. Handle x402 payment
+      // 3. Retry with payment
+      // 4. Return success
+      const result = await handleClaim();
+
+      logger.info({ result }, "Test claim submission completed");
+
+      return c.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      logger.error({ error }, "Test claim submission failed");
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+        500
+      );
+    }
+  })
+
+  .get("/health", (c) => {
+    return c.json({ status: "healthy", timestamp: new Date().toISOString() });
   }); 
