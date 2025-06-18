@@ -144,16 +144,22 @@ function createClaimPaymentRequirements(resource: Resource): PaymentRequirements
 }
 
 /**
- * Verifies x402 payment for the request
+ * Verifies and settles x402 payment for the request
  */
-async function verifyX402Payment(c: any): Promise<{
+async function verifyAndSettleX402Payment(c: any): Promise<{
   isValid: boolean;
   paymentRequirements?: PaymentRequirements;
-  errorType?: "missing_header" | "decode_error" | "verification_failed" | "verification_error";
+  errorType?:
+    | "missing_header"
+    | "decode_error"
+    | "verification_failed"
+    | "verification_error"
+    | "settlement_failed";
   errorMessage?: string;
   invalidReason?: string;
+  settlementResult?: any;
 }> {
-  if (!payTo || !verify) {
+  if (!payTo || !verify || !settle) {
     // Payment verification disabled
     return { isValid: true };
   }
@@ -188,25 +194,63 @@ async function verifyX402Payment(c: any): Promise<{
   }
 
   try {
-    const response = await verify(decodedPayment, paymentRequirements);
-    if (!response.isValid) {
+    // Step 1: Verify the payment authorization
+    const verifyResponse = await verify(decodedPayment, paymentRequirements);
+    if (!verifyResponse.isValid) {
       logger.warn(
-        { invalidReason: response.invalidReason, payer: response.payer },
+        { invalidReason: verifyResponse.invalidReason, payer: verifyResponse.payer },
         "❌ Payment verification failed",
       );
       return {
         isValid: false,
         paymentRequirements,
         errorType: "verification_failed",
-        errorMessage: `Payment verification failed: ${response.invalidReason}`,
-        invalidReason: response.invalidReason,
+        errorMessage: `Payment verification failed: ${verifyResponse.invalidReason}`,
+        invalidReason: verifyResponse.invalidReason,
       };
     }
 
-    logger.info({ payer: response.payer }, "✅ Payment verified successfully");
-    return { isValid: true, paymentRequirements };
+    logger.info({ payer: verifyResponse.payer }, "✅ Payment verified successfully");
+
+    // Step 2: Settle the payment (actually execute the transfer)
+    logger.info({ payer: verifyResponse.payer }, "💳 Settling payment...");
+    const settlementResult = await settle(decodedPayment, paymentRequirements);
+
+    if (!settlementResult.success) {
+      logger.error(
+        {
+          errorReason: settlementResult.errorReason,
+          payer: settlementResult.payer,
+          transaction: settlementResult.transaction,
+        },
+        "❌ Payment settlement failed",
+      );
+      return {
+        isValid: false,
+        paymentRequirements,
+        errorType: "settlement_failed",
+        errorMessage: `Payment settlement failed: ${settlementResult.errorReason}`,
+        invalidReason: settlementResult.errorReason,
+        settlementResult,
+      };
+    }
+
+    logger.info(
+      {
+        payer: settlementResult.payer,
+        transaction: settlementResult.transaction,
+        network: settlementResult.network,
+      },
+      "💰 Payment settled successfully!",
+    );
+
+    return {
+      isValid: true,
+      paymentRequirements,
+      settlementResult,
+    };
   } catch (error) {
-    logger.error({ error }, "❌ Payment verification error");
+    logger.error({ error }, "❌ Payment verification/settlement error");
     return {
       isValid: false,
       paymentRequirements,
@@ -224,8 +268,8 @@ export const genesisRoutes = baseRoutes
     try {
       logger.info("🎯 POST /claim/submit ENDPOINT REACHED");
 
-      // Verify x402 payment first
-      const paymentVerification = await verifyX402Payment(c);
+      // Verify and settle x402 payment first
+      const paymentVerification = await verifyAndSettleX402Payment(c);
 
       if (!paymentVerification.isValid) {
         logger.warn(
@@ -249,7 +293,12 @@ export const genesisRoutes = baseRoutes
         );
       }
 
-      logger.info("✅ Payment verified, processing claim");
+      logger.info(
+        {
+          settlementResult: paymentVerification.settlementResult,
+        },
+        "✅ Payment verified and settled, processing claim",
+      );
 
       const body = await c.req.json();
 
@@ -311,6 +360,7 @@ export const genesisRoutes = baseRoutes
         timestamp: result.timestamp,
         paymentVerified: true,
         paymentMethod: "x402",
+        paymentSettlement: paymentVerification.settlementResult || null,
       });
     } catch (error) {
       logger.error({ error }, "Error in claim submission endpoint");
