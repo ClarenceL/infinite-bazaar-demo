@@ -23,9 +23,6 @@
     "lint:format": "biome format . --write",
     "lint:fix": "biome check --fix .",
     "lint:fix-unsafe": "biome check --fix --unsafe .",
-    "test": "NODE_ENV=test vitest run",
-    "test:watch": "NODE_ENV=test vitest watch",
-    "test:ui": "NODE_ENV=test vitest --ui",
     "clean": "rimraf dist"
   },
   "dependencies": {
