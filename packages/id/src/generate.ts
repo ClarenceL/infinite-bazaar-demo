@@ -4,26 +4,8 @@ const b58 = baseX("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
 
 // Customize the prefixes as needed
 const prefixes = {
-  post: "post",
-  property: "prop",
-  user: "user",
   test: "test",
-  proj: "proj",
-  proj_msg: "proj_msg",
-  proj_asset: "proj_asset",
-  proj_asset_music: "proj_music",
-  llmusage: "llmu",
-  owl_api_key: "owlk",
-  proj_network: "proj_net",
-  proj_coll: "proj_coll",
-  coll_deploy: "coll_dep",
-  asset_mint: "asset_mint",
-  asset_stat: "asset_stat",
-  refer: "ref",
-  user_referral: "uref",
-  camp: "camp",
-  camp_asset: "camp_asset",
-  web3_token: "w3tok",
+  entity: "ent",
 } as const;
 
 export function newId<TPrefix extends keyof typeof prefixes>(prefix: TPrefix) {
@@ -50,25 +32,4 @@ export function newIdWithoutPrefix(maxLength: number): string {
   const buf = crypto.getRandomValues(new Uint8Array(20));
   const encoded = b58.encode(buf);
   return encoded.slice(0, maxLength);
-}
-
-/**
- * Generates a random referral code with uppercase letters A-Z
- * @param length The length of the referral code
- * @returns A random string of uppercase letters
- */
-export function generateReferralCode(length = 10): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let result = '';
-  const charactersLength = characters.length;
-  const randomValues = new Uint8Array(length);
-  crypto.getRandomValues(randomValues);
-
-  for (let i = 0; i < length; i++) {
-    // TypeScript safe access with index assertion
-    const randomValue = randomValues[i]!;
-    result += characters.charAt(randomValue % charactersLength);
-  }
-
-  return result;
 }

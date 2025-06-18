@@ -1,0 +1,54 @@
+{
+  "name": "@infinite-bazaar-demo/db",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit",
+    "db:generate": "tsc && drizzle-kit generate",
+    "db:push": "tsc && drizzle-kit push",
+    "db:up": "tsc && drizzle-kit up",
+    "db:migrate": "drizzle-kit up",
+    "db:studio": "drizzle-kit studio",
+    "db:staging:push": "node scripts/migrate-env.js staging push",
+    "db:staging:generate": "node scripts/migrate-env.js staging generate",
+    "db:staging:up": "node scripts/migrate-env.js staging up",
+    "db:test:generate": "node scripts/migrate-env.js test generate",
+    "db:test:push": "node scripts/migrate-env.js test push --force",
+    "db:test:studio": "node scripts/migrate-env.js test studio",
+    "lint": "biome check .",
+    "lint:format": "biome format . --write",
+    "lint:fix": "biome check --fix .",
+    "lint:fix-unsafe": "biome check --fix --unsafe .",
+    "test": "NODE_ENV=test vitest run",
+    "test:watch": "NODE_ENV=test vitest watch",
+    "test:ui": "NODE_ENV=test vitest --ui",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "postgres": "^3.4.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@infinite-bazaar-demo/id": "workspace:*",
+    "@infinite-bazaar-demo/typescript-config": "workspace:*",
+    "@types/node": "^22.13.5",
+    "@types/pg": "^8.11.11",
+    "@vitest/ui": "^3.0.7",
+    "drizzle-kit": "^0.30.4",
+    "drizzle-orm": "^0.39.3",
+    "drizzle-zod": "^0.5.1",
+    "lint": "^0.8.19",
+    "pg": "^8.13.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.6"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
