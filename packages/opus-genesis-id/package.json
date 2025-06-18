@@ -1,0 +1,39 @@
+{
+  "name": "@infinite-bazaar-demo/opus-genesis-id",
+  "version": "0.0.1",
+  "description": "x402 endpoint for Privado ID claim submission and genesis identity management",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun --sourcemap",
+    "test": "NODE_ENV=test bun src/tests/run-tests.ts",
+    "format": "biome format --write .",
+    "type-check": "bun build ./src/index.ts --no-emit --target=bun > /dev/null && echo 'Types checked successfully' || echo 'Type check failed with errors'",
+    "clean": "rimraf dist",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "lint:fix-unsafe": "biome check --fix --unsafe ."
+  },
+  "dependencies": {
+    "hono": "^4.6.11",
+    "@hono/node-server": "^1.13.7",
+    "@infinite-bazaar-demo/logs": "workspace:*",
+    "viem": "^2.21.53",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@infinite-bazaar-demo/typescript-config": "workspace:*",
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  }
+}
