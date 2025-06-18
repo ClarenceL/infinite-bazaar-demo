@@ -122,9 +122,9 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-                eq(entityContext.entityId, OPUS_ENTITY_ID),
-                eq(entityContext.chatId, message.chatId),
-              )
+              eq(entityContext.entityId, OPUS_ENTITY_ID),
+              eq(entityContext.chatId, message.chatId),
+            )
             : eq(entityContext.entityId, OPUS_ENTITY_ID),
         );
 
@@ -162,6 +162,12 @@ export class OpusService {
           dbRecord.content = JSON.stringify(message.content);
           dbRecord.contextType = "MESSAGE";
         }
+      }
+
+      // Set completedAt for user messages (they are always complete when saved)
+      // Assistant messages will have completedAt set by streaming logic
+      if (message.role === "user") {
+        dbRecord.completedAt = new Date();
       }
 
       // Insert into database

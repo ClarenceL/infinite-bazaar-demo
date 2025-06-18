@@ -1,4 +1,5 @@
 import { logger } from "@infinite-bazaar-demo/logs";
+import { streamingDBSync } from "../../../services/streaming-db-sync.js";
 import type { Message, ToolCall, ToolCallResult } from "../../../types/message";
 
 // Mock tool processing function - in real implementation this would call actual tools
@@ -67,6 +68,7 @@ export async function processLangChainStream({
   userId,
   state,
   authToken,
+  streamingContextId,
 }: {
   stream: AsyncIterable<any>;
   writer: WritableStreamDefaultWriter;
@@ -78,6 +80,7 @@ export async function processLangChainStream({
   userId: string;
   state: any;
   authToken?: string;
+  streamingContextId?: string; // For real-time DB sync
 }): Promise<string> {
   // Track text content
   let currentTextContent = ""; // Accumulate text content
@@ -190,6 +193,12 @@ export async function processLangChainStream({
         const content = chunk.content;
         await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
         currentTextContent += content;
+
+        // Queue real-time DB sync update (non-blocking)
+        if (streamingContextId) {
+          streamingDBSync.queueChunkUpdate(streamingContextId, content);
+        }
+
         continue; // Skip the array processing below
       }
 
@@ -201,6 +210,11 @@ export async function processLangChainStream({
             const content = block.text;
             await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
             currentTextContent += content;
+
+            // Queue real-time DB sync update (non-blocking)
+            if (streamingContextId) {
+              streamingDBSync.queueChunkUpdate(streamingContextId, content);
+            }
           } else if (block.type === "tool_use") {
             logger.info({ toolName: block.name }, "Starting tool use stream");
 
@@ -237,6 +251,11 @@ export async function processLangChainStream({
     }
 
     logger.info({ textLength: currentTextContent.length }, "Stream processing complete");
+
+    // Mark streaming record as complete (non-blocking)
+    if (streamingContextId) {
+      streamingDBSync.queueCompletion(streamingContextId);
+    }
 
     // Send done signal to indicate stream completion
     await writer.write(encoder.encode(`data: {"type":"done"}\n\n`));

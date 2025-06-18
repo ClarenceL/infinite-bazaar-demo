@@ -93,6 +93,8 @@ export const entityContext = pgTable("entity_context", {
   // Tool result fields - populated when contextType is TOOL_RESULT
   toolResultData: json("tool_result_data"), // The data field from tool results
   chatId: varchar("chat_id", { length: 255 }).references(() => chats.chatId), // Optional chat scoping
+  // Real-time streaming sync field - null during streaming, timestamp when complete
+  completedAt: timestamp("completed_at", { withTimezone: true }), // null = streaming, timestamp = done
   ...lifecycleDates,
 }).enableRLS();
 

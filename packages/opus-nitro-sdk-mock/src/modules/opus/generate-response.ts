@@ -1,6 +1,7 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
+import { streamingDBSync } from "../../services/streaming-db-sync.js";
 import type { Message } from "../../types/message";
 
 // Import MCP tools (placeholder for now - will be implemented later)
@@ -221,6 +222,22 @@ export async function generateStreamingResponse(
       await opusService.saveMessage(message);
     };
 
+    // Create initial streaming record if real-time sync is enabled
+    let streamingContextId: string | undefined;
+    if (streamingDBSync.isEnabled()) {
+      // Get next sequence number for the assistant response
+      const { opusService } = await import("./opus.service.js");
+      const existingMessages = await opusService.loadMessages();
+      const nextSequence = existingMessages.length + 1;
+
+      const contextId = await streamingDBSync.createInitialRecord({
+        entityId: "ent_opus", // Hardcoded for now
+        role: "assistant",
+        sequence: nextSequence,
+      });
+      streamingContextId = contextId || undefined;
+    }
+
     // Start streaming call to Anthropic
     logger.info("Starting streaming call to Anthropic");
     const stream = await llm.stream(llmMessages as any); // Cast to bypass type issues
@@ -241,6 +258,7 @@ export async function generateStreamingResponse(
         userId,
         state: {}, // Mock state object
         authToken,
+        streamingContextId,
       });
       logger.info(
         { textLength: textContent.length, textPreview: textContent.substring(0, 200) },
@@ -253,8 +271,8 @@ export async function generateStreamingResponse(
       writer.write(encoder.encode(`data: {"type":"done"}\n\n`));
     }
 
-    // Save the complete response if we have text content (like the reference implementation)
-    if (textContent) {
+    // Save the complete response if we have text content and real-time sync is not enabled
+    if (textContent && !streamingDBSync.isEnabled()) {
       logger.info("Saving complete assistant response to database");
       const { opusService } = await import("./opus.service.js");
       await opusService.saveMessage({
@@ -262,6 +280,8 @@ export async function generateStreamingResponse(
         content: textContent,
         timestamp: Date.now(),
       });
+    } else if (streamingDBSync.isEnabled()) {
+      logger.info("Real-time sync enabled - response already saved incrementally");
     }
 
     return textContent;
