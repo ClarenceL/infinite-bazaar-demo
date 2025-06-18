@@ -8,6 +8,7 @@ import { MongoClient } from "mongodb";
 import pino from "pino";
 
 import "./environment";
+import { setupOpusAgentCron } from "./jobs/agents/opus";
 
 // Initialize logger
 const logger = pino({
@@ -200,7 +201,10 @@ async function start() {
     await agenda.start();
 
     // Setup health check cron (only if it doesn't exist)
-    await setupHealthCheckCron();
+    // await setupHealthCheckCron();
+
+    // Setup Opus agent cron (only if it doesn't exist)
+    await setupOpusAgentCron(agenda);
 
     // Start Express server
     const port = process.env.CRON2_DASHBOARD_PORT || 3002;
