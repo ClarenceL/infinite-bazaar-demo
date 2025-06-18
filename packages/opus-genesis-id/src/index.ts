@@ -3,9 +3,20 @@ import { genesisRoutes } from "@/modules/genesis";
 import { customLogger } from "@/pkg/middleware/custom-logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import "./environment";
 
 console.log("[OPUS-GENESIS-ID] NODE_ENV", process.env.NODE_ENV);
 console.log("[OPUS-GENESIS-ID] PORT", process.env.PORT || 3106);
+
+// Log x402 environment variables
+console.log("\n=== X402 ENVIRONMENT VARIABLES ===");
+console.log("[OPUS-GENESIS-ID] ADDRESS:", process.env.ADDRESS || "NOT SET");
+console.log("[OPUS-GENESIS-ID] X402_SERVICE_WALLET_ADDRESS:", process.env.X402_SERVICE_WALLET_ADDRESS || "NOT SET");
+console.log("[OPUS-GENESIS-ID] FACILITATOR_URL:", process.env.FACILITATOR_URL || "NOT SET");
+console.log("[OPUS-GENESIS-ID] X402_FACILITATOR_URL:", process.env.X402_FACILITATOR_URL || "NOT SET");
+console.log("[OPUS-GENESIS-ID] NETWORK:", process.env.NETWORK || "NOT SET");
+console.log("[OPUS-GENESIS-ID] X402_NETWORK:", process.env.X402_NETWORK || "NOT SET");
+console.log("=====================================\n");
 
 export const app = new Hono();
 

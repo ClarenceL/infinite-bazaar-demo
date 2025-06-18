@@ -8,7 +8,7 @@
  */
 
 import { logger } from "@infinite-bazaar-demo/logs";
-import { handleClaimCdp } from "../src/agents/tools/handlers/claim-cdp/index.js";
+import { handleClaimCdp } from "../src/agents/tools/handlers/claim-cdp/index";
 
 interface TestResult {
   success: boolean;
@@ -152,7 +152,8 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-if (import.meta.main) {
+// Run the script if executed directly
+if (process.argv[1] === import.meta.url.replace('file://', '')) {
   main().catch((error) => {
     logger.error({ error }, "Failed to run CDP claim test");
     process.exit(1);

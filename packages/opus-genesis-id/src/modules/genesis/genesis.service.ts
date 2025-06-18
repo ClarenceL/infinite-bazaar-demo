@@ -1,14 +1,8 @@
-import { ClaimService, type ClaimSubmission, type X402Payment } from "@/services/claim-service";
+import { ClaimService, type ClaimSubmission } from "@/services/claim-service";
 import { logger } from "@infinite-bazaar-demo/logs";
-
-export interface GenesisClaimRequest {
-  claim: ClaimSubmission;
-  payment: X402Payment;
-}
 
 export interface GenesisClaimResponse {
   success: boolean;
-  paymentId?: string;
   claimId?: string;
   transactionHash?: string;
   timestamp: string;
@@ -24,45 +18,38 @@ export class GenesisService {
   }
 
   /**
-   * Process a complete genesis claim submission with x402 payment
+   * Process a claim submission that has already been verified by x402 middleware
    */
-  async processGenesisClaimSubmission(request: GenesisClaimRequest): Promise<GenesisClaimResponse> {
+  async processX402VerifiedClaim(claim: ClaimSubmission): Promise<GenesisClaimResponse> {
     try {
       logger.info({
-        did: request.claim.did,
-        claimType: request.claim.claimType,
-        paymentAmount: request.payment.amount
-      }, "Processing genesis claim submission");
+        did: claim.did,
+        claimType: claim.claimType,
+      }, "Processing x402-verified claim submission");
 
-      // Step 1: Verify x402 payment
-      const paymentResult = await this.claimService.verifyX402Payment(request.payment);
+      // Generate unique payment ID for tracking (payment already verified by middleware)
+      const paymentId = `x402_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
-      if (!paymentResult.success || !paymentResult.verified) {
-        throw new Error("Payment verification failed");
-      }
-
-      // Step 2: Submit claim to blockchain
-      const claimResult = await this.claimService.submitClaim(request.claim, paymentResult.paymentId);
+      // Submit claim to blockchain storage
+      const claimResult = await this.claimService.submitClaim(claim, paymentId);
 
       if (!claimResult.success) {
         throw new Error("Claim submission failed");
       }
 
       logger.info({
-        paymentId: paymentResult.paymentId,
         claimId: claimResult.claimId,
         transactionHash: claimResult.transactionHash
-      }, "Genesis claim submission completed successfully");
+      }, "x402-verified claim submission completed successfully");
 
       return {
         success: true,
-        paymentId: paymentResult.paymentId,
         claimId: claimResult.claimId,
         transactionHash: claimResult.transactionHash,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      logger.error({ error }, "Failed to process genesis claim submission");
+      logger.error({ error }, "Failed to process x402-verified claim submission");
 
       return {
         success: false,
@@ -75,7 +62,7 @@ export class GenesisService {
   /**
    * Get claim information by DID
    */
-  async getClaimByDID(did: string): Promise<ClaimSubmission | null> {
+  async getClaimByDID(did: string): Promise<unknown> {
     try {
       logger.info({ did }, "Retrieving claim by DID");
       return await this.claimService.getClaimByDID(did);
@@ -94,7 +81,7 @@ export class GenesisService {
       version: "0.0.1",
       description: "x402 endpoint for Privado ID claim submission",
       pricing: {
-        claimSubmission: "1 USDC",
+        claimSubmission: "0.0001 USDC",
         currency: "USDC",
         paymentMethod: "x402"
       },

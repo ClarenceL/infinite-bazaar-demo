@@ -57,7 +57,7 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
 
     logger.info({
       accountName: cdpAccount.name,
-      accountId: cdpAccount.id
+      accountId: (cdpAccount as any).id || 'unknown'
     }, "CDP account ready");
 
     // Step 2: Convert CDP account to viem LocalAccount for x402-fetch
@@ -116,6 +116,43 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
     // Step 6: Submit claim with automatic x402 payment using CDP account
     logger.info("Submitting claim with x402 payment using CDP account");
 
+    // First, let's try a regular fetch to see if we get HTTP 402
+    logger.info("🔍 TESTING: Making first request without payment to check for HTTP 402");
+    try {
+      const testResponse = await fetch(`${OPUS_GENESIS_ID_URL}/genesis/claim/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(claimData),
+      });
+
+      logger.info({
+        status: testResponse.status,
+        statusText: testResponse.statusText,
+        headers: Object.fromEntries(testResponse.headers.entries())
+      }, `📋 FIRST REQUEST RESULT: ${testResponse.status === 402 ? 'HTTP 402 Payment Required (GOOD!)' : 'Unexpected status (BAD!)'}`);
+
+      if (testResponse.status !== 402) {
+        logger.warn("⚠️  Expected HTTP 402 but got different status - payment middleware may not be working");
+      }
+    } catch (error) {
+      logger.error({ error }, "❌ Test request failed");
+    }
+
+    // Now make the actual x402-enabled request
+    logger.info("💳 Making x402-enabled request (should handle payment automatically)");
+
+    // Log the CDP account balance before payment
+    try {
+      logger.info({
+        cdpAddress: viemAccount.address,
+        network: "base-sepolia"
+      }, "🏦 CDP Account before payment");
+    } catch (error) {
+      logger.warn({ error }, "Could not check CDP account balance");
+    }
+
     const claimResponse = await fetchWithPayment(`${OPUS_GENESIS_ID_URL}/genesis/claim/submit`, {
       method: "POST",
       headers: {
@@ -123,6 +160,16 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
       },
       body: JSON.stringify(claimData),
     });
+
+    // Log the CDP account after payment
+    try {
+      logger.info({
+        cdpAddress: viemAccount.address,
+        network: "base-sepolia"
+      }, "🏦 CDP Account after payment");
+    } catch (error) {
+      logger.warn({ error }, "Could not check CDP account balance after payment");
+    }
 
     const claimResult = await processApiResponse(claimResponse);
 
@@ -144,11 +191,29 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
     if (paymentResponseHeader) {
       try {
         paymentDetails = decodeXPaymentResponse(paymentResponseHeader);
-        logger.info({ paymentDetails }, "Extracted x402 payment response");
+        logger.info({ paymentDetails }, "📋 Extracted x402 payment response");
       } catch (error) {
         logger.warn({ error }, "Failed to decode x-payment-response header");
       }
     }
+
+    // Also check for X-Payment header in the request that was sent
+    const allResponseHeaders: Record<string, string> = {};
+    claimResponse.headers.forEach((value: string, key: string) => {
+      allResponseHeaders[key] = value;
+    });
+
+    logger.info({
+      responseStatus: claimResponse.status,
+      responseHeaders: allResponseHeaders
+    }, "📋 Full response details from x402-enabled request");
+
+    // Check if we actually made a payment
+    logger.info({
+      hasPaymentDetails: !!paymentDetails,
+      paymentResponseHeader: !!paymentResponseHeader,
+      responseStatus: claimResponse.status
+    }, "💰 PAYMENT ANALYSIS - Did we actually pay?");
 
     logger.info({ claimResult: claimResult.data }, "Successfully submitted claim using CDP");
 
@@ -165,7 +230,7 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
         },
         cdpAccount: {
           name: cdpAccount.name,
-          id: cdpAccount.id,
+          id: (cdpAccount as any).id || 'unknown',
           address: viemAccount.address,
         },
         timestamp: new Date().toISOString(),
