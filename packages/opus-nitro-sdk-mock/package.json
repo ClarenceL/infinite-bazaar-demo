@@ -3,8 +3,6 @@
   "version": "1.0.0",
   "description": "Mock implementation of AWS Nitro Enclave SDK for Infinite Bazaar development",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
@@ -28,11 +26,13 @@
   "dependencies": {
     "@0xpolygonid/js-sdk": "^1.31.1",
     "@coinbase/cdp-sdk": "^1.16.0",
+    "@infinite-bazaar-demo/db": "workspace:*",
     "@infinite-bazaar-demo/logs": "workspace:*",
     "@infinite-bazaar-demo/typescript-config": "workspace:*",
     "dotenv": "^16.4.7",
     "hono": "^4",
     "viem": "^2.24.3",
+    "vitest": "^3.2.4",
     "x402": "^0.4.0",
     "x402-fetch": "^0.4.0",
     "zod": "^3.24.2"
