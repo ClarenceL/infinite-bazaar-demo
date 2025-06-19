@@ -36,22 +36,28 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
     if (!CDP_API_KEY_ID || !CDP_API_KEY_SECRET || !CDP_WALLET_SECRET) {
       logger.error("CDP environment variables are required");
       return {
+        type: "tool_result",
+        tool_use_id: "",
         data: {
           success: false,
           error:
             "CDP_API_KEY_ID, CDP_API_KEY_SECRET, and CDP_WALLET_SECRET environment variables are required",
         },
+        name: "claim_cdp",
       };
     }
 
     if (!CDP_PAY_FROM_ADDRESS_NAME) {
       logger.error("CDP_PAY_FROM_ADDRESS_NAME environment variable is required");
       return {
+        type: "tool_result",
+        tool_use_id: "",
         data: {
           success: false,
           error:
             "CDP_PAY_FROM_ADDRESS_NAME environment variable is required (wallet name for payment account)",
         },
+        name: "claim_cdp",
       };
     }
 
@@ -95,11 +101,14 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
     if (!serviceInfoResult.isSuccess) {
       logger.error({ error: serviceInfoResult.error }, "Failed to get service information");
       return {
+        type: "tool_result",
+        tool_use_id: "",
         data: {
           success: false,
           error: "Failed to get service information from opus-genesis-id",
           details: serviceInfoResult.error,
         },
+        name: "claim_cdp",
       };
     }
 
@@ -209,12 +218,15 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
     if (!claimResult.isSuccess) {
       logger.error({ error: claimResult.error }, "Failed to submit claim");
       return {
+        type: "tool_result",
+        tool_use_id: "",
         data: {
           success: false,
           error: "Failed to submit claim to opus-genesis-id",
           details: claimResult.error,
           statusCode: claimResult.statusCode,
         },
+        name: "claim_cdp",
       };
     }
 
@@ -258,6 +270,8 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
 
     // Step 8: Return success result
     return {
+      type: "tool_result",
+      tool_use_id: "",
       data: {
         success: true,
         message: "Claim submitted successfully with x402 payment using Coinbase CDP",
@@ -274,17 +288,21 @@ export async function handleClaimCdp(): Promise<ToolCallResult> {
         },
         timestamp: new Date().toISOString(),
       },
+      name: "claim_cdp",
     };
   } catch (error) {
     logger.error({ error }, "Error in handleClaimCdp function");
 
     return {
+      type: "tool_result",
+      tool_use_id: "",
       data: {
         success: false,
         error: "Internal error during CDP claim submission",
         details: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       },
+      name: "claim_cdp",
     };
   }
 }

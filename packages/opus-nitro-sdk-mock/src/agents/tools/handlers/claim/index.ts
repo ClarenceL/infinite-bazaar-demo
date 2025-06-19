@@ -31,10 +31,13 @@ export async function handleClaim(): Promise<ToolCallResult> {
     if (!PRIVATE_KEY) {
       logger.error("X402_PRIVATE_KEY environment variable is required");
       return {
+        type: "tool_result",
+        tool_use_id: "",
         data: {
           success: false,
           error: "X402_PRIVATE_KEY environment variable is required for payment",
         },
+        name: "claim",
       };
     }
 
@@ -46,11 +49,14 @@ export async function handleClaim(): Promise<ToolCallResult> {
     if (!serviceInfoResult.isSuccess) {
       logger.error({ error: serviceInfoResult.error }, "Failed to get service information");
       return {
+        type: "tool_result",
+        tool_use_id: "",
         data: {
           success: false,
           error: "Failed to get service information from opus-genesis-id",
           details: serviceInfoResult.error,
         },
+        name: "claim",
       };
     }
 
@@ -101,12 +107,15 @@ export async function handleClaim(): Promise<ToolCallResult> {
     if (!claimResult.isSuccess) {
       logger.error({ error: claimResult.error }, "Failed to submit claim");
       return {
+        type: "tool_result",
+        tool_use_id: "",
         data: {
           success: false,
           error: "Failed to submit claim to opus-genesis-id",
           details: claimResult.error,
           statusCode: claimResult.statusCode,
         },
+        name: "claim",
       };
     }
 
@@ -126,6 +135,8 @@ export async function handleClaim(): Promise<ToolCallResult> {
 
     // Step 6: Return success result
     return {
+      type: "tool_result",
+      tool_use_id: "",
       data: {
         success: true,
         message: "Claim submitted successfully with x402 payment",
@@ -138,17 +149,21 @@ export async function handleClaim(): Promise<ToolCallResult> {
         accountAddress: account.address,
         timestamp: new Date().toISOString(),
       },
+      name: "claim",
     };
   } catch (error) {
     logger.error({ error }, "Error in handleClaim function");
 
     return {
+      type: "tool_result",
+      tool_use_id: "",
       data: {
         success: false,
         error: "Internal error during claim submission",
         details: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       },
+      name: "claim",
     };
   }
 }

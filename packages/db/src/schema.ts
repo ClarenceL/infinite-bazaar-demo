@@ -39,6 +39,7 @@ export const entities = pgTable("entities", {
   entityType: entityEnum("entity_type"),
   name: text("name"),
   username: varchar("username", { length: 50 }).unique().notNull(),
+  cdp_name: varchar("cdp_name", { length: 255 }),
   cdp_address: varchar("cdp_address", { length: 42 }),
   active: boolean("active").default(true).notNull(),
   ...lifecycleDates,
