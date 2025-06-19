@@ -146,9 +146,9 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-                eq(entityContext.entityId, actualEntityId),
-                eq(entityContext.chatId, message.chatId),
-              )
+              eq(entityContext.entityId, actualEntityId),
+              eq(entityContext.chatId, message.chatId),
+            )
             : eq(entityContext.entityId, actualEntityId),
         );
 
@@ -245,11 +245,14 @@ export class OpusService {
   /**
    * Generate an AI response using Claude Sonnet
    */
-  async generateAIResponse(messages: Message[]): Promise<{
+  async generateAIResponse(
+    messages: Message[],
+    entityId?: string,
+  ): Promise<{
     textContent: string;
     newMessages: Message[];
   }> {
-    return generateResponse(messages);
+    return generateResponse(messages, entityId);
   }
 
   /**
@@ -310,13 +313,16 @@ export class OpusService {
 // Export singleton instance
 export const opusService = new OpusService();
 
-export async function generateChatResponse(messages: Message[]): Promise<{
+export async function generateChatResponse(
+  messages: Message[],
+  entityId?: string
+): Promise<{
   textContent: string;
   newMessages: Message[];
 }> {
-  logger.info({ messageCount: messages.length }, "Generating chat response");
+  logger.info({ messageCount: messages.length, entityId }, "Generating chat response");
 
-  return generateResponse(messages);
+  return generateResponse(messages, entityId);
 }
 
 export async function generateStreamingChatResponse(

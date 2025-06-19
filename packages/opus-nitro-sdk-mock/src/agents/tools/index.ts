@@ -5,14 +5,15 @@
 export const mcpTools = [
   {
     name: "create_identity",
-    description: "Create an identity for the agent by claiming a name",
+    description: "Create an identity and claim it on-chain",
     input_schema: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "The name to claim for this agent's identity",
+          description: "name of the identity to create",
         },
+        // TODO: add the hashes of the unique attrs model, system prompt, hash of core memories
       },
       required: ["name"],
     },

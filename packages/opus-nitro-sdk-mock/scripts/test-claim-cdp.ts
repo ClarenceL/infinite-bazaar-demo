@@ -8,7 +8,7 @@
  */
 
 import { logger } from "@infinite-bazaar-demo/logs";
-import { handleClaimCdp } from "../src/agents/tools/handlers/claim-cdp/index";
+import { handleCreateIdentity } from "../src/agents/tools/handlers/create-identity/index";
 
 interface TestResult {
   success: boolean;
@@ -34,6 +34,7 @@ async function testClaimCdp(): Promise<TestResult> {
       "CDP_API_KEY_ID",
       "CDP_API_KEY_SECRET",
       "CDP_WALLET_SECRET",
+      "CDP_PAY_FROM_ADDRESS_NAME",
       "OPUS_GENESIS_ID_URL",
     ];
 
@@ -48,9 +49,16 @@ async function testClaimCdp(): Promise<TestResult> {
 
     logger.info("✅ All required environment variables are set");
 
+    // Get the CDP account name from environment
+    const cdpName = process.env.CDP_PAY_FROM_ADDRESS_NAME!;
+    const entityId = "ent_test_opus"; // Test entity ID
+
     // Test the CDP claim handler
-    logger.info("🔄 Testing handleClaimCdp function...");
-    const claimResult = await handleClaimCdp();
+    logger.info({ cdpName, entityId }, "🔄 Testing handleCreateIdentity function...");
+    const claimResult = await handleCreateIdentity({
+      name: cdpName,
+      entity_id: entityId,
+    });
 
     if (claimResult.data?.success) {
       logger.info("✅ CDP claim handler test passed");

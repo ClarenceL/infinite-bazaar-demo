@@ -10,11 +10,14 @@ import type { Message } from "../../types/message";
 /**
  * Generate a response using Claude via LangChain
  */
-export async function generateResponse(messages: Message[]): Promise<{
+export async function generateResponse(
+  messages: Message[],
+  entityId?: string,
+): Promise<{
   textContent: string;
   newMessages: Message[];
 }> {
-  logger.info({ messageCount: messages.length }, "Generating LLM response");
+  logger.info({ messageCount: messages.length, entityId }, "Generating LLM response");
 
   const newMessages: Message[] = [];
   let textContent = "";
@@ -101,6 +104,7 @@ export async function generateResponse(messages: Message[]): Promise<{
       clearToolUseId,
       saveMessages,
       state: {}, // Mock state object
+      entityId,
     });
 
     logger.info(
@@ -237,6 +241,7 @@ export async function generateStreamingResponse(
         saveMessages,
         state: {}, // Mock state object
         streamingContextId,
+        entityId,
       });
       logger.info(
         { textLength: textContent.length, textPreview: textContent.substring(0, 200) },

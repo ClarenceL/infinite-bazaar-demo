@@ -4,9 +4,7 @@
 // import { mcpTools } from "..";
 import type { ToolCallResult } from "../../../types/message.js";
 
-import { handleClaimCdp } from "./claim-cdp/index.js";
-// Import handlers from their new locations
-import { handleClaim } from "./claim/index.js";
+// import { handleClaim } from "./claim/index.js";
 import { handleCreateIdentity } from "./create-identity/index.js";
 
 /**
@@ -15,24 +13,24 @@ import { handleCreateIdentity } from "./create-identity/index.js";
 export async function processToolCall(
   toolName: string,
   toolInput: Record<string, any> | string | null | undefined,
+  entityId?: string,
 ): Promise<ToolCallResult> {
-  console.log(`Processing tool call "${toolName}"`);
+  console.log(`Processing tool call "${toolName}" for entity: ${entityId || "unknown"}`);
 
   // Ensure toolInput is always an object
   const normalizedInput: Record<string, any> =
     typeof toolInput === "object" && toolInput !== null ? toolInput : {};
+
+  // Add entity_id to the input if provided
+  if (entityId) {
+    normalizedInput.entity_id = entityId;
+  }
 
   console.log(`Tool input: ${JSON.stringify(normalizedInput, null, 2)}`);
 
   switch (toolName) {
     case "create_identity":
       return handleCreateIdentity(normalizedInput);
-
-    case "claim":
-      return handleClaim();
-
-    case "claim-cdp":
-      return handleClaimCdp();
 
     default:
       console.warn(`Unknown tool called: ${toolName}`);

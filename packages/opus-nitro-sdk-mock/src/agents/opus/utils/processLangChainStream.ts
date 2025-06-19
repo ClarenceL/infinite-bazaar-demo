@@ -15,6 +15,7 @@ export async function processLangChainStream({
   saveMessages,
   state,
   streamingContextId,
+  entityId,
 }: {
   stream: AsyncIterable<any>;
   writer: WritableStreamDefaultWriter;
@@ -24,6 +25,7 @@ export async function processLangChainStream({
   saveMessages: (message: Message) => Promise<void>;
   state: any;
   streamingContextId?: string; // For real-time DB sync
+  entityId?: string; // For passing to tool calls
 }): Promise<string> {
   // Track text content
   let currentTextContent = ""; // Accumulate text content
@@ -40,7 +42,7 @@ export async function processLangChainStream({
       hasEncoder: !!encoder,
       streamingContextId,
     },
-    "🔄 Starting processLangChainStream with parameters"
+    "🔄 Starting processLangChainStream with parameters",
   );
 
   try {
@@ -56,12 +58,16 @@ export async function processLangChainStream({
           chunkType: typeof chunk,
           hasContent: !!chunk?.content,
           contentType: typeof chunk?.content,
-          contentLength: Array.isArray(chunk?.content) ? chunk.content.length : (typeof chunk?.content === 'string' ? chunk.content.length : 'unknown'),
+          contentLength: Array.isArray(chunk?.content)
+            ? chunk.content.length
+            : typeof chunk?.content === "string"
+              ? chunk.content.length
+              : "unknown",
           hasAdditionalKwargs: !!chunk?.additional_kwargs,
           stopReason: chunk?.additional_kwargs?.stop_reason,
           currentToolCallActive: !!currentToolCall,
         },
-        "📦 Processing stream chunk"
+        "📦 Processing stream chunk",
       );
 
       try {
@@ -79,7 +85,7 @@ export async function processLangChainStream({
               toolId: currentToolCall.id,
               toolUseId,
             },
-            "🔧 Tool call JSON input complete, parsing"
+            "🔧 Tool call JSON input complete, parsing",
           );
 
           try {
@@ -120,7 +126,11 @@ export async function processLangChainStream({
               "🔧 Executing tool call handler",
             );
 
-            const result = await processToolCall(currentToolCall.name, currentToolCall.input);
+            const result = await processToolCall(
+              currentToolCall.name,
+              currentToolCall.input,
+              entityId,
+            );
 
             logger.info(
               {
@@ -129,7 +139,7 @@ export async function processLangChainStream({
                 resultSuccess: result?.data?.success,
                 resultError: result?.data?.error,
               },
-              "🔧 Tool call handler completed"
+              "🔧 Tool call handler completed",
             );
 
             // Add the tool_use_id to connect this result to the tool call
@@ -153,7 +163,7 @@ export async function processLangChainStream({
                 resultData: result?.data,
                 toolName: currentToolCall.name,
               },
-              "🔧 Sending tool result to client"
+              "🔧 Sending tool result to client",
             );
 
             // Add name field from the tool call to ensure proper mapping on client side
@@ -176,12 +186,12 @@ export async function processLangChainStream({
             logger.error(
               {
                 error: toolError,
-                errorMessage: toolError instanceof Error ? toolError.message : 'Unknown tool error',
+                errorMessage: toolError instanceof Error ? toolError.message : "Unknown tool error",
                 errorStack: toolError instanceof Error ? toolError.stack : undefined,
                 toolName: currentToolCall?.name,
                 accumulatedJsonInput,
               },
-              "❌ Error parsing tool call JSON input or processing tool"
+              "❌ Error parsing tool call JSON input or processing tool",
             );
 
             // Reset tool call tracking on error
@@ -202,7 +212,7 @@ export async function processLangChainStream({
               contentLength: content.length,
               contentPreview: content.substring(0, 100),
             },
-            "📝 Processing string content"
+            "📝 Processing string content",
           );
 
           await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
@@ -221,9 +231,9 @@ export async function processLangChainStream({
           logger.debug(
             {
               blockCount: chunk.content.length,
-              blockTypes: chunk.content.map((block: any) => block?.type || 'unknown'),
+              blockTypes: chunk.content.map((block: any) => block?.type || "unknown"),
             },
-            "📝 Processing content blocks array"
+            "📝 Processing content blocks array",
           );
 
           for (const block of chunk.content as any[]) {
@@ -235,9 +245,9 @@ export async function processLangChainStream({
                 logger.debug(
                   {
                     textLength: content?.length || 0,
-                    textPreview: content?.substring(0, 100) || '',
+                    textPreview: content?.substring(0, 100) || "",
                   },
-                  "📝 Processing text block"
+                  "📝 Processing text block",
                 );
 
                 await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
@@ -254,7 +264,7 @@ export async function processLangChainStream({
                     toolId: block.id,
                     hasInput: !!block.input,
                   },
-                  "🔧 Starting tool use stream"
+                  "🔧 Starting tool use stream",
                 );
 
                 // Create a new ToolCall object with the required properties
@@ -292,7 +302,7 @@ export async function processLangChainStream({
                     accumulatedLength: accumulatedJsonInput.length,
                     toolName: currentToolCall.name,
                   },
-                  "🔧 JSON delta for tool call"
+                  "🔧 JSON delta for tool call",
                 );
                 accumulatedJsonInput += block.input;
               } else {
@@ -302,18 +312,19 @@ export async function processLangChainStream({
                     blockKeys: Object.keys(block || {}),
                     hasCurrentToolCall: !!currentToolCall,
                   },
-                  "⚠️ Unknown or unhandled block type"
+                  "⚠️ Unknown or unhandled block type",
                 );
               }
             } catch (blockError) {
               logger.error(
                 {
                   error: blockError,
-                  errorMessage: blockError instanceof Error ? blockError.message : 'Unknown block error',
+                  errorMessage:
+                    blockError instanceof Error ? blockError.message : "Unknown block error",
                   blockType: block?.type,
                   blockKeys: Object.keys(block || {}),
                 },
-                "❌ Error processing content block"
+                "❌ Error processing content block",
               );
             }
           }
@@ -323,7 +334,7 @@ export async function processLangChainStream({
               chunkKeys: Object.keys(chunk || {}),
               hasAdditionalKwargs: !!chunk?.additional_kwargs,
             },
-            "📦 Chunk with no content (likely metadata)"
+            "📦 Chunk with no content (likely metadata)",
           );
         } else {
           logger.warn(
@@ -332,19 +343,19 @@ export async function processLangChainStream({
               contentValue: chunk.content,
               chunkKeys: Object.keys(chunk || {}),
             },
-            "⚠️ Unhandled chunk content format"
+            "⚠️ Unhandled chunk content format",
           );
         }
       } catch (chunkError) {
         logger.error(
           {
             error: chunkError,
-            errorMessage: chunkError instanceof Error ? chunkError.message : 'Unknown chunk error',
+            errorMessage: chunkError instanceof Error ? chunkError.message : "Unknown chunk error",
             errorStack: chunkError instanceof Error ? chunkError.stack : undefined,
             chunkNumber: chunkCount,
             chunkKeys: Object.keys(chunk || {}),
           },
-          "❌ Error processing individual chunk"
+          "❌ Error processing individual chunk",
         );
       }
     }
@@ -355,7 +366,7 @@ export async function processLangChainStream({
         totalChunks: chunkCount,
         streamingContextId,
       },
-      "✅ Stream processing complete"
+      "✅ Stream processing complete",
     );
 
     // Mark streaming record as complete (non-blocking)
@@ -371,16 +382,16 @@ export async function processLangChainStream({
     logger.error(
       {
         error,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
         errorStack: error instanceof Error ? error.stack : undefined,
         errorName: error instanceof Error ? error.name : undefined,
-        errorCause: error instanceof Error && 'cause' in error ? error.cause : undefined,
+        errorCause: error instanceof Error && "cause" in error ? error.cause : undefined,
         currentTextLength: currentTextContent.length,
         hasCurrentToolCall: !!currentToolCall,
         currentToolCallName: currentToolCall?.name,
         streamingContextId,
       },
-      "❌ Error processing LangChain stream"
+      "❌ Error processing LangChain stream",
     );
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -406,7 +417,7 @@ export async function processLangChainStream({
         userErrorMessage,
         originalError: errorMessage,
       },
-      "📤 Sending error message to client"
+      "📤 Sending error message to client",
     );
 
     try {
@@ -416,9 +427,10 @@ export async function processLangChainStream({
       logger.error(
         {
           writeError,
-          writeErrorMessage: writeError instanceof Error ? writeError.message : 'Unknown write error',
+          writeErrorMessage:
+            writeError instanceof Error ? writeError.message : "Unknown write error",
         },
-        "❌ Failed to write error message to stream"
+        "❌ Failed to write error message to stream",
       );
     }
 

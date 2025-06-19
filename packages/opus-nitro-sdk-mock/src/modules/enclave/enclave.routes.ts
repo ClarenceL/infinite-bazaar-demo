@@ -1,7 +1,7 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { Hono } from "hono";
-import { handleClaimCdp } from "../../agents/tools/handlers/claim-cdp/index.js";
 import { handleClaim } from "../../agents/tools/handlers/claim/index.js";
+import { handleCreateIdentity } from "../../agents/tools/handlers/create-identity/index.js";
 import { errorHandler } from "../../pkg/middleware/error.js";
 import { enclaveService } from "./enclave.service.js";
 
@@ -183,13 +183,37 @@ export const enclaveRoutes = new Hono()
     try {
       logger.info("Starting test claim submission using CDP SDK...");
 
+      // Get the request body to extract name and entity_id
+      const body = await c.req.json();
+      const { name, entity_id } = body;
+
+      if (!name) {
+        return c.json(
+          {
+            success: false,
+            error: "name is required in request body",
+          },
+          400,
+        );
+      }
+
+      if (!entity_id) {
+        return c.json(
+          {
+            success: false,
+            error: "entity_id is required in request body",
+          },
+          400,
+        );
+      }
+
       // Call the CDP claim handler which will:
       // 1. Initialize CDP client and create account
       // 2. Make initial request to opus-genesis-id (should get 402)
       // 3. Handle x402 payment using CDP account
       // 4. Retry with payment
       // 5. Return success
-      const result = await handleClaimCdp();
+      const result = await handleCreateIdentity({ name, entity_id });
 
       logger.info({ result }, "Test CDP claim submission completed");
 

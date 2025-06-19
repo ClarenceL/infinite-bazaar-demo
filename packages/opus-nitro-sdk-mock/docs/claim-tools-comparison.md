@@ -56,7 +56,7 @@ const claimResponse = await fetchWithPayment(url, options);
 
 **File**: `src/agents/tools/handlers/claim-cdp/index.ts`
 **Endpoint**: `POST /enclave/test-claim-cdp`
-**Function**: `handleClaimCdp()`
+**Function**: `handleCreateIdentity()`
 
 #### Key Features:
 - ✅ Enterprise-grade account management
@@ -166,7 +166,7 @@ sequenceDiagram
     participant X402 as "x402-fetch"
     participant Service as "opus-genesis-id"
 
-    Agent->>Tool: handleClaimCdp()
+    Agent->>Tool: handleCreateIdentity()
     Tool->>CDP: CdpClient.getOrCreateAccount()
     CDP-->>Tool: CDP Account
     Tool->>Tool: toAccount(cdpAccount)
@@ -222,7 +222,7 @@ If you start with the private key tool and want to migrate to CDP:
 1. **Set up CDP account** and get API credentials
 2. **Update environment variables** from private key to CDP credentials
 3. **Switch endpoint** from `/test-claim` to `/test-claim-cdp`
-4. **Update calling code** from `handleClaim()` to `handleClaimCdp()`
+4. **Update calling code** from `handleClaim()` to `handleCreateIdentity()`
 5. **Test thoroughly** to ensure functionality
 
 ## Conclusion
