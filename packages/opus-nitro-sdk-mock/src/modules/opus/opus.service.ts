@@ -146,9 +146,9 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-              eq(entityContext.entityId, actualEntityId),
-              eq(entityContext.chatId, message.chatId),
-            )
+                eq(entityContext.entityId, actualEntityId),
+                eq(entityContext.chatId, message.chatId),
+              )
             : eq(entityContext.entityId, actualEntityId),
         );
 
@@ -315,7 +315,7 @@ export const opusService = new OpusService();
 
 export async function generateChatResponse(
   messages: Message[],
-  entityId?: string
+  entityId?: string,
 ): Promise<{
   textContent: string;
   newMessages: Message[];

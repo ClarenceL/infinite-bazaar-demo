@@ -1,5 +1,5 @@
 {
-  "name": "@infinite-bazaar-demo/cron2",
+  "name": "@infinite-bazaar-demo/cron",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
