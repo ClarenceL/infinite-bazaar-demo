@@ -3,6 +3,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   decimal,
+  index,
   integer,
   json,
   pgEnum,
@@ -39,6 +40,7 @@ export const entities = pgTable("entities", {
   name: text("name"),
   username: varchar("username", { length: 50 }).unique().notNull(),
   cdp_address: varchar("cdp_address", { length: 42 }),
+  active: boolean("active").default(true).notNull(),
   ...lifecycleDates,
 }).enableRLS();
 
@@ -73,29 +75,41 @@ export const messages = pgTable("messages", {
 }).enableRLS();
 
 // Entity context table - tracks LLM messages from agents, optionally scoped to a chat
-export const entityContext = pgTable("entity_context", {
-  contextId: varchar("context_id", { length: 255 })
-    .primaryKey()
-    .$defaultFn(() => newId("context")),
-  entityId: varchar("entity_id", { length: 255 })
-    .references(() => entities.entityId)
-    .notNull(),
-  role: text("role").notNull(), // "user", "assistant", "system", etc.
-  content: text("content").notNull(), // The message content
-  sequence: integer("sequence").notNull(), // Order of messages, in case of timestamp collisions
-  contextType: contextTypeEnum("context_type").default("MESSAGE").notNull(),
-  // Tool use fields - populated when contextType is TOOL_USE
-  toolName: text("tool_name"), // e.g., "search_asset"
-  toolId: text("tool_id"), // e.g., "toolu_016QBK1L5KwfeC5wrPJ3Kaxr"
-  toolUseId: text("tool_use_id"), // e.g., "tool-1749154277791-jsxro"
-  toolInput: json("tool_input"), // The input parameters as JSON
-  // Tool result fields - populated when contextType is TOOL_RESULT
-  toolResultData: json("tool_result_data"), // The data field from tool results
-  chatId: varchar("chat_id", { length: 255 }).references(() => chats.chatId), // Optional chat scoping
-  // Real-time streaming sync field - null during streaming, timestamp when complete
-  completedAt: timestamp("completed_at", { withTimezone: true }), // null = streaming, timestamp = done
-  ...lifecycleDates,
-}).enableRLS();
+export const entityContext = pgTable(
+  "entity_context",
+  {
+    contextId: varchar("context_id", { length: 255 })
+      .primaryKey()
+      .$defaultFn(() => newId("context")),
+    entityId: varchar("entity_id", { length: 255 })
+      .references(() => entities.entityId)
+      .notNull(),
+    role: text("role").notNull(), // "user", "assistant", "system", etc.
+    content: text("content").notNull(), // The message content
+    sequence: integer("sequence").notNull(), // Order of messages, in case of timestamp collisions
+    contextType: contextTypeEnum("context_type").default("MESSAGE").notNull(),
+    // Tool use fields - populated when contextType is TOOL_USE
+    toolName: text("tool_name"), // e.g., "search_asset"
+    toolId: text("tool_id"), // e.g., "toolu_016QBK1L5KwfeC5wrPJ3Kaxr"
+    toolUseId: text("tool_use_id"), // e.g., "tool-1749154277791-jsxro"
+    toolInput: json("tool_input"), // The input parameters as JSON
+    // Tool result fields - populated when contextType is TOOL_RESULT
+    toolResultData: json("tool_result_data"), // The data field from tool results
+    chatId: varchar("chat_id", { length: 255 }).references(() => chats.chatId), // Optional chat scoping
+    // Real-time streaming sync field - null during streaming, timestamp when complete
+    completedAt: timestamp("completed_at", { withTimezone: true }), // null = streaming, timestamp = done
+    ...lifecycleDates,
+  },
+  (table) => ({
+    // Composite index for efficient sequence queries per entity
+    entitySequenceIdx: uniqueIndex("entity_context_entity_sequence_idx").on(
+      table.entityId,
+      table.sequence,
+    ),
+    // Index for efficient querying by completion status
+    completedAtIdx: index("entity_context_completed_at_idx").on(table.completedAt),
+  }),
+).enableRLS();
 
 // Relations
 export const entitiesRelations = relations(entities, ({ many }) => ({

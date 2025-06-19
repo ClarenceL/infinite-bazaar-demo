@@ -11,6 +11,8 @@ The folder /reference is not used by any code, it's reference material only
 
 NEVER DO DATABSE MIGRATIONS, I CAN DO THOSE, prompt me to
 
+Let me handle seeding and generating schema, do not automatically create seed or generate db migrations.
+
 NEVER check process.env vars in @packages/db in a constructor, this is due to using bun built packages that may run dependencies before it loads env vars
 
 NEVER MASK AUTHENTICATION ISSUES IN DEVELOPMENT BY CREATING FAKE / TEST USERS.

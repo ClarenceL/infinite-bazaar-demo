@@ -1,55 +1,7 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { streamingDBSync } from "../../../services/streaming-db-sync.js";
 import type { Message, ToolCall, ToolCallResult } from "../../../types/message";
-
-// Mock tool processing function - in real implementation this would call actual tools
-async function processToolCall(
-  toolName: string,
-  input: Record<string, any>,
-  state?: any,
-): Promise<ToolCallResult> {
-  logger.info({ toolName }, "Processing tool call");
-
-  // Mock tool results based on tool name
-  const mockResults: Record<string, any> = {
-    create_did: {
-      success: true,
-      did: `did:privado:${Math.random().toString(36).substring(2)}`,
-      message: "DID created successfully for Opus agent",
-    },
-    sign_state_hash: {
-      success: true,
-      signature: `0x${Math.random().toString(16).substring(2)}`,
-      hash: `0x${Math.random().toString(16).substring(2)}`,
-      message: "State hash signed in secure enclave",
-    },
-    commit_memory: {
-      success: true,
-      ipfs_cid: `Qm${Math.random().toString(36).substring(2)}`,
-      blockchain_tx: `0x${Math.random().toString(16).substring(2)}`,
-      message: "Memory committed to IPFS and Base Sepolia",
-    },
-    x402_payment: {
-      success: true,
-      transaction_hash: `0x${Math.random().toString(16).substring(2)}`,
-      amount: input.amount || "0.01",
-      currency: "USDC",
-      message: "x402 payment processed successfully",
-    },
-  };
-
-  const result = mockResults[toolName] || {
-    success: false,
-    message: `Unknown tool: ${toolName}`,
-  };
-
-  return {
-    type: "tool_result",
-    tool_use_id: "", // Will be set by caller
-    data: result,
-    name: toolName,
-  };
-}
+import { processToolCall } from "../../tools/handlers/index.js";
 
 /**
  * Process LangChain stream following Lyra MCP server pattern
@@ -122,7 +74,7 @@ export async function processLangChainStream({
             { toolName: currentToolCall.name, input: currentToolCall.input },
             "Processing tool call",
           );
-          const result = await processToolCall(currentToolCall.name, currentToolCall.input, state);
+          const result = await processToolCall(currentToolCall.name, currentToolCall.input);
 
           // Add the tool_use_id to connect this result to the tool call
           if (toolUseId) {

@@ -55,23 +55,31 @@ export const chatRoutes = new Hono()
     try {
       const limit = Number(c.req.query("limit")) || 50;
       const streamingOnly = c.req.query("streaming") === "true";
+      const entityId = c.req.query("entityId") || undefined;
+      const excludeUserMessages = c.req.query("excludeUserMessages") === "true";
 
       // Create cache key based on query parameters
-      const cacheKey = `messages:${limit}:${streamingOnly}`;
+      const cacheKey = `messages:${limit}:${streamingOnly}:${entityId || "all"}:${excludeUserMessages}`;
 
       // Check cache first
       const cachedResponse = cache.get(cacheKey);
       if (cachedResponse) {
-        logger.info({ limit, streamingOnly, cached: true }, "Returning cached chat messages");
+        logger.info(
+          { limit, streamingOnly, entityId, excludeUserMessages, cached: true },
+          "Returning cached chat messages",
+        );
         return c.json(cachedResponse);
       }
 
-      logger.info({ limit, streamingOnly, cached: false }, "Fetching chat messages from DB");
+      logger.info(
+        { limit, streamingOnly, entityId, excludeUserMessages, cached: false },
+        "Fetching chat messages from DB",
+      );
 
-      // Get messages based on streaming filter
+      // Get messages based on streaming filter and entityId
       const messages = streamingOnly
-        ? await chatService.getStreamingMessages()
-        : await chatService.getMessages(limit);
+        ? await chatService.getStreamingMessages(entityId, excludeUserMessages)
+        : await chatService.getMessages(limit, true, entityId, excludeUserMessages);
 
       const response = {
         success: true,
@@ -79,6 +87,8 @@ export const chatRoutes = new Hono()
         count: messages.length,
         timestamp: Date.now(), // Current server timestamp for next poll
         streamingOnly, // Include this flag in response
+        entityId: entityId || null, // Include entityId in response
+        excludeUserMessages, // Include excludeUserMessages flag in response
       };
 
       // Cache the response
@@ -102,11 +112,13 @@ export const chatRoutes = new Hono()
   // Get message count endpoint
   .get("/count", async (c) => {
     try {
-      const count = await chatService.getMessageCount();
+      const entityId = c.req.query("entityId") || undefined;
+      const count = await chatService.getMessageCount(entityId);
 
       return c.json({
         success: true,
         count,
+        entityId: entityId || null,
       });
     } catch (error) {
       logger.error({ error }, "Error getting message count");
@@ -124,22 +136,24 @@ export const chatRoutes = new Hono()
   // Get latest message timestamp for polling optimization
   .get("/latest", async (c) => {
     try {
-      const cacheKey = "latest";
+      const entityId = c.req.query("entityId") || undefined;
+      const cacheKey = `latest:${entityId || "all"}`;
 
       // Check cache first
       const cachedResponse = cache.get(cacheKey);
       if (cachedResponse) {
-        logger.info({ cached: true }, "Returning cached latest message timestamp");
+        logger.info({ entityId, cached: true }, "Returning cached latest message timestamp");
         return c.json(cachedResponse);
       }
 
-      logger.info({ cached: false }, "Fetching latest message timestamp from DB");
+      logger.info({ entityId, cached: false }, "Fetching latest message timestamp from DB");
 
-      const timestamp = await chatService.getLatestMessageTimestamp();
+      const timestamp = await chatService.getLatestMessageTimestamp(entityId);
 
       const response = {
         success: true,
         timestamp,
+        entityId: entityId || null,
       };
 
       // Cache the response

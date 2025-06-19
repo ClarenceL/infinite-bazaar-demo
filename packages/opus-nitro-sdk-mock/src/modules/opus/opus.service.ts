@@ -90,7 +90,26 @@ export class OpusService {
             data: record.toolResultData || {},
           };
         } else {
-          content = record.content;
+          // For regular MESSAGE context type, check if content was JSON stringified
+          // This happens when non-string, non-tool content is saved (fallback case)
+          let parsedContent = record.content;
+          try {
+            // If it starts with { or [, it might be JSON stringified content
+            if (
+              typeof record.content === "string" &&
+              (record.content.startsWith("{") || record.content.startsWith("["))
+            ) {
+              const parsed = JSON.parse(record.content);
+              // Only use parsed content if it's an object/array (not a simple string)
+              if (typeof parsed === "object") {
+                parsedContent = parsed;
+              }
+            }
+          } catch (e) {
+            // If parsing fails, just use the original content
+            parsedContent = record.content;
+          }
+          content = parsedContent;
         }
 
         return {
@@ -170,8 +189,12 @@ export class OpusService {
       }
 
       // Set completedAt for user messages (they are always complete when saved)
-      // Assistant messages will have completedAt set by streaming logic
-      if (message.role === "user") {
+      // Also set completedAt for tool use calls from assistant (they are complete when saved)
+      // Regular assistant text messages will have completedAt set by streaming logic
+      if (
+        message.role === "user" ||
+        (message.role === "assistant" && dbRecord.contextType === "TOOL_USE")
+      ) {
         dbRecord.completedAt = new Date();
       }
 

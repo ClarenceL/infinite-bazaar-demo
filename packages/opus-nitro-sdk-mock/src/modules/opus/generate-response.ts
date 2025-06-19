@@ -3,13 +3,9 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
 import { getSystemMessage } from "../../agents/opus/utils/systemMessage.js";
 import { processToolCall } from "../../agents/tools/handlers/index.js";
+import { mcpTools } from "../../agents/tools/index.js";
 import { streamingDBSync } from "../../services/streaming-db-sync.js";
 import type { Message } from "../../types/message";
-
-// Import MCP tools (placeholder for now - will be implemented later)
-const mcpTools: any[] = [
-  // Tools will be added here when MCP integration is complete
-];
 
 /**
  * Generate a response using Claude via LangChain
@@ -24,9 +20,6 @@ export async function generateResponse(messages: Message[]): Promise<{
   let textContent = "";
 
   try {
-    // Get system message
-    const systemMessage = await getSystemMessage();
-
     // Check for required environment variables
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error("ANTHROPIC_API_KEY environment variable is required");
@@ -35,7 +28,8 @@ export async function generateResponse(messages: Message[]): Promise<{
     // Initialize ChatAnthropic with tools
     const llm = new ChatAnthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      model: "claude-sonnet-4-20250514",
+      // model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-20250514",
       temperature: 1.0,
       clientOptions: {
         defaultHeaders: {
@@ -64,8 +58,18 @@ export async function generateResponse(messages: Message[]): Promise<{
 
     // Log the actual messages being sent (for debugging)
     logger.info(
-      { messages: JSON.stringify(llmMessages, null, 2) },
-      "LLM Messages being sent to Anthropic",
+      {
+        llmMessageCount: llmMessages.length,
+        systemMessageLength:
+          typeof llmMessages[0]?.content === "string" ? llmMessages[0].content.length : 0,
+        messageRoles: llmMessages.map((m) => m.role),
+        totalContentLength: llmMessages.reduce((acc, msg) => {
+          if (typeof msg.content === "string") return acc + msg.content.length;
+          if (Array.isArray(msg.content)) return acc + JSON.stringify(msg.content).length;
+          return acc;
+        }, 0),
+      },
+      "LLM Messages summary for Anthropic",
     );
 
     // Generate tool use ID counter
@@ -126,9 +130,6 @@ export async function generateStreamingResponse(
   logger.info({ messageCount: messages.length }, "Generating streaming LLM response");
 
   try {
-    // Get system message
-    const systemMessage = await getSystemMessage();
-
     // Check for required environment variables
     if (!process.env.ANTHROPIC_API_KEY) {
       const errorMsg = "ANTHROPIC_API_KEY environment variable is required";
@@ -163,8 +164,18 @@ export async function generateStreamingResponse(
 
     // Log the actual messages being sent (for debugging)
     logger.info(
-      { messages: JSON.stringify(llmMessages, null, 2) },
-      "LLM Messages being sent to Anthropic",
+      {
+        llmMessageCount: llmMessages.length,
+        systemMessageLength:
+          typeof llmMessages[0]?.content === "string" ? llmMessages[0].content.length : 0,
+        messageRoles: llmMessages.map((m) => m.role),
+        totalContentLength: llmMessages.reduce((acc, msg) => {
+          if (typeof msg.content === "string") return acc + msg.content.length;
+          if (Array.isArray(msg.content)) return acc + JSON.stringify(msg.content).length;
+          return acc;
+        }, 0),
+      },
+      "LLM Messages summary for Anthropic - streaming",
     );
 
     // Generate tool use ID counter
@@ -188,10 +199,17 @@ export async function generateStreamingResponse(
     // Create initial streaming record if real-time sync is enabled
     let streamingContextId: string | undefined;
     if (streamingDBSync.isEnabled()) {
-      // Get next sequence number for the assistant response
-      const { opusService } = await import("./opus.service.js");
-      const existingMessages = await opusService.loadMessages(undefined, entityId);
-      const nextSequence = existingMessages.length + 1;
+      // Get next sequence number for the assistant response using proper database query
+      // Import required database utilities
+      const { db, entityContext, eq, and, sql } = await import("@infinite-bazaar-demo/db");
+
+      const actualEntityId = entityId || "ent_opus";
+      const maxSequenceResult = await db
+        .select({ maxSeq: sql<number>`coalesce(max(${entityContext.sequence}), 0)` })
+        .from(entityContext)
+        .where(eq(entityContext.entityId, actualEntityId));
+
+      const nextSequence = (maxSequenceResult[0]?.maxSeq || 0) + 1;
 
       const contextId = await streamingDBSync.createInitialRecord({
         entityId: entityId || "ent_opus",

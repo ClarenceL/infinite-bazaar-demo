@@ -7,6 +7,7 @@ import type { ToolCallResult } from "../../../types/message.js";
 import { handleClaimCdp } from "./claim-cdp/index.js";
 // Import handlers from their new locations
 import { handleClaim } from "./claim/index.js";
+import { handleCreateIdentity } from "./create-identity/index.js";
 
 /**
  * Process a tool call and return the result
@@ -24,6 +25,9 @@ export async function processToolCall(
   console.log(`Tool input: ${JSON.stringify(normalizedInput, null, 2)}`);
 
   switch (toolName) {
+    case "create_identity":
+      return handleCreateIdentity(normalizedInput);
+
     case "claim":
       return handleClaim();
 
@@ -33,7 +37,10 @@ export async function processToolCall(
     default:
       console.warn(`Unknown tool called: ${toolName}`);
       return {
+        type: "tool_result",
+        tool_use_id: "",
         data: { inputProvided: normalizedInput, error: `Unknown tool: ${toolName}` },
+        name: toolName,
       };
   }
 }

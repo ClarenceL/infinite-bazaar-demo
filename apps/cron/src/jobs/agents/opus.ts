@@ -1,18 +1,21 @@
-import { db, entities } from "@infinite-bazaar-demo/db";
+import {
+  and,
+  asc,
+  db,
+  entities,
+  entityContext,
+  eq,
+  gte,
+  isNotNull,
+  ne,
+} from "@infinite-bazaar-demo/db";
+import { createLogger } from "@infinite-bazaar-demo/logs";
 import type { Job } from "agenda";
-import pino from "pino";
 
 // Initialize logger
-const logger = pino({
+const logger = createLogger({
   level: process.env.LOG_LEVEL || "info",
-  transport: {
-    target: "pino-pretty",
-    options: {
-      colorize: true,
-      translateTime: "SYS:standard",
-      ignore: "pid,hostname",
-    },
-  },
+  prettyPrint: true,
 });
 
 const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:3105";
@@ -21,7 +24,41 @@ const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:3105";
 const TEMPLATE_MESSAGE = `CYCLE_INTERVAL: {{cycle_interval}}  
 CURRENT TIMESTAMP: {{current_timestamp}}
 
+New messages received:
+{{new_messages}}
+
 What will you do with this moment of existence?`;
+
+/**
+ * Fetch new messages from the last minute that are not from the current entity
+ */
+async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000); // 1 minute ago
+
+  try {
+    const newMessages = await db
+      .select({
+        username: entities.username,
+        content: entityContext.content,
+      })
+      .from(entityContext)
+      .innerJoin(entities, eq(entityContext.entityId, entities.entityId))
+      .where(
+        and(
+          isNotNull(entityContext.completedAt),
+          gte(entityContext.completedAt, oneMinuteAgo),
+          ne(entityContext.entityId, currentEntityId),
+          eq(entities.active, true),
+        ),
+      )
+      .orderBy(asc(entityContext.completedAt));
+
+    return newMessages;
+  } catch (error) {
+    logger.error("Error fetching new messages:", error);
+    return [];
+  }
+}
 
 /**
  * Replace template variables in the message
@@ -38,44 +75,51 @@ function replaceTemplateVariables(template: string, variables: Record<string, st
 }
 
 /**
- * Opus agent job - sends a templated message to the Opus API for a specific entity
- * Fire and forget - doesn't read the streaming response
+ * Process a single entity with the Opus API
  */
-async function opusAgentJob(job: Job) {
-  const { cycle_interval = "1 minute", entityId, entityName } = job.attrs.data || {};
+async function processEntity(entity: any, cycleInterval: string): Promise<void> {
+  const entityId = entity.entityId;
+  const entityName = entity.name || entity.username;
 
-  logger.info(
-    {
-      jobId: job.attrs._id,
-      cycle_interval,
-      entityId,
-      entityName,
-    },
-    "Starting Opus agent job for entity",
-  );
+  logger.info({ entityId, entityName }, "Processing entity");
 
   try {
+    // Fetch new messages for this entity
+    logger.info({ entityId }, "Fetching new messages for entity");
+    const newMessages = await fetchNewMessages(entityId);
+    logger.info(
+      { entityId, newMessagesCount: newMessages.length },
+      "Found new messages for entity",
+    );
+
     // Prepare template variables
     const templateVariables = {
-      cycle_interval: cycle_interval,
+      cycle_interval: cycleInterval,
       current_timestamp: new Date().toISOString(),
+      new_messages: JSON.stringify(newMessages, null, 2),
     };
 
     // Replace template variables
     const finalMessage = replaceTemplateVariables(TEMPLATE_MESSAGE, templateVariables);
 
-    logger.info(
-      {
-        jobId: job.attrs._id,
-        entityId,
-        entityName,
-        templateVariables,
-        messageLength: finalMessage.length,
-      },
-      "Sending template message to Opus for entity",
-    );
+    await sendMessageToOpusAPI(entityId, finalMessage);
+    logger.info({ entityId }, "Successfully processed entity");
+  } catch (error) {
+    logger.error({ entityId, error }, "Error processing entity");
+    // Don't throw - continue with other entities
+  }
+}
 
-    // Fire and forget HTTP request
+/**
+ * Send message to Opus API with timeout handling
+ */
+async function sendMessageToOpusAPI(entityId: string, message: string): Promise<void> {
+  logger.info({ entityId, apiBaseUrl: API_BASE_URL }, "Making HTTP request to Opus API");
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+  try {
     const response = await fetch(`${API_BASE_URL}/opus/chat`, {
       method: "POST",
       headers: {
@@ -85,121 +129,145 @@ async function opusAgentJob(job: Job) {
         type: "message",
         content: {
           role: "user",
-          content: finalMessage,
+          content: message,
         },
-        entityId: entityId, // Pass the entity ID for message filtering
+        entityId: entityId,
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    // Don't read the response body - just fire and forget
     logger.info(
       {
-        jobId: job.attrs._id,
         entityId,
-        entityName,
         status: response.status,
-        contentType: response.headers.get("content-type"),
+        statusText: response.statusText,
       },
-      "Opus agent job completed successfully for entity",
+      "Received response from Opus API",
     );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error(
+        {
+          entityId,
+          status: response.status,
+          statusText: response.statusText,
+          errorBody: errorText,
+        },
+        "HTTP request failed",
+      );
+    }
+  } catch (fetchError) {
+    clearTimeout(timeoutId);
+    if (fetchError instanceof Error && fetchError.name === "AbortError") {
+      logger.error({ entityId }, "Request timeout for entity");
+    } else {
+      logger.error({ entityId, error: fetchError }, "Fetch error for entity");
+    }
+    throw fetchError;
+  }
+}
+
+/**
+ * Get all active entities from the database
+ */
+async function getActiveEntities() {
+  logger.info("Querying active entities from database...");
+  const entitiesList = await db
+    .select({
+      entityId: entities.entityId,
+      entityType: entities.entityType,
+      name: entities.name,
+      username: entities.username,
+    })
+    .from(entities)
+    .where(eq(entities.active, true));
+
+  logger.info({ entitiesFound: entitiesList.length }, "Found entities to process");
+  return entitiesList;
+}
+
+/**
+ * Single Opus agent job that processes all entities
+ */
+async function opusAgentJob(job: Job) {
+  const { cycle_interval = "1 minute" } = job.attrs.data || {};
+
+  logger.info({ jobId: job.attrs._id, cycle_interval }, "Starting Opus agent job for all entities");
+
+  try {
+    const entitiesList = await getActiveEntities();
+
+    if (entitiesList.length === 0) {
+      logger.info("No entities found - nothing to process");
+      return;
+    }
+
+    // Process each entity
+    for (let i = 0; i < entitiesList.length; i++) {
+      const entity = entitiesList[i];
+      if (!entity) continue; // Skip if entity is undefined
+
+      logger.info(
+        { entityId: entity.entityId, entityIndex: i + 1, totalEntities: entitiesList.length },
+        "Processing entity",
+      );
+
+      await processEntity(entity, cycle_interval);
+
+      // Add 10 second delay between entities (except for the last one)
+      if (i < entitiesList.length - 1) {
+        logger.info(
+          { entityId: entity.entityId, delaySeconds: 10 },
+          "Waiting before processing next entity",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+      }
+    }
+
+    logger.info({ entitiesProcessed: entitiesList.length }, "Opus agent job completed");
   } catch (error) {
-    logger.error({ error, entityId, entityName }, "Opus agent job failed for entity");
+    logger.error({ error }, "Opus agent job failed");
     throw error;
   }
 }
 
 /**
- * Setup recurring Opus agent jobs for all entities (only if they don't exist)
+ * Setup the single Opus agent job
  */
 export async function setupOpusAgentCron(agenda: any) {
   const cycleInterval = process.env.OPUS_CYCLE_INTERVAL || "1 minute";
 
   try {
-    // Define the job
+    logger.info({ cycleInterval }, "Setting up Opus agent cron job");
+
+    // Define the single job
     agenda.define("opus-agent", opusAgentJob);
+    logger.info("Defined opus-agent job handler");
 
-    // Query all entities from the database
-    const entitiesList = await db
-      .select({
-        entityId: entities.entityId,
-        entityType: entities.entityType,
-        name: entities.name,
-        username: entities.username,
-      })
-      .from(entities);
+    // Delete existing opus-agent jobs
+    logger.info("Deleting existing opus-agent jobs...");
+    const deletedJobs = await agenda.cancel({ name: "opus-agent" });
+    logger.info({ deletedJobsCount: deletedJobs }, "Deleted existing opus-agent jobs");
 
-    logger.info(
-      {
-        entitiesFound: entitiesList.length,
-        cycleInterval,
-      },
-      "Found entities for Opus agent jobs",
-    );
-
-    let jobsCreated = 0;
-    let jobsSkipped = 0;
-
-    // Create a job for each entity
-    for (const entity of entitiesList) {
-      const jobName = `opus-agent-${entity.entityId}`;
-
-      // Check if job already exists for this entity
-      const existingJobs = await agenda.jobs({ name: jobName });
-
-      if (existingJobs.length > 0) {
-        logger.debug(
-          {
-            entityId: entity.entityId,
-            entityName: entity.name || entity.username,
-            jobName,
-            existingJobs: existingJobs.length,
-          },
-          "Opus agent job already exists for entity, skipping",
-        );
-        jobsSkipped++;
-        continue;
-      }
-
-      // Schedule new repeating job for this entity
-      await agenda.every(cycleInterval, jobName, {
-        cycle_interval: cycleInterval,
-        entityId: entity.entityId,
-        entityName: entity.name || entity.username,
-        entityType: entity.entityType,
-      });
-
-      logger.info(
-        {
-          entityId: entity.entityId,
-          entityName: entity.name || entity.username,
-          entityType: entity.entityType,
-          jobName,
-          cycleInterval,
-        },
-        "Opus agent cron job scheduled for entity",
-      );
-
-      jobsCreated++;
-    }
+    // Schedule the single recurring job
+    const job = await agenda.every(cycleInterval, "opus-agent", {
+      cycle_interval: cycleInterval,
+    });
 
     logger.info(
       {
-        totalEntities: entitiesList.length,
-        jobsCreated,
-        jobsSkipped,
         cycleInterval,
+        nextRunAt: job.attrs.nextRunAt,
+        jobId: job.attrs._id,
       },
-      "Opus agent cron jobs setup completed",
+      "Scheduled opus-agent job",
     );
+
+    logger.info("Opus agent cron setup completed");
   } catch (error) {
-    logger.error(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      "Failed to setup Opus agent cron jobs",
-    );
+    logger.error({ error }, "Failed to setup Opus agent cron");
     throw error;
   }
 }

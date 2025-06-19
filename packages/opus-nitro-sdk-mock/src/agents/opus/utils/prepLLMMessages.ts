@@ -7,31 +7,9 @@ import type {
   ToolCall,
   ToolCallResult,
 } from "../../../types/message";
+import { createAnthropicToolResult, createAnthropicToolUse } from "../../../types/message";
 
 import { getSystemMessage } from "./systemMessage";
-
-/**
- * Create Anthropic tool use content
- */
-function createAnthropicToolUse(toolCall: ToolCall): AnthropicContent {
-  return {
-    type: "tool_use",
-    id: toolCall.id,
-    name: toolCall.name,
-    input: toolCall.input,
-  };
-}
-
-/**
- * Create Anthropic tool result content
- */
-function createAnthropicToolResult(toolResult: ToolCallResult): AnthropicContent {
-  return {
-    type: "tool_result",
-    tool_use_id: toolResult.tool_use_id,
-    content: toolResult.data,
-  };
-}
 
 /**
  * Ensure proper tool call pairing in LLM messages
@@ -89,6 +67,12 @@ export const prepLLMMessages = async (messages: Message[]): Promise<LLMMessages>
 
   // Transform each message to the correct Anthropic format
   for (const msg of messages) {
+    // Skip messages with empty content (Anthropic rejects them)
+    if (typeof msg.content === "string" && msg.content.trim() === "") {
+      logger.debug({ role: msg.role }, "Skipping message with empty content");
+      continue;
+    }
+
     // Skip messages already in Anthropic format
     if (
       Array.isArray(msg.content) &&
