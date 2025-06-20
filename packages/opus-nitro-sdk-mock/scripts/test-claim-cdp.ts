@@ -34,7 +34,7 @@ async function testClaimCdp(): Promise<TestResult> {
       "CDP_API_KEY_ID",
       "CDP_API_KEY_SECRET",
       "CDP_WALLET_SECRET",
-      "CDP_PAY_FROM_ADDRESS_NAME",
+      "TEST_CDP_PAY_FROM_ADDRESS_NAME",
       "OPUS_GENESIS_ID_URL",
     ];
 
@@ -50,7 +50,7 @@ async function testClaimCdp(): Promise<TestResult> {
     logger.info("✅ All required environment variables are set");
 
     // Get the CDP account name from environment
-    const cdpName = process.env.CDP_PAY_FROM_ADDRESS_NAME!;
+    const cdpName = process.env.TEST_CDP_PAY_FROM_ADDRESS_NAME!;
     const entityId = "ent_test_opus"; // Test entity ID
 
     // Test the CDP claim handler

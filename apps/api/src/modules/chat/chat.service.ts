@@ -1,4 +1,14 @@
-import { and, db, desc, entityContext, eq, isNull, ne, or } from "@infinite-bazaar-demo/db";
+import {
+  and,
+  db,
+  desc,
+  entities,
+  entityContext,
+  eq,
+  isNull,
+  ne,
+  or,
+} from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 
 interface ChatMessage {
@@ -68,12 +78,14 @@ export class ChatService {
           createdAt: entityContext.createdAt,
           completedAt: entityContext.completedAt,
           entityId: entityContext.entityId,
+          entityName: entities.name, // Get the actual name from entities table
           contextType: entityContext.contextType,
           toolName: entityContext.toolName,
           toolUseId: entityContext.toolUseId,
           toolResultData: entityContext.toolResultData,
         })
         .from(entityContext)
+        .leftJoin(entities, eq(entityContext.entityId, entities.entityId)) // Join with entities table
         .where(and(...whereConditions))
         .orderBy(desc(entityContext.createdAt))
         .limit(limit);
@@ -109,10 +121,8 @@ export class ChatService {
             timestamp: record.createdAt?.getTime() || Date.now(),
             completedAt: record.completedAt?.getTime() || null,
             entityId: record.entityId,
-            // Extract entity name from entityId (e.g., "ent_opus" -> "opus")
-            entityName: record.entityId.startsWith("ent_")
-              ? record.entityId.slice(4)
-              : record.entityId,
+            // Use the actual name from entities table, fallback to "Unnamed" if null
+            entityName: record.entityName || "Unnamed",
             contextType: record.contextType as "MESSAGE" | "TOOL_USE" | "TOOL_RESULT",
             toolName: toolName || undefined,
             toolResultData: record.toolResultData || undefined,

@@ -40,7 +40,6 @@ export const entities = pgTable("entities", {
   name: text("name"),
   // this is the name humans give, but it's never passed to the agent
   // instead they choose their own "name", and the cdp_name is hardcoded or deterministic based on the name
-  username: varchar("username", { length: 50 }).unique().notNull(),
   cdp_name: varchar("cdp_name", { length: 255 }).unique(),
   cdp_address: varchar("cdp_address", { length: 44 }),
   active: boolean("active").default(true).notNull(),
@@ -68,8 +67,8 @@ export const messages = pgTable("messages", {
   chatId: varchar("chat_id", { length: 255 })
     .references(() => chats.chatId)
     .notNull(),
-  authorUsername: varchar("author_username", { length: 50 })
-    .references(() => entities.username)
+  authorEntityId: varchar("author_entity_id", { length: 255 })
+    .references(() => entities.entityId)
     .notNull(),
   message: text("message").notNull(),
   isToolCall: boolean("is_tool_call"),
@@ -143,8 +142,8 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     references: [chats.chatId],
   }),
   author: one(entities, {
-    fields: [messages.authorUsername],
-    references: [entities.username],
+    fields: [messages.authorEntityId],
+    references: [entities.entityId],
   }),
 }));
 

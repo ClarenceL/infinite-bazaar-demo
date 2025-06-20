@@ -70,7 +70,6 @@ async function seedDefaultData() {
         SET 
           entity_type = 'AI',
           name = 'Opus',
-          username = 'opus',
           updated_at = NOW()
         WHERE entity_id = ${DEFAULT_ENTITY_ID}
       `);
@@ -80,12 +79,11 @@ async function seedDefaultData() {
       console.log(`Creating new entity ${DEFAULT_ENTITY_ID}...`);
 
       await db.execute(sql`
-        INSERT INTO entities (entity_id, entity_type, name, username, created_at, updated_at)
+        INSERT INTO entities (entity_id, entity_type, name, created_at, updated_at)
         VALUES (
           ${DEFAULT_ENTITY_ID},
           'AI',
           'Opus',
-          'opus',
           NOW(),
           NOW()
         )
@@ -136,7 +134,7 @@ async function seedDefaultData() {
     console.log("\nVerifying seeded data...");
 
     const entityCheck = await db.execute(sql`
-      SELECT entity_id, entity_type, name, username, created_at 
+      SELECT entity_id, entity_type, name, created_at 
       FROM entities 
       WHERE entity_id = ${DEFAULT_ENTITY_ID}
     `);
@@ -151,7 +149,6 @@ async function seedDefaultData() {
       entityId: entityCheck[0]?.entity_id,
       entityType: entityCheck[0]?.entity_type,
       name: entityCheck[0]?.name,
-      username: entityCheck[0]?.username,
       createdAt: entityCheck[0]?.created_at,
     });
 

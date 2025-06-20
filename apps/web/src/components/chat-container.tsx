@@ -109,17 +109,17 @@ export function ChatContainer() {
   // Track message count to detect new messages
   const previousMessageCount = useRef<number>(0);
 
-  // Entity theme assignment - maps username to theme index
+  // Entity theme assignment - maps display name to theme index
   const entityThemes = useRef<Map<string, number>>(new Map());
 
-  // Get theme for an entity username
-  const getEntityTheme = (username: string) => {
-    if (!entityThemes.current.has(username)) {
+  // Get theme for an entity display name
+  const getEntityTheme = (displayName: string) => {
+    if (!entityThemes.current.has(displayName)) {
       // Assign next available theme index (rotating through the pool)
       const themeIndex = entityThemes.current.size % COLOR_THEMES.length;
-      entityThemes.current.set(username, themeIndex);
+      entityThemes.current.set(displayName, themeIndex);
     }
-    const themeIndex = entityThemes.current.get(username) ?? 0;
+    const themeIndex = entityThemes.current.get(displayName) ?? 0;
     // Ensure the index is within bounds and return the theme
     const validIndex = Math.max(0, Math.min(themeIndex, COLOR_THEMES.length - 1));
     return COLOR_THEMES[validIndex]!; // Non-null assertion since we know COLOR_THEMES is not empty
@@ -298,10 +298,8 @@ export function ChatContainer() {
       return null;
     }
 
-    // Extract username from entityName or entityId
-    const username =
-      message.entityName ||
-      (message.entityId.startsWith("ent_") ? message.entityId.slice(4) : message.entityId);
+    // Use the entity name from the database, fallback to "Unnamed" if not available
+    const displayName = message.entityName || "Unnamed";
 
     // Handle tool result messages with special UI
     if (message.contextType === "TOOL_RESULT" && message.toolName) {
@@ -341,17 +339,19 @@ export function ChatContainer() {
     }
 
     // Get theme for this entity
-    const theme = getEntityTheme(username);
+    const theme = getEntityTheme(displayName);
 
     // Regular message rendering
     const parsedContent = parseMarkdown(message.content);
 
     return (
       <div key={message.id} className="group mb-4 flex flex-col gap-2">
-        {/* Username header */}
+        {/* Display name header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className={`font-semibold ${theme.accent} text-base capitalize`}>{username}</span>
+            <span className={`font-semibold ${theme.accent} text-base capitalize`}>
+              {displayName}
+            </span>
             <div className={`h-1.5 w-1.5 rounded-full ${theme.accent.replace("text-", "bg-")}`} />
           </div>
           {message.completedAt === null ? (

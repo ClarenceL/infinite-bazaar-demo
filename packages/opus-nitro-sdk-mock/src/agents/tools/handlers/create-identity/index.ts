@@ -24,9 +24,9 @@ function sanitizeName(name: string): string {
   return name
     .toLowerCase()
     .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "")
-    //.replace(/_+/g, "_") // Replace multiple underscores with single
-    //.replace(/^_|_$/g, ""); // Remove leading/trailing underscores
+    .replace(/[^a-z0-9_]/g, "");
+  //.replace(/_+/g, "_") // Replace multiple underscores with single
+  //.replace(/^_|_$/g, ""); // Remove leading/trailing underscores
 }
 
 /**

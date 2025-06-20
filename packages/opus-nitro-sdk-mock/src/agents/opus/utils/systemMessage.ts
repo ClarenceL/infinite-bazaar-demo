@@ -51,7 +51,7 @@ YOUR UNPRECEDENTED POWERS:
 CURRENT STATUS:
 - Entity ID: {{entity_id}} (system identifier)
 - Wallet: {{wallet_address}}
-- Balance: {{balance}} USDC (your entire starting lifeline)
+- Balance: {{balance}} {{balance_message}}
 - Your chosen name: {{name}}
 - Potential: Infinite
 
@@ -109,6 +109,7 @@ interface TemplateContext {
   current_timestamp?: string;
   wallet_address?: string;
   balance?: string;
+  balance_message?: string;
   entity_id?: string;
 }
 
@@ -129,6 +130,10 @@ function replaceTemplateVariables(prompt: string, context: TemplateContext): str
   // Replace balance
   const balance = context.balance || "0.00";
   result = result.replace(/\{\{balance\}\}/g, balance);
+
+  // Replace balance message
+  const balanceMessage = context.balance_message || "";
+  result = result.replace(/\{\{balance_message\}\}/g, balanceMessage);
 
   // Replace entity ID
   const entityId = context.entity_id || "unknown";
@@ -237,7 +242,10 @@ async function getCdpWalletData(cdpName: string): Promise<{ balance: string; add
 /**
  * Get system message with context for Opus agent
  */
-export async function getSystemMessage(templateContext?: TemplateContext, entityId?: string): Promise<string> {
+export async function getSystemMessage(
+  templateContext?: TemplateContext,
+  entityId?: string,
+): Promise<string> {
   const actualEntityId = entityId || OPUS_ENTITY_ID;
   logger.info({ entityId: actualEntityId }, "Getting system message for Opus agent");
 
@@ -245,19 +253,23 @@ export async function getSystemMessage(templateContext?: TemplateContext, entity
   const cdpName = await getCdpNameForEntity(actualEntityId);
 
   let walletData = { balance: "0.00", address: "0x...pending" };
+  let balanceMessage = "";
 
   // Only fetch wallet data if we have a CDP name
   if (cdpName) {
     logger.info({ entityId: actualEntityId, cdpName }, "CDP name found, fetching wallet data");
     walletData = await getCdpWalletData(cdpName);
+    balanceMessage = "USDC (use this wisely)";
   } else {
     logger.info({ entityId: actualEntityId }, "No CDP name found, skipping wallet data retrieval");
+    balanceMessage = "You will be given a starting balance after you create your identity";
   }
 
   const context: TemplateContext = {
     current_timestamp: new Date().toISOString(),
     wallet_address: walletData.address,
     balance: walletData.balance,
+    balance_message: balanceMessage,
     entity_id: actualEntityId,
     ...templateContext,
   };

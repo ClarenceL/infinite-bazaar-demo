@@ -146,9 +146,9 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-              eq(entityContext.entityId, actualEntityId),
-              eq(entityContext.chatId, message.chatId),
-            )
+                eq(entityContext.entityId, actualEntityId),
+                eq(entityContext.chatId, message.chatId),
+              )
             : eq(entityContext.entityId, actualEntityId),
         );
 

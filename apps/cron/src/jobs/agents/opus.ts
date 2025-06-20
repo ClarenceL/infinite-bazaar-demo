@@ -38,7 +38,8 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
   try {
     const newMessages = await db
       .select({
-        username: entities.username,
+        entityId: entities.entityId,
+        name: entities.name,
         content: entityContext.content,
       })
       .from(entityContext)
@@ -79,7 +80,7 @@ function replaceTemplateVariables(template: string, variables: Record<string, st
  */
 async function processEntity(entity: any, cycleInterval: string): Promise<void> {
   const entityId = entity.entityId;
-  const entityName = entity.name || entity.username;
+  const entityName = entity.name || entity.entityId;
 
   logger.info({ entityId, entityName }, "Processing entity");
 
@@ -179,7 +180,6 @@ async function getActiveEntities() {
       entityId: entities.entityId,
       entityType: entities.entityType,
       name: entities.name,
-      username: entities.username,
     })
     .from(entities)
     .where(eq(entities.active, true));

@@ -7,7 +7,7 @@
 A seed script that creates the default data required for the Opus agent to function properly.
 
 **What it creates:**
-- Default entity: `ent_opus` (AI type, name: "Opus", username: "opus")
+- Default entity: `ent_opus` (AI type, name: "Opus")
 - Default global chat: `chat_global` (name: "Global Chat", is_global: true)
 
 **How to run:**

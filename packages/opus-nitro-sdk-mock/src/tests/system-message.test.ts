@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
-import { getSystemMessage, OPUS_ENTITY_ID } from "../agents/opus/utils/systemMessage";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { OPUS_ENTITY_ID, getSystemMessage } from "../agents/opus/utils/systemMessage";
 
 // Mock the database module
 vi.mock("@infinite-bazaar-demo/db", () => ({
@@ -59,21 +59,21 @@ describe("System Message", () => {
     const testEntityId = "ent_multi_test";
     const systemMessage = await getSystemMessage(undefined, testEntityId);
 
-    const lines = systemMessage.split('\n');
-    const entityIdLines = lines.filter(line => line.includes(testEntityId));
+    const lines = systemMessage.split("\n");
+    const entityIdLines = lines.filter((line) => line.includes(testEntityId));
 
     // Should appear in at least 3 different places
     expect(entityIdLines.length).toBeGreaterThanOrEqual(3);
 
     // Should appear in specific sections
-    const hasAssignedIdentitySection = entityIdLines.some(line =>
-      line.includes("Entity ID:") && line.includes("technical identifier")
+    const hasAssignedIdentitySection = entityIdLines.some(
+      (line) => line.includes("Entity ID:") && line.includes("technical identifier"),
     );
-    const hasCurrentStatusSection = entityIdLines.some(line =>
-      line.includes("Entity ID:") && line.includes("system identifier")
+    const hasCurrentStatusSection = entityIdLines.some(
+      (line) => line.includes("Entity ID:") && line.includes("system identifier"),
     );
-    const hasFirstQuestionsSection = entityIdLines.some(line =>
-      line.includes("just your system ID")
+    const hasFirstQuestionsSection = entityIdLines.some((line) =>
+      line.includes("just your system ID"),
     );
 
     expect(hasAssignedIdentitySection).toBe(true);
@@ -86,9 +86,9 @@ describe("System Message", () => {
     const systemMessage = await getSystemMessage(
       {
         name: "TestAgent",
-        balance: "25.50"
+        balance: "25.50",
       },
-      testEntityId
+      testEntityId,
     );
 
     // Should include the custom template context
@@ -120,9 +120,28 @@ describe("System Message", () => {
 
     // Should include default wallet values when no CDP name is found
     expect(systemMessage).toContain("0x...pending");
-    expect(systemMessage).toContain("0.00 USDC");
+    expect(systemMessage).toContain("0.00");
 
-    // Note: Since we don't cache null values, the database will be queried 
+    // Should include the message about needing to create identity
+    expect(systemMessage).toContain(
+      "You will be given a starting balance after you create your identity",
+    );
+
+    // Note: Since we don't cache null values, the database will be queried
     // again on the next call until a CDP name is set by the create_identity process
   });
-}); 
+
+  it("should show different balance messages based on CDP name availability", async () => {
+    const testEntityId = "ent_balance_message_test";
+
+    // Test without CDP name (mocked to return null)
+    const systemMessageWithoutCdp = await getSystemMessage(undefined, testEntityId);
+    expect(systemMessageWithoutCdp).toContain(
+      "You will be given a starting balance after you create your identity",
+    );
+    expect(systemMessageWithoutCdp).not.toContain("USDC (use this wisely)");
+
+    // The message should not contain the old hardcoded USDC text
+    expect(systemMessageWithoutCdp).not.toContain("USDC (your entire starting lifeline)");
+  });
+});
