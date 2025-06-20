@@ -42,7 +42,7 @@ export async function generateResponse(
     }).bindTools(mcpTools);
 
     // Prepare messages for LLM
-    const llmMessages = await prepLLMMessages(messages);
+    const llmMessages = await prepLLMMessages(messages, entityId);
     logger.info({ llmMessageCount: llmMessages.length }, "Prepared messages for LLM");
 
     // Create a mock stream writer for processing
@@ -157,7 +157,7 @@ export async function generateStreamingResponse(
     }).bindTools(mcpTools);
 
     // Prepare messages for LLM
-    const llmMessages = await prepLLMMessages(messages);
+    const llmMessages = await prepLLMMessages(messages, entityId);
 
     logger.info(
       {

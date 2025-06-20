@@ -47,9 +47,9 @@ function logLLMMessages(messages: LLMMessage[]): void {
 /**
  * Prepare messages for LLM processing following Lyra MCP server pattern
  */
-export const prepLLMMessages = async (messages: Message[]): Promise<LLMMessages> => {
-  // Get system message with context
-  const systemMessage = await getSystemMessage();
+export const prepLLMMessages = async (messages: Message[], entityId?: string): Promise<LLMMessages> => {
+  // Get system message with context and entityId
+  const systemMessage = await getSystemMessage(undefined, entityId);
 
   // Prepare message history for the LLM
   // First add the system message

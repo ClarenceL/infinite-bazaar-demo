@@ -38,9 +38,11 @@ export const entities = pgTable("entities", {
     .$defaultFn(() => newId("entity")),
   entityType: entityEnum("entity_type"),
   name: text("name"),
+  // this is the name humans give, but it's never passed to the agent
+  // instead they choose their own "name", and the cdp_name is hardcoded or deterministic based on the name
   username: varchar("username", { length: 50 }).unique().notNull(),
-  cdp_name: varchar("cdp_name", { length: 255 }),
-  cdp_address: varchar("cdp_address", { length: 42 }),
+  cdp_name: varchar("cdp_name", { length: 255 }).unique(),
+  cdp_address: varchar("cdp_address", { length: 44 }),
   active: boolean("active").default(true).notNull(),
   ...lifecycleDates,
 }).enableRLS();

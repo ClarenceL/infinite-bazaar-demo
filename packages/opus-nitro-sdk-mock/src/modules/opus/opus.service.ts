@@ -146,9 +146,9 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-                eq(entityContext.entityId, actualEntityId),
-                eq(entityContext.chatId, message.chatId),
-              )
+              eq(entityContext.entityId, actualEntityId),
+              eq(entityContext.chatId, message.chatId),
+            )
             : eq(entityContext.entityId, actualEntityId),
         );
 
@@ -222,8 +222,8 @@ export class OpusService {
   /**
    * Prepare messages for LLM processing
    */
-  async prepareMessages(messages: Message[]) {
-    return prepLLMMessages(messages);
+  async prepareMessages(messages: Message[], entityId?: string) {
+    return prepLLMMessages(messages, entityId);
   }
 
   /**
