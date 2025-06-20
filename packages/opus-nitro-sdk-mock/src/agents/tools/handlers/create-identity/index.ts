@@ -129,11 +129,12 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       "Converted CDP account to viem account",
     );
 
-    // Step 1.6: Update the entities table with CDP account info
+    // Step 1.6: Update the entities table with CDP account info and name
     try {
       await db
         .update(entities)
         .set({
+          name: name, // Save the original name
           cdp_name: cdpAccount.name,
           cdp_address: viemAccount.address,
         })
@@ -142,10 +143,11 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       logger.info(
         {
           entity_id,
+          name,
           cdp_name: cdpAccount.name,
           cdp_address: viemAccount.address,
         },
-        "Updated entities table with CDP account info",
+        "Updated entities table with CDP account info and name",
       );
     } catch (dbError) {
       logger.error({ dbError, entity_id }, "Failed to update entities table with CDP info");
@@ -215,50 +217,15 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
     // Step 5: Submit claim with automatic x402 payment using CDP account
     logger.info("Submitting claim with x402 payment using CDP account");
 
-    // First, let's try a regular fetch to see if we get HTTP 402
-    logger.info("🔍 TESTING: Making first request without payment to check for HTTP 402");
-    try {
-      const testResponse = await fetch(`${OPUS_GENESIS_ID_URL}/genesis/claim/submit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(claimData),
-      });
-
-      logger.info(
-        {
-          status: testResponse.status,
-          statusText: testResponse.statusText,
-          headers: Object.fromEntries(testResponse.headers.entries()),
-        },
-        `📋 FIRST REQUEST RESULT: ${testResponse.status === 402 ? "HTTP 402 Payment Required (GOOD!)" : "Unexpected status (BAD!)"}`,
-      );
-
-      if (testResponse.status !== 402) {
-        logger.warn(
-          "⚠️  Expected HTTP 402 but got different status - payment middleware may not be working",
-        );
-      }
-    } catch (error) {
-      logger.error({ error }, "❌ Test request failed");
-    }
-
-    // Now make the actual x402-enabled request
-    logger.info("💳 Making x402-enabled request (should handle payment automatically)");
-
-    // Log the CDP account balance before payment
-    try {
-      logger.info(
-        {
-          cdpAddress: viemAccount.address,
-          network: "base-sepolia",
-        },
-        "🏦 CDP Account before payment",
-      );
-    } catch (error) {
-      logger.warn({ error }, "Could not check CDP account balance");
-    }
+    // Log the CDP account before payment
+    logger.info(
+      {
+        cdpAddress: viemAccount.address,
+        cdpAccountName: cdpAccount.name,
+        network: "base-sepolia",
+      },
+      "CDP Account ready for payment",
+    );
 
     const claimResponse = await fetchWithPayment(`${OPUS_GENESIS_ID_URL}/genesis/claim/submit`, {
       method: "POST",
@@ -268,18 +235,13 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       body: JSON.stringify(claimData),
     });
 
-    // Log the CDP account after payment
-    try {
-      logger.info(
-        {
-          cdpAddress: viemAccount.address,
-          network: "base-sepolia",
-        },
-        "🏦 CDP Account after payment",
-      );
-    } catch (error) {
-      logger.warn({ error }, "Could not check CDP account balance after payment");
-    }
+    logger.info(
+      {
+        responseStatus: claimResponse.status,
+        cdpAddress: viemAccount.address,
+      },
+      "Claim submission completed",
+    );
 
     const claimResult = await processApiResponse(claimResponse);
 
