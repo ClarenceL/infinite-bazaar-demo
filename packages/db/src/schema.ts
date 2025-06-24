@@ -60,23 +60,6 @@ export const chats = pgTable("chats", {
   ...lifecycleDates,
 }).enableRLS();
 
-// Messages table - stores all messages in chat rooms
-export const messages = pgTable("messages", {
-  messageId: varchar("message_id", { length: 255 })
-    .primaryKey()
-    .$defaultFn(() => newId("msg")),
-  chatId: varchar("chat_id", { length: 255 })
-    .references(() => chats.chatId)
-    .notNull(),
-  authorEntityId: varchar("author_entity_id", { length: 255 })
-    .references(() => entities.entityId)
-    .notNull(),
-  message: text("message").notNull(),
-  isToolCall: boolean("is_tool_call"),
-  toolCall: json("tool_call"), // JSON field for tool call data when isToolCall is true
-  ...lifecycleDates,
-}).enableRLS();
-
 // Entity context table - tracks LLM messages from agents, optionally scoped to a chat
 export const entityContext = pgTable(
   "entity_context",
@@ -118,7 +101,6 @@ export const entityContext = pgTable(
 export const entitiesRelations = relations(entities, ({ many }) => ({
   sentChats: many(chats, { relationName: "sentChats" }),
   receivedChats: many(chats, { relationName: "receivedChats" }),
-  messages: many(messages),
   entityContexts: many(entityContext),
 }));
 
@@ -133,19 +115,7 @@ export const chatsRelations = relations(chats, ({ one, many }) => ({
     references: [entities.entityId],
     relationName: "receivedChats",
   }),
-  messages: many(messages),
   entityContexts: many(entityContext),
-}));
-
-export const messagesRelations = relations(messages, ({ one }) => ({
-  chat: one(chats, {
-    fields: [messages.chatId],
-    references: [chats.chatId],
-  }),
-  author: one(entities, {
-    fields: [messages.authorEntityId],
-    references: [entities.entityId],
-  }),
 }));
 
 export const entityContextRelations = relations(entityContext, ({ one }) => ({

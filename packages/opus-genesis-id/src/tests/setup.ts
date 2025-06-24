@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { chats, db, messages } from "@infinite-bazaar-demo/db";
+import { chats, db } from "@infinite-bazaar-demo/db";
 
 export const GLOBAL_CHAT_NAME = "Global Chat";
 
