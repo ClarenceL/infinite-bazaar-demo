@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { OPUS_ENTITY_ID, getSystemMessage } from "../agents/opus/utils/systemMessage";
+import { OPUS_ENTITY_ID, getSystemMessage } from "../agents/opus/utils/system-message";
 
 // Mock the database module
 vi.mock("@infinite-bazaar-demo/db", () => ({
@@ -23,9 +23,9 @@ describe("System Message", () => {
   });
 
   it("should include entityId in system prompt when provided", async () => {
-    // Test with custom entityId
-    const testEntityId = "ent_test_agent_123";
-    const systemMessage = await getSystemMessage(undefined, testEntityId);
+    // Test with OPUS entityId
+    const testEntityId = OPUS_ENTITY_ID;
+    const systemMessage = await getSystemMessage(testEntityId);
 
     // Check if entityId is included
     expect(systemMessage).toContain(testEntityId);
@@ -36,17 +36,18 @@ describe("System Message", () => {
     expect(systemMessage).toContain("This ID is NOT your name");
   });
 
-  it("should use default entityId when none provided", async () => {
-    const systemMessage = await getSystemMessage();
+  it("should throw error when entityId is not provided", async () => {
+    // Test that function throws when entityId is missing
+    await expect(getSystemMessage("")).rejects.toThrow("entityId is required");
 
-    // Should contain the default OPUS_ENTITY_ID
-    expect(systemMessage).toContain(OPUS_ENTITY_ID);
-    expect(systemMessage).toContain(`Entity ID: ${OPUS_ENTITY_ID}`);
+    // Test with null/undefined-like values
+    await expect(getSystemMessage(null as any)).rejects.toThrow("entityId is required");
+    await expect(getSystemMessage(undefined as any)).rejects.toThrow("entityId is required");
   });
 
   it("should include guidance about choosing a name vs entity ID", async () => {
-    const testEntityId = "ent_custom_agent";
-    const systemMessage = await getSystemMessage(undefined, testEntityId);
+    const testEntityId = OPUS_ENTITY_ID;
+    const systemMessage = await getSystemMessage(testEntityId);
 
     // Should explain the difference between entity ID and chosen name
     expect(systemMessage).toContain("You should choose your own meaningful name");
@@ -56,8 +57,8 @@ describe("System Message", () => {
   });
 
   it("should include entityId in multiple sections of the prompt", async () => {
-    const testEntityId = "ent_multi_test";
-    const systemMessage = await getSystemMessage(undefined, testEntityId);
+    const testEntityId = OPUS_ENTITY_ID;
+    const systemMessage = await getSystemMessage(testEntityId);
 
     const lines = systemMessage.split("\n");
     const entityIdLines = lines.filter((line) => line.includes(testEntityId));
@@ -82,14 +83,11 @@ describe("System Message", () => {
   });
 
   it("should maintain other template variables alongside entityId", async () => {
-    const testEntityId = "ent_template_test";
-    const systemMessage = await getSystemMessage(
-      {
-        name: "TestAgent",
-        balance: "25.50",
-      },
-      testEntityId,
-    );
+    const testEntityId = OPUS_ENTITY_ID;
+    const systemMessage = await getSystemMessage(testEntityId, {
+      name: "TestAgent",
+      balance: "25.50",
+    });
 
     // Should include the custom template context
     expect(systemMessage).toContain("TestAgent");
@@ -105,18 +103,18 @@ describe("System Message", () => {
     expect(systemMessage).toContain("TIMESTAMP:");
   });
 
-  it("should handle undefined entityId gracefully", async () => {
-    const systemMessage = await getSystemMessage(undefined, undefined);
+  it("should throw error for unknown entity ID", async () => {
+    const unknownEntityId = "ent_unknown_agent";
 
-    // Should fall back to default OPUS_ENTITY_ID
-    expect(systemMessage).toContain(OPUS_ENTITY_ID);
-    expect(systemMessage).not.toContain("undefined");
-    expect(systemMessage).not.toContain("{{entity_id}}");
+    // Should throw when no prompt is found for the entity
+    await expect(getSystemMessage(unknownEntityId)).rejects.toThrow(
+      `No system prompt found for entity ID: ${unknownEntityId}`,
+    );
   });
 
   it("should use default wallet values when no CDP name found and keep querying database", async () => {
-    const testEntityId = "ent_no_cdp_name";
-    const systemMessage = await getSystemMessage(undefined, testEntityId);
+    const testEntityId = OPUS_ENTITY_ID; // Use known entity ID
+    const systemMessage = await getSystemMessage(testEntityId);
 
     // Should include default wallet values when no CDP name is found
     expect(systemMessage).toContain("0x...pending");
@@ -132,10 +130,10 @@ describe("System Message", () => {
   });
 
   it("should show different balance messages based on CDP name availability", async () => {
-    const testEntityId = "ent_balance_message_test";
+    const testEntityId = OPUS_ENTITY_ID; // Use known entity ID
 
     // Test without CDP name (mocked to return null)
-    const systemMessageWithoutCdp = await getSystemMessage(undefined, testEntityId);
+    const systemMessageWithoutCdp = await getSystemMessage(testEntityId);
     expect(systemMessageWithoutCdp).toContain(
       "You will be given a starting balance after you create your identity",
     );

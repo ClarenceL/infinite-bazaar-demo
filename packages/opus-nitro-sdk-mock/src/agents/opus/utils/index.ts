@@ -1,2 +1,2 @@
-export { prepLLMMessages } from "./prepLLMMessages";
-export { processLangChainStream } from "./processLangChainStream";
+export { prepLLMMessages } from "./prep-llm-messages";
+export { processLangChainStream } from "./process-langchain-stream";

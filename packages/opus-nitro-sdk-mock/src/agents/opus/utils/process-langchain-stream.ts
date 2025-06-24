@@ -1,6 +1,6 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { streamingDBSync } from "../../../services/streaming-db-sync.js";
-import type { Message, ToolCall, ToolCallResult } from "../../../types/message";
+import type { Message, ToolCall, ToolCallResult } from "../../../types/message.js";
 import { processToolCall } from "../../tools/handlers/index.js";
 
 /**

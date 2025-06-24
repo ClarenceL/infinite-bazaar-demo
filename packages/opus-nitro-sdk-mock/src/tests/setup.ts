@@ -62,7 +62,6 @@ async function safeDelete(table: any, condition: any = undefined) {
 export async function cleanupTestDatabase() {
   try {
     await safeDelete(chats);
-    await safeDelete(messages);
 
     console.log("Test database cleanup complete");
   } catch (error) {

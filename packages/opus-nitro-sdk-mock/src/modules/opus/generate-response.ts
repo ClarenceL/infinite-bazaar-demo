@@ -1,8 +1,6 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
-import { getSystemMessage } from "../../agents/opus/utils/systemMessage.js";
-import { processToolCall } from "../../agents/tools/handlers/index.js";
 import { mcpTools } from "../../agents/tools/index.js";
 import { streamingDBSync } from "../../services/streaming-db-sync.js";
 import type { Message } from "../../types/message";

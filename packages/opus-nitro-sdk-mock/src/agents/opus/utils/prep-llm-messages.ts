@@ -9,7 +9,7 @@ import type {
 } from "../../../types/message";
 import { createAnthropicToolResult, createAnthropicToolUse } from "../../../types/message";
 
-import { getSystemMessage } from "./systemMessage";
+import { getSystemMessage } from "./system-message";
 
 /**
  * Ensure proper tool call pairing in LLM messages
@@ -49,10 +49,10 @@ function logLLMMessages(messages: LLMMessage[]): void {
  */
 export const prepLLMMessages = async (
   messages: Message[],
-  entityId?: string,
+  entityId: string,
 ): Promise<LLMMessages> => {
   // Get system message with context and entityId
-  const systemMessage = await getSystemMessage(undefined, entityId);
+  const systemMessage = await getSystemMessage(entityId);
 
   // Prepare message history for the LLM
   // First add the system message
