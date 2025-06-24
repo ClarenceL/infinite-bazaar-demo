@@ -1,6 +1,7 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { mcpTools } from "../../agents/tools/index";
+import { getAnthropicModelForEntity } from "../../agents/prompts/index";
 import { prepLLMMessages, processLangChainStream } from "../../agents/utils";
 import { streamingDBSync } from "../../services/streaming-db-sync";
 import type { Message } from "../../types/message";
@@ -26,11 +27,16 @@ export async function generateResponse(
       throw new Error("ANTHROPIC_API_KEY environment variable is required");
     }
 
+    // Get the anthropic model for this entity from database
+    const anthropicModel = await getAnthropicModelForEntity(entityId);
+    const modelToUse = anthropicModel || "claude-opus-4-20250514"; // fallback to default
+
+    logger.info({ entityId, anthropicModel, modelToUse }, "Using anthropic model for entity");
+
     // Initialize ChatAnthropic with tools
     const llm = new ChatAnthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      // model: "claude-sonnet-4-20250514",
-      model: "claude-opus-4-20250514",
+      model: modelToUse,
       temperature: 1.0,
       clientOptions: {
         defaultHeaders: {
@@ -141,11 +147,16 @@ export async function generateStreamingResponse(
 
     logger.info("ANTHROPIC_API_KEY is available, proceeding with LLM call");
 
+    // Get the anthropic model for this entity from database
+    const anthropicModel = await getAnthropicModelForEntity(entityId);
+    const modelToUse = anthropicModel || "claude-opus-4-20250514"; // fallback to default
+
+    logger.info({ entityId, anthropicModel, modelToUse }, "Using anthropic model for entity (streaming)");
+
     // Initialize ChatAnthropic with tools
     const llm = new ChatAnthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      // model: "claude-sonnet-4-20250514",
-      model: "claude-opus-4-20250514",
+      model: modelToUse,
       temperature: 1.0,
       clientOptions: {
         defaultHeaders: {

@@ -42,6 +42,8 @@ export const entities = pgTable("entities", {
   // instead they choose their own "name", and the cdp_name is hardcoded or deterministic based on the name
   cdp_name: varchar("cdp_name", { length: 255 }).unique(),
   cdp_address: varchar("cdp_address", { length: 44 }),
+  ai_prompt_id: varchar("ai_prompt_id", { length: 255 }), // Maps to AI prompt templates
+  anthropic_model: varchar("anthropic_model", { length: 255 }), // Anthropic model to use for this entity
   active: boolean("active").default(true).notNull(),
   lastQueryTime: timestamp("last_query_time", { withTimezone: true }), // Track when entity last queried for new messages
   ...lifecycleDates,

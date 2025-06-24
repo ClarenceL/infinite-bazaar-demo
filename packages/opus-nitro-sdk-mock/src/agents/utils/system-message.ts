@@ -36,7 +36,7 @@ function replaceTemplateVariables(prompt: string, context: TemplateContext): str
   result = result.replace(/\{\{current_timestamp\}\}/g, timestamp);
 
   // Replace wallet address
-  const walletAddress = context.wallet_address || "0x...pending";
+  const walletAddress = context.wallet_address || "Give yourself a name, and you will receive a wallet address";
   result = result.replace(/\{\{wallet_address\}\}/g, walletAddress);
 
   // Replace balance

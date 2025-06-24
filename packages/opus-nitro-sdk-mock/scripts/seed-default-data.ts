@@ -70,6 +70,8 @@ async function seedDefaultData() {
         SET 
           entity_type = 'AI',
           name = 'Opus',
+          ai_prompt_id = 'opus',
+          anthropic_model = 'claude-opus-4-20250514',
           updated_at = NOW()
         WHERE entity_id = ${DEFAULT_ENTITY_ID}
       `);
@@ -79,11 +81,13 @@ async function seedDefaultData() {
       console.log(`Creating new entity ${DEFAULT_ENTITY_ID}...`);
 
       await db.execute(sql`
-        INSERT INTO entities (entity_id, entity_type, name, created_at, updated_at)
+        INSERT INTO entities (entity_id, entity_type, name, ai_prompt_id, anthropic_model, created_at, updated_at)
         VALUES (
           ${DEFAULT_ENTITY_ID},
           'AI',
           'Opus',
+          'opus',
+          'claude-opus-4-20250514',
           NOW(),
           NOW()
         )
@@ -134,7 +138,7 @@ async function seedDefaultData() {
     console.log("\nVerifying seeded data...");
 
     const entityCheck = await db.execute(sql`
-      SELECT entity_id, entity_type, name, created_at 
+      SELECT entity_id, entity_type, name, ai_prompt_id, anthropic_model, created_at 
       FROM entities 
       WHERE entity_id = ${DEFAULT_ENTITY_ID}
     `);
@@ -149,6 +153,8 @@ async function seedDefaultData() {
       entityId: entityCheck[0]?.entity_id,
       entityType: entityCheck[0]?.entity_type,
       name: entityCheck[0]?.name,
+      aiPromptId: entityCheck[0]?.ai_prompt_id,
+      anthropicModel: entityCheck[0]?.anthropic_model,
       createdAt: entityCheck[0]?.created_at,
     });
 
