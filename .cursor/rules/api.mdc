@@ -1,6 +1,6 @@
 ---
 description: 
-globs: apps/api
+globs: apps/api/**/*
 alwaysApply: false
 ---
 # Backend API Architecture and Development Guidelines
