@@ -1,6 +1,6 @@
 import * as process from "node:process";
+import { agentRoutes } from "@/modules/agent";
 import { enclaveRoutes } from "@/modules/enclave";
-import { opusRoutes } from "@/modules/opus";
 import { customLogger } from "@/pkg/middleware/custom-logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -56,10 +56,10 @@ app.get("/health", (c) => {
 // Register enclave routes
 const enclaveApp = app.basePath("/enclave").route("/", enclaveRoutes);
 
-// Register Opus agent routes
-const opusApp = app.basePath("/opus").route("/", opusRoutes);
+// Register agent routes
+const agentApp = app.basePath("/agent").route("/", agentRoutes);
 
-const routes = opusApp;
+const routes = agentApp;
 
 export type AppType = typeof routes;
 

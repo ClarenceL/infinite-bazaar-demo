@@ -1,2 +1,2 @@
 export * from "./enclave";
-export * from "./opus";
+export * from "./agent";

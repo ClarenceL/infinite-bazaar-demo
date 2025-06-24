@@ -1,6 +1,6 @@
 import { and, db, desc, entityContext, eq, sql } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
-import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
+import { prepLLMMessages, processLangChainStream } from "../../agents/utils";
 import type {
   ChatMessage,
   ChatRequest,
@@ -14,12 +14,12 @@ import { generateResponse, generateStreamingResponse } from "./generate-response
 // Hardcoded entity ID for Opus agent
 const OPUS_ENTITY_ID = "ent_opus";
 
-export class OpusService {
+export class AgentService {
   /**
-   * Get Opus agent information
+   * Get agent information
    */
-  async getOpusInfo(): Promise<OpusInfo> {
-    logger.info("Getting Opus agent information");
+  async getAgentInfo(): Promise<OpusInfo> {
+    logger.info("Getting agent information");
 
     // Get message count from database
     const messageCount = await db
@@ -29,7 +29,7 @@ export class OpusService {
 
     return {
       entityId: OPUS_ENTITY_ID,
-      systemPrompt: "Opus AI agent for InfiniteBazaar protocol demonstration",
+      systemPrompt: "AI agent for InfiniteBazaar protocol demonstration",
       messageCount: messageCount[0]?.count || 0,
       status: "active",
       capabilities: [
@@ -43,10 +43,10 @@ export class OpusService {
   }
 
   /**
-   * Get system prompt for Opus agent
+   * Get system prompt for agent
    */
   getSystemPrompt(): string {
-    return "Opus AI agent for InfiniteBazaar protocol demonstration";
+    return "AI agent for InfiniteBazaar protocol demonstration";
   }
 
   /**
@@ -146,9 +146,9 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-              eq(entityContext.entityId, actualEntityId),
-              eq(entityContext.chatId, message.chatId),
-            )
+                eq(entityContext.entityId, actualEntityId),
+                eq(entityContext.chatId, message.chatId),
+              )
             : eq(entityContext.entityId, actualEntityId),
         );
 
@@ -311,7 +311,7 @@ export class OpusService {
 }
 
 // Export singleton instance
-export const opusService = new OpusService();
+export const agentService = new AgentService();
 
 export async function generateChatResponse(
   messages: Message[],

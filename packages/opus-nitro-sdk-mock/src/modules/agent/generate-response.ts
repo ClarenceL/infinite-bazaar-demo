@@ -1,7 +1,7 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { ChatAnthropic } from "@langchain/anthropic";
-import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
 import { mcpTools } from "../../agents/tools/index";
+import { prepLLMMessages, processLangChainStream } from "../../agents/utils";
 import { streamingDBSync } from "../../services/streaming-db-sync";
 import type { Message } from "../../types/message";
 
@@ -194,8 +194,8 @@ export async function generateStreamingResponse(
       // This callback is used during streaming for tool calls
       // The complete response will be saved after streaming completes
       logger.debug({ role: message.role }, "Tool call/result message ready for saving");
-      const { opusService } = await import("./opus.service.js");
-      await opusService.saveMessage(message, entityId);
+      const { agentService } = await import("./agent.service.js");
+      await agentService.saveMessage(message, entityId);
     };
 
     // Create initial streaming record if real-time sync is enabled
@@ -255,8 +255,8 @@ export async function generateStreamingResponse(
     // Save the complete response if we have text content and real-time sync is not enabled
     if (textContent && !streamingDBSync.isEnabled()) {
       logger.info("Saving complete assistant response to database");
-      const { opusService } = await import("./opus.service.js");
-      await opusService.saveMessage(
+      const { agentService } = await import("./agent.service.js");
+      await agentService.saveMessage(
         {
           role: "assistant",
           content: textContent,

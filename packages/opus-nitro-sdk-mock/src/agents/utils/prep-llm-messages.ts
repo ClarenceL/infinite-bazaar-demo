@@ -6,8 +6,8 @@ import type {
   Message,
   ToolCall,
   ToolCallResult,
-} from "../../../types/message";
-import { createAnthropicToolResult, createAnthropicToolUse } from "../../../types/message";
+} from "../../types/message";
+import { createAnthropicToolResult, createAnthropicToolUse } from "../../types/message";
 
 import { getSystemMessage } from "./system-message";
 

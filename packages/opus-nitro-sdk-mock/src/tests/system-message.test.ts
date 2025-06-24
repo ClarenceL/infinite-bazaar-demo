@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { OPUS_ENTITY_ID, getSystemMessage } from "../agents/opus/utils/system-message";
+import { OPUS_ENTITY_ID, getSystemMessage } from "../agents/utils/system-message";
 
 // Mock the database module
 vi.mock("@infinite-bazaar-demo/db", () => ({

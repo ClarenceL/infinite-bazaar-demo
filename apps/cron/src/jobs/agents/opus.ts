@@ -162,7 +162,7 @@ async function sendMessageToOpusAPI(entityId: string, message: string): Promise<
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
   try {
-    const response = await fetch(`${API_BASE_URL}/opus/chat`, {
+    const response = await fetch(`${API_BASE_URL}/agent/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

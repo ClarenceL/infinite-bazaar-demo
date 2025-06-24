@@ -1,16 +1,16 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { Hono } from "hono";
 import { errorHandler } from "../../pkg/middleware/error.js";
-import { opusService } from "./opus.service.js";
+import { agentService } from "./agent.service.js";
 
-// Create the opus router
-export const opusRoutes = new Hono()
+// Create the agent router
+export const agentRoutes = new Hono()
   .use("*", errorHandler())
 
-  // Get Opus agent information
+  // Get agent information
   .get("/info", async (c) => {
     try {
-      const info = await opusService.getOpusInfo();
+      const info = await agentService.getAgentInfo();
       return c.json(info);
     } catch (error) {
       return c.json(
@@ -26,7 +26,7 @@ export const opusRoutes = new Hono()
   // Get system prompt
   .get("/prompt", async (c) => {
     try {
-      const systemPrompt = opusService.getSystemPrompt();
+      const systemPrompt = agentService.getSystemPrompt();
       return c.json({
         success: true,
         systemPrompt,
@@ -81,10 +81,10 @@ export const opusRoutes = new Hono()
       );
 
       // Load message history
-      const messages = await opusService.loadMessages(chatId, entityId);
+      const messages = await agentService.loadMessages(chatId, entityId);
 
       // Save the incoming user message
-      await opusService.saveMessage(
+      await agentService.saveMessage(
         {
           role: "user",
           content: message,
@@ -104,7 +104,7 @@ export const opusRoutes = new Hono()
           logger.info("Starting streaming AI response generation");
 
           // Use the streaming AI response that writes directly to the stream
-          await opusService.generateStreamingAIResponse(
+          await agentService.generateStreamingAIResponse(
             [...messages, { role: "user", content: message, chatId }],
             writer,
             encoder,
@@ -162,7 +162,7 @@ export const opusRoutes = new Hono()
         return c.json({ error: "entityId query parameter is required" }, 400);
       }
 
-      const messages = await opusService.loadMessages(chatId || undefined, entityId);
+      const messages = await agentService.loadMessages(chatId || undefined, entityId);
 
       return c.json({
         success: true,
@@ -192,7 +192,7 @@ export const opusRoutes = new Hono()
         return c.json({ error: "entityId is required and must be a string" }, 400);
       }
 
-      await opusService.resetConversation(chatId, entityId);
+      await agentService.resetConversation(chatId, entityId);
 
       return c.json({
         success: true,
@@ -214,11 +214,11 @@ export const opusRoutes = new Hono()
   // Health check endpoint
   .get("/health", async (c) => {
     try {
-      const info = await opusService.getOpusInfo();
+      const info = await agentService.getAgentInfo();
       return c.json({
         // @ts-ignore
         status: "healthy",
-        agent: "opus",
+        agent: "agent",
         ...info,
       });
     } catch (error) {
