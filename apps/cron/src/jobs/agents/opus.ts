@@ -30,33 +30,59 @@ New messages received:
 What will you do with this moment of existence?`;
 
 /**
- * Fetch new messages from the last minute that are not from the current entity
+ * Fetch new messages since the entity's last query time
  */
 async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
-  const oneMinuteAgo = new Date(Date.now() - 60 * 1000); // 1 minute ago
-
   try {
+    // Get the entity's last query time
+    const entity = await db
+      .select({
+        lastQueryTime: entities.lastQueryTime,
+      })
+      .from(entities)
+      .where(eq(entities.entityId, currentEntityId))
+      .limit(1);
+
+    if (entity.length === 0) {
+      logger.warn({ entityId: currentEntityId }, "Entity not found");
+      return [];
+    }
+
+    // Use last query time or default to 1 minute ago if null
+    const lastQueryTime = entity[0]?.lastQueryTime || new Date(Date.now() - 60 * 1000);
+
+    logger.info(
+      { entityId: currentEntityId, lastQueryTime },
+      "Fetching messages since last query time",
+    );
+
     const newMessages = await db
       .select({
         entityId: entities.entityId,
         name: entities.name,
         content: entityContext.content,
+        completedAt: entityContext.completedAt,
       })
       .from(entityContext)
       .innerJoin(entities, eq(entityContext.entityId, entities.entityId))
       .where(
         and(
           isNotNull(entityContext.completedAt),
-          gte(entityContext.completedAt, oneMinuteAgo),
+          gte(entityContext.completedAt, lastQueryTime),
           ne(entityContext.entityId, currentEntityId),
           eq(entities.active, true),
         ),
       )
       .orderBy(asc(entityContext.completedAt));
 
+    logger.info(
+      { entityId: currentEntityId, messageCount: newMessages.length },
+      "Found new messages since last query",
+    );
+
     return newMessages;
   } catch (error) {
-    logger.error("Error fetching new messages:", error);
+    logger.error({ entityId: currentEntityId, error }, "Error fetching new messages");
     return [];
   }
 }
@@ -85,6 +111,9 @@ async function processEntity(entity: any, cycleInterval: string): Promise<void> 
   logger.info({ entityId, entityName }, "Processing entity");
 
   try {
+    // Record the query start time
+    const queryTime = new Date();
+
     // Fetch new messages for this entity
     logger.info({ entityId }, "Fetching new messages for entity");
     const newMessages = await fetchNewMessages(entityId);
@@ -104,7 +133,19 @@ async function processEntity(entity: any, cycleInterval: string): Promise<void> 
     const finalMessage = replaceTemplateVariables(TEMPLATE_MESSAGE, templateVariables);
 
     await sendMessageToOpusAPI(entityId, finalMessage);
-    logger.info({ entityId }, "Successfully processed entity");
+
+    // Update the entity's last query time after successful processing
+    await db
+      .update(entities)
+      .set({
+        lastQueryTime: queryTime,
+      })
+      .where(eq(entities.entityId, entityId));
+
+    logger.info(
+      { entityId, lastQueryTime: queryTime },
+      "Successfully processed entity and updated last query time",
+    );
   } catch (error) {
     logger.error({ entityId, error }, "Error processing entity");
     // Don't throw - continue with other entities

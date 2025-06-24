@@ -43,6 +43,7 @@ export const entities = pgTable("entities", {
   cdp_name: varchar("cdp_name", { length: 255 }).unique(),
   cdp_address: varchar("cdp_address", { length: 44 }),
   active: boolean("active").default(true).notNull(),
+  lastQueryTime: timestamp("last_query_time", { withTimezone: true }), // Track when entity last queried for new messages
   ...lifecycleDates,
 }).enableRLS();
 
