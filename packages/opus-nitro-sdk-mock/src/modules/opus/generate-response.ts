@@ -1,8 +1,8 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { prepLLMMessages, processLangChainStream } from "../../agents/opus/utils";
-import { mcpTools } from "../../agents/tools/index.js";
-import { streamingDBSync } from "../../services/streaming-db-sync.js";
+import { mcpTools } from "../../agents/tools/index";
+import { streamingDBSync } from "../../services/streaming-db-sync";
 import type { Message } from "../../types/message";
 
 /**
@@ -10,7 +10,7 @@ import type { Message } from "../../types/message";
  */
 export async function generateResponse(
   messages: Message[],
-  entityId?: string,
+  entityId: string,
 ): Promise<{
   textContent: string;
   newMessages: Message[];
@@ -127,7 +127,7 @@ export async function generateStreamingResponse(
   messages: Message[],
   writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
-  entityId?: string,
+  entityId: string,
 ): Promise<void> {
   logger.info({ messageCount: messages.length }, "Generating streaming LLM response");
 

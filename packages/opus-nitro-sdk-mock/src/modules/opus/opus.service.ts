@@ -146,9 +146,9 @@ export class OpusService {
         .where(
           message.chatId
             ? and(
-                eq(entityContext.entityId, actualEntityId),
-                eq(entityContext.chatId, message.chatId),
-              )
+              eq(entityContext.entityId, actualEntityId),
+              eq(entityContext.chatId, message.chatId),
+            )
             : eq(entityContext.entityId, actualEntityId),
         );
 
@@ -222,7 +222,7 @@ export class OpusService {
   /**
    * Prepare messages for LLM processing
    */
-  async prepareMessages(messages: Message[], entityId?: string) {
+  async prepareMessages(messages: Message[], entityId: string) {
     return prepLLMMessages(messages, entityId);
   }
 
@@ -247,7 +247,7 @@ export class OpusService {
    */
   async generateAIResponse(
     messages: Message[],
-    entityId?: string,
+    entityId: string,
   ): Promise<{
     textContent: string;
     newMessages: Message[];
@@ -262,7 +262,7 @@ export class OpusService {
     messages: Message[],
     writer: WritableStreamDefaultWriter<Uint8Array>,
     encoder: TextEncoder,
-    entityId?: string,
+    entityId: string,
   ): Promise<void> {
     return generateStreamingResponse(messages, writer, encoder, entityId);
   }
@@ -315,7 +315,7 @@ export const opusService = new OpusService();
 
 export async function generateChatResponse(
   messages: Message[],
-  entityId?: string,
+  entityId: string,
 ): Promise<{
   textContent: string;
   newMessages: Message[];
@@ -329,8 +329,9 @@ export async function generateStreamingChatResponse(
   messages: Message[],
   writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
+  entityId: string,
 ): Promise<void> {
-  logger.info({ messageCount: messages.length }, "Generating streaming chat response");
+  logger.info({ messageCount: messages.length, entityId }, "Generating streaming chat response");
 
-  return generateStreamingResponse(messages, writer, encoder);
+  return generateStreamingResponse(messages, writer, encoder, entityId);
 }
