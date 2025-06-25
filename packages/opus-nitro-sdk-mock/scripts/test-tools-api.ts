@@ -13,22 +13,15 @@ async function testMCPAPI() {
   console.log("🧪 Testing MCP v1 API endpoints...\n");
 
   try {
-    // 1. List available tools (root endpoint)
-    console.log("1️⃣ Listing available tools (GET /v1/mcp/):");
-    const listResponse = await fetch(`${BASE_URL}/v1/mcp/`);
-    const listResult = await listResponse.json();
-    console.log(JSON.stringify(listResult, null, 2));
-    console.log("\n" + "=".repeat(50) + "\n");
-
-    // 2. List available tools (list_tools endpoint)
-    console.log("2️⃣ Listing available tools (GET /v1/mcp/list_tools):");
+    // 1. List available tools (list_tools endpoint)
+    console.log("1️⃣ Listing available tools (GET /v1/mcp/list_tools):");
     const listToolsResponse = await fetch(`${BASE_URL}/v1/mcp/list_tools`);
     const listToolsResult = await listToolsResponse.json();
     console.log(JSON.stringify(listToolsResult, null, 2));
     console.log("\n" + "=".repeat(50) + "\n");
 
-    // 3. Test create_name tool
-    console.log("3️⃣ Testing create_name tool:");
+    // 2. Test create_name tool
+    console.log("2️⃣ Testing create_name tool:");
     const createNameResponse = await fetch(`${BASE_URL}/v1/mcp/create_name`, {
       method: "POST",
       headers: {
@@ -43,8 +36,8 @@ async function testMCPAPI() {
     console.log(JSON.stringify(createNameResult, null, 2));
     console.log("\n" + "=".repeat(50) + "\n");
 
-    // 4. Test create_identity tool (requires existing name)
-    console.log("4️⃣ Testing create_identity tool:");
+    // 3. Test create_identity tool (requires existing name)
+    console.log("3️⃣ Testing create_identity tool:");
     const createIdentityResponse = await fetch(`${BASE_URL}/v1/mcp/create_identity`, {
       method: "POST",
       headers: {
@@ -58,37 +51,8 @@ async function testMCPAPI() {
     console.log(JSON.stringify(createIdentityResult, null, 2));
     console.log("\n" + "=".repeat(50) + "\n");
 
-    // 5. Test batch execution
-    console.log("5️⃣ Testing batch tool execution:");
-    const batchResponse = await fetch(`${BASE_URL}/v1/mcp/batch`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tools: [
-          {
-            name: "create_name",
-            input: {
-              name: "Batch Test Agent",
-              entity_id: "batch-test-456",
-            },
-          },
-          {
-            name: "create_identity",
-            input: {
-              entity_id: "batch-test-456",
-            },
-          },
-        ],
-      }),
-    });
-    const batchResult = await batchResponse.json();
-    console.log(JSON.stringify(batchResult, null, 2));
-    console.log("\n" + "=".repeat(50) + "\n");
-
-    // 6. Test invalid tool
-    console.log("6️⃣ Testing invalid tool (should fail gracefully):");
+    // 4. Test invalid tool
+    console.log("4️⃣ Testing invalid tool (should fail gracefully):");
     const invalidResponse = await fetch(`${BASE_URL}/v1/mcp/invalid_tool`, {
       method: "POST",
       headers: {
@@ -100,6 +64,13 @@ async function testMCPAPI() {
     });
     const invalidResult = await invalidResponse.json();
     console.log(JSON.stringify(invalidResult, null, 2));
+    console.log("\n" + "=".repeat(50) + "\n");
+
+    // 5. Test health endpoint
+    console.log("5️⃣ Testing health endpoint (GET /v1/mcp/health):");
+    const healthResponse = await fetch(`${BASE_URL}/v1/mcp/health`);
+    const healthResult = await healthResponse.json();
+    console.log(JSON.stringify(healthResult, null, 2));
   } catch (error) {
     console.error("❌ Test failed:", error);
   }
