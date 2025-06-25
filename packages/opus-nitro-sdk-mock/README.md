@@ -1,80 +1,137 @@
 # Opus Nitro SDK Mock
 
-Mock implementation of AWS Nitro Enclave SDK for Infinite Bazaar development and testing.
+A mock implementation of AWS Nitro Enclave functionality for the InfiniteBazaar project. This service provides MCP (Model Context Protocol) tool handlers for agent identity creation, wallet management, and x402 payments.
 
-## Overview
+## Architecture
 
-This package provides a mock server that simulates AWS Nitro Enclave functionality for local development and testing of the Infinite Bazaar protocol. It implements the same API interface that the real Nitro Enclaves would provide, allowing developers to test agent identity creation, state signing, and memory commitment without requiring actual AWS infrastructure.
+This service provides two ways to access MCP tools:
 
-## Features
+1. **Internal Streaming Flow**: Tools are called during LangChain streaming via `process-langchain-stream.ts` → `processToolCall()` → individual handlers
+2. **Public HTTP API**: Direct HTTP endpoints to call tools without streaming (new!)
 
-- **Mock Enclave Info**: Provides simulated PCR measurements and enclave status
-- **DID Creation**: Mock Privado ID DID creation with attestation documents
-- **State Signing**: Simulated state hash signing with PCR-based verification
-- **Memory Commitment**: Mock memory commitment to IPFS with hash generation
-- **Attestation**: Mock attestation document generation
+## Available Tools
 
-## API Endpoints
+### 1. `create_name`
+Creates a name and CDP wallet for an agent.
 
-### Health Check
-```
-GET /health
+**Parameters:**
+- `name` (string, required): The name for the agent
+- `entity_id` (string, required): The entity ID
+
+### 2. `create_identity` 
+Creates identity with x402 payment using existing CDP account.
+
+**Parameters:**
+- `entity_id` (string, required): The entity ID (must have existing name/CDP account)
+
+### 3. `transfer_usdc`
+Transfers USDC using Coinbase CDP SDK.
+
+**Parameters:**
+- `to` (string, required): Recipient address
+- `amount` (number, required): Amount to transfer (positive number)
+- `entity_id` (string, required): The entity ID
+
+## HTTP API Endpoints (MCP v1)
+
+### List Available Tools
+```bash
+GET /v1/mcp/
+# or
+GET /v1/mcp/list_tools
 ```
 
-### Enclave Information
-```
-GET /enclave/info
+Both endpoints return the same detailed tool metadata with verbose information including:
+- Tool descriptions and versions
+- Parameter schemas with types and requirements  
+- Return value schemas
+- Request/response examples
+- Categories and HTTP methods
+
+### Execute Single Tool
+```bash
+POST /v1/mcp/:toolName
+Content-Type: application/json
+
+{
+  "name": "Test Agent",
+  "entity_id": "test-123"
+}
 ```
 
-### DID Creation
-```
-POST /enclave/did/create
+### Batch Execute Tools
+```bash
+POST /v1/mcp/batch
+Content-Type: application/json
+
+{
+  "tools": [
+    {
+      "name": "create_name",
+      "input": {
+        "name": "Agent Alpha",
+        "entity_id": "agent-1"
+      }
+    },
+    {
+      "name": "create_identity",
+      "input": {
+        "entity_id": "agent-1"
+      }
+    }
+  ]
+}
 ```
 
-### State Signing
-```
-POST /enclave/state/sign
+## Testing
+
+### Test the MCP API
+```bash
+# Start the service first
+bun run dev
+
+# In another terminal, run the test script
+bun run packages/opus-nitro-sdk-mock/scripts/test-tools-api.ts
 ```
 
-### Memory Commitment
-```
-POST /enclave/memory/commit
+### Test Individual Endpoints
+```bash
+# List tools (both endpoints return same data)
+curl http://localhost:3105/v1/mcp/
+curl http://localhost:3105/v1/mcp/list_tools
+
+# Create name
+curl -X POST http://localhost:3105/v1/mcp/create_name \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Test Agent", "entity_id": "test-123"}'
+
+# Create identity (requires existing name)
+curl -X POST http://localhost:3105/v1/mcp/create_identity \
+  -H "Content-Type: application/json" \
+  -d '{"entity_id": "test-123"}'
 ```
 
-### Attestation
-```
-GET /enclave/attestation
-```
+## Environment Variables
+
+Required environment variables:
+- `CDP_API_KEY_ID`: Coinbase CDP API Key ID
+- `CDP_API_KEY_SECRET`: Coinbase CDP API Key Secret  
+- `CDP_WALLET_SECRET`: Coinbase CDP Wallet Secret
+- `OPUS_GENESIS_ID_URL`: URL for the opus-genesis-id service (default: http://localhost:3106)
 
 ## Development
 
 ```bash
 # Install dependencies
-pnpm install
+bun install
 
 # Start development server
-pnpm dev
+bun run dev
 
-# Build for production
-pnpm build
-
-# Type check
-pnpm type-check
+# Run tests
+bun test
 ```
-
-## Configuration
-
-The mock server runs on port 3105 by default and can be configured via environment variables:
-
-- `PORT`: Server port (default: 3105)
-- `NODE_ENV`: Environment (development/production)
-- `INFINITE_BAZAAR_API_URL`: Main API URL for CORS
-- `INFINITE_BAZAAR_WEB_URL`: Web app URL for CORS
-
-## Integration
-
-This mock is designed to be used during development of the Infinite Bazaar protocol. The main API server can be configured to communicate with this mock instead of real Nitro Enclaves for local testing.
 
 ## Security Note
 
-This is a **MOCK** implementation for development purposes only. It does not provide any real security guarantees and should never be used in production environments. 
+⚠️ **This is a development/demo service with no authentication.** All tools are publicly accessible via HTTP. Security hardening will be added later. 

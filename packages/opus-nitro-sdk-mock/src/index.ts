@@ -1,6 +1,7 @@
 import * as process from "node:process";
 import { agentRoutes } from "@/modules/agent";
 import { enclaveRoutes } from "@/modules/enclave";
+import { toolsRoutes } from "@/modules/tools";
 import { customLogger } from "@/pkg/middleware/custom-logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -54,14 +55,15 @@ app.get("/health", (c) => {
 });
 
 // Register enclave routes
-const enclaveApp = app.basePath("/enclave").route("/", enclaveRoutes);
+app.basePath("/enclave").route("/", enclaveRoutes);
 
-// Register agent routes
-const agentApp = app.basePath("/agent").route("/", agentRoutes);
+// Register agent routes  
+app.basePath("/agent").route("/", agentRoutes);
 
-const routes = agentApp;
+// Register MCP tools routes (v1)
+app.basePath("/v1/mcp").route("/", toolsRoutes);
 
-export type AppType = typeof routes;
+export type AppType = typeof app;
 
 // Bun server configuration
 const PORT = Number(process.env.PORT || 3105);
