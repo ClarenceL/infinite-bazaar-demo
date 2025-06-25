@@ -1,1 +1,1 @@
-export { toolsRoutes } from "./tools.routes"; 
+export { toolsRoutes } from "./tools.routes";

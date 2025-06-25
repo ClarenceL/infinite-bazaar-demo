@@ -57,11 +57,11 @@ app.get("/health", (c) => {
 // Register enclave routes
 app.basePath("/enclave").route("/", enclaveRoutes);
 
-// Register agent routes  
+// Register agent routes
 app.basePath("/agent").route("/", agentRoutes);
 
 // Register MCP tools routes (v1)
-app.basePath("/v1/mcp").route("/", toolsRoutes);
+app.route("/v1/mcp", toolsRoutes);
 
 export type AppType = typeof app;
 

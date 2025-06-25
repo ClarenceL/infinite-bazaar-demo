@@ -2,7 +2,7 @@
 
 /**
  * Test script for the new Tools API endpoints
- * 
+ *
  * This demonstrates how to call the MCP tools directly via HTTP
  * instead of going through the streaming LangChain flow.
  */
@@ -36,8 +36,8 @@ async function testMCPAPI() {
       },
       body: JSON.stringify({
         name: "Test Agent Alpha",
-        entity_id: "test-entity-123"
-      })
+        entity_id: "test-entity-123",
+      }),
     });
     const createNameResult = await createNameResponse.json();
     console.log(JSON.stringify(createNameResult, null, 2));
@@ -51,8 +51,8 @@ async function testMCPAPI() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        entity_id: "test-entity-123"
-      })
+        entity_id: "test-entity-123",
+      }),
     });
     const createIdentityResult = await createIdentityResponse.json();
     console.log(JSON.stringify(createIdentityResult, null, 2));
@@ -71,17 +71,17 @@ async function testMCPAPI() {
             name: "create_name",
             input: {
               name: "Batch Test Agent",
-              entity_id: "batch-test-456"
-            }
+              entity_id: "batch-test-456",
+            },
           },
           {
             name: "create_identity",
             input: {
-              entity_id: "batch-test-456"
-            }
-          }
-        ]
-      })
+              entity_id: "batch-test-456",
+            },
+          },
+        ],
+      }),
     });
     const batchResult = await batchResponse.json();
     console.log(JSON.stringify(batchResult, null, 2));
@@ -95,16 +95,15 @@ async function testMCPAPI() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        some: "data"
-      })
+        some: "data",
+      }),
     });
     const invalidResult = await invalidResponse.json();
     console.log(JSON.stringify(invalidResult, null, 2));
-
   } catch (error) {
     console.error("❌ Test failed:", error);
   }
 }
 
 // Run the test
-testMCPAPI(); 
+testMCPAPI();
