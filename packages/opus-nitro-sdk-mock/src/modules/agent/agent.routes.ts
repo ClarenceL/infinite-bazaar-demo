@@ -122,9 +122,9 @@ export const agentRoutes = new Hono()
           );
 
           const errorMessage = error instanceof Error ? error.message : String(error);
-          await writer.write(
-            encoder.encode(`data: ${JSON.stringify({ type: "error", data: errorMessage })}\n\n`),
-          );
+          // await writer.write(
+          //   encoder.encode(`data: ${JSON.stringify({ type: "error", data: errorMessage })}\n\n`),
+          // );
         } finally {
           // Only close the writer if it's still writable
           try {

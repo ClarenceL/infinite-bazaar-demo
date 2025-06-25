@@ -134,11 +134,18 @@ export async function handleTransferUsdc(input: Record<string, any>): Promise<To
     );
 
     // Step 3: Execute USDC transfer
+    // Convert amount to smallest unit (USDC has 6 decimal places)
+    const amountInSmallestUnit = BigInt(Math.floor(amount * 1_000_000));
+
+    // Ensure 'to' address has 0x prefix
+    const toAddress = to.startsWith('0x') ? to : `0x${to}`;
+
     logger.info(
       {
         from: entity.cdp_address,
-        to,
+        to: toAddress,
         amount,
+        amountInSmallestUnit: amountInSmallestUnit.toString(),
         token: "usdc",
         network: "base-sepolia",
       },
@@ -146,8 +153,8 @@ export async function handleTransferUsdc(input: Record<string, any>): Promise<To
     );
 
     const transferResult = await cdpAccount.transfer({
-      to: to,
-      amount: amount,
+      to: toAddress as `0x${string}`,
+      amount: amountInSmallestUnit,
       token: "usdc",
       network: "base-sepolia",
     });
@@ -156,8 +163,9 @@ export async function handleTransferUsdc(input: Record<string, any>): Promise<To
       {
         transactionHash: transferResult.transactionHash,
         from: entity.cdp_address,
-        to,
+        to: toAddress,
         amount,
+        amountInSmallestUnit: amountInSmallestUnit.toString(),
       },
       "USDC transfer completed successfully",
     );
@@ -170,11 +178,12 @@ export async function handleTransferUsdc(input: Record<string, any>): Promise<To
         success: true,
         transactionHash: transferResult.transactionHash,
         from: entity.cdp_address,
-        to,
+        to: toAddress,
         amount,
+        amountInSmallestUnit: amountInSmallestUnit.toString(),
         token: "usdc",
         network: "base-sepolia",
-        message: `Successfully transferred ${amount} USDC to ${to}`,
+        message: `Successfully transferred ${amount} USDC to ${toAddress}`,
       },
       name: "transfer_usdc",
     };

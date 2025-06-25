@@ -90,47 +90,9 @@ export class AgentService {
             data: record.toolResultData || {},
           };
         } else {
-          // For regular MESSAGE context type, check if content was JSON stringified
-          // This happens when non-string, non-tool content is saved (fallback case)
-          let parsedContent = record.content;
-
-          // CRITICAL FIX: Prevent recursive JSON parsing
-          // Only attempt to parse if it looks like valid JSON and we haven't already parsed it
-          try {
-            if (
-              typeof record.content === "string" &&
-              (record.content.startsWith("{") || record.content.startsWith("[")) &&
-              !record.content.startsWith("[Array with") && // Skip our safe representations
-              !record.content.startsWith("[Object with") // Skip our safe representations
-            ) {
-              const parsed = JSON.parse(record.content);
-              // Only use parsed content if it's an object/array (not a simple string)
-              // AND if it doesn't look like it's already been through multiple parse cycles
-              if (typeof parsed === "object" && parsed !== null) {
-                // Check if this looks like over-escaped content
-                const stringified = JSON.stringify(parsed);
-                const backslashCount = (stringified.match(/\\/g) || []).length;
-
-                if (backslashCount > 50) {
-                  logger.warn(
-                    {
-                      backslashCount,
-                      contentPreview: record.content.substring(0, 200),
-                      entityId: record.entityId
-                    },
-                    "Detected over-escaped content, using original string"
-                  );
-                  parsedContent = record.content;
-                } else {
-                  parsedContent = parsed;
-                }
-              }
-            }
-          } catch (e) {
-            // If parsing fails, just use the original content
-            parsedContent = record.content;
-          }
-          content = parsedContent;
+          // For regular MESSAGE context type, content should always be treated as plain text
+          // NEVER attempt JSON parsing for MESSAGE types to avoid escaping cycles
+          content = record.content;
         }
 
         return {
@@ -184,6 +146,9 @@ export class AgentService {
       };
 
       // Handle different content types
+      // DESIGN PRINCIPLE: Only store plain text in the 'content' field
+      // Structured data goes in dedicated JSON fields (toolInput, toolResultData)
+      // This prevents JSON stringify/parse cycles that cause escaping issues
       if (typeof message.content === "string") {
         dbRecord.content = message.content;
         dbRecord.contextType = "MESSAGE";
@@ -198,7 +163,7 @@ export class AgentService {
           dbRecord.toolInput = toolCall.input;
         } else if ("type" in message.content && message.content.type === "tool_result") {
           const toolResult = message.content as ToolCallResult;
-          dbRecord.content = `Tool result: ${JSON.stringify(toolResult.data).substring(0, 100)}`;
+          dbRecord.content = `Tool result: ${toolResult.data?.success ? 'success' : 'error'}`;
           dbRecord.contextType = "TOOL_RESULT";
           dbRecord.toolUseId = toolResult.tool_use_id;
           dbRecord.toolResultData = toolResult.data;
@@ -213,15 +178,16 @@ export class AgentService {
               contentKeys: Object.keys(message.content),
               role: message.role
             },
-            "Unexpected message content type - this may cause issues"
+            "Unexpected message content type - converting to safe string representation"
           );
 
           // Instead of JSON.stringify which causes recursive escaping,
-          // convert to a safe string representation
+          // convert to a safe string representation that won't cause parsing issues
           if (Array.isArray(message.content)) {
             dbRecord.content = `[Array with ${message.content.length} items]`;
           } else {
-            dbRecord.content = `[Object with keys: ${Object.keys(message.content).join(', ')}]`;
+            const keys = Object.keys(message.content);
+            dbRecord.content = `[Object with keys: ${keys.join(', ')}]`;
           }
           dbRecord.contextType = "MESSAGE";
         }

@@ -14,7 +14,7 @@ const LOG_WRITE_LLM_MESSAGES = true;
 /**
  * Write LLM messages to a log file for debugging
  */
-function writeLLMMessagesToFile(llmMessages: any[], entityId: string, context: string) {
+function writeLLMMessagesToFile(llmMessages: any[], entityId: string, context: string, modelToUse?: string) {
   if (!LOG_WRITE_LLM_MESSAGES) return;
 
   try {
@@ -26,6 +26,7 @@ function writeLLMMessagesToFile(llmMessages: any[], entityId: string, context: s
       timestamp: new Date().toISOString(),
       entityId,
       context,
+      modelToUse,
       messageCount: llmMessages.length,
       messages: llmMessages.map((msg, index) => ({
         index,
@@ -41,7 +42,7 @@ function writeLLMMessagesToFile(llmMessages: any[], entityId: string, context: s
           : Array.isArray(msg.content)
             ? JSON.stringify(msg.content).substring(0, 500) + '...'
             : 'non-string content',
-        fullContent: msg.content // Full content for debugging
+        // fullContent: msg.content // Full content for debugging
       }))
     };
 
@@ -75,7 +76,7 @@ export async function generateResponse(
 
     // Get the anthropic model for this entity from database
     const anthropicModel = await getAnthropicModelForEntity(entityId);
-    const modelToUse = anthropicModel || "claude-opus-4-20250514"; // fallback to default
+    const modelToUse = anthropicModel || "claude-sonnet-4-20250514"; // fallback to default
 
     logger.info({ entityId, anthropicModel, modelToUse }, "Using anthropic model for entity");
 
@@ -96,7 +97,7 @@ export async function generateResponse(
     logger.info({ llmMessageCount: llmMessages.length }, "Prepared messages for LLM");
 
     // Write LLM messages to log file for debugging
-    writeLLMMessagesToFile(llmMessages, entityId, "non-streaming");
+    writeLLMMessagesToFile(llmMessages, entityId, "non-streaming", modelToUse);
 
     // Create a mock stream writer for processing
     const chunks: string[] = [];
@@ -225,7 +226,7 @@ export async function generateStreamingResponse(
     );
 
     // Write LLM messages to log file for debugging
-    writeLLMMessagesToFile(llmMessages, entityId, "streaming");
+    writeLLMMessagesToFile(llmMessages, entityId, "streaming", modelToUse);
 
     // Log the actual messages being sent (for debugging)
     logger.info(

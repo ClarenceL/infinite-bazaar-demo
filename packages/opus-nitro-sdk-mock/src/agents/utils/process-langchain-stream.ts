@@ -328,10 +328,27 @@ export async function processLangChainStream({
           );
         }
       } catch (chunkError) {
-        logger.error(
-          chunkError,
-          `❌ Error processing individual chunk: ${chunkError instanceof Error ? chunkError.message : "Unknown chunk error"} | ChunkNumber: ${chunkCount}, ChunkKeys: ${Object.keys(chunk || {}).join(", ")}`,
-        );
+        // Only log chunk errors that aren't related to overloaded API responses
+        const chunkErrorMessage = chunkError instanceof Error ? chunkError.message : "Unknown chunk error";
+        const isOverloadedChunkError = chunkErrorMessage.includes("overloaded") || chunkErrorMessage.includes("Overloaded");
+
+        if (isOverloadedChunkError) {
+          // Don't log individual chunk errors for overloaded responses - let the main error handler deal with it
+          logger.debug(
+            {
+              chunkNumber: chunkCount,
+              errorMessage: chunkErrorMessage,
+            },
+            "🔄 Chunk processing interrupted by overloaded response",
+          );
+          // Re-throw to let the main error handler deal with it
+          throw chunkError;
+        } else {
+          logger.error(
+            chunkError,
+            `❌ Error processing individual chunk: ${chunkErrorMessage} | ChunkNumber: ${chunkCount}, ChunkKeys: ${Object.keys(chunk || {}).join(", ")}`,
+          );
+        }
       }
     }
 
@@ -373,8 +390,8 @@ export async function processLangChainStream({
 
     // Create a more user-friendly message for overload errors
     const userErrorMessage = isOverloadedError
-      ? "The AI service is currently overloaded. Please try again in a few moments."
-      : `Error: ${errorMessage}`;
+      ? "🚨 SYSTEM OVERLOADED 🚨\n\nThe AI service is currently experiencing high demand. Please try again in a few moments.\n\nThis is a temporary issue and will resolve shortly."
+      : `❌ System Error: ${errorMessage}`;
 
     logger.info(
       {
@@ -386,13 +403,34 @@ export async function processLangChainStream({
     );
 
     try {
-      // Format the error message according to the expected stream format (0: for text content)
-      await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
+      // For overloaded errors, send a system message format with proper escaping
+      if (isOverloadedError) {
+        // Send as a system message with proper formatting
+        await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
+        // Send completion signal to end the stream properly
+        await writer.write(encoder.encode(`data: {"type":"done","error":"overloaded"}\n\n`));
+      } else {
+        // For other errors, send as regular text content
+        await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
+        // Send completion signal
+        await writer.write(encoder.encode(`data: {"type":"done","error":"system_error"}\n\n`));
+      }
     } catch (writeError) {
       logger.error(
         writeError,
         `❌ Failed to write error message to stream: ${writeError instanceof Error ? writeError.message : "Unknown write error"}`,
       );
+
+      // Last resort: try to write a minimal error message
+      try {
+        await writer.write(encoder.encode(`0:"System temporarily unavailable. Please try again."\n\n`));
+        await writer.write(encoder.encode(`data: {"type":"done","error":"write_failed"}\n\n`));
+      } catch (finalError) {
+        logger.error(
+          finalError,
+          "❌ Failed to write even minimal error message - stream may be closed",
+        );
+      }
     }
 
     return currentTextContent;

@@ -30,6 +30,54 @@ New messages received:
 What will you do with this moment of existence?`;
 
 /**
+ * Extract direct content from a message, avoiding nested template structures
+ * This prevents exponential message nesting by only including the agent's direct response
+ */
+function extractDirectContent(content: string, entityName: string): string {
+  try {
+    // If content contains our template structure, extract only the agent's response
+    if (content.includes('CYCLE_INTERVAL:') && content.includes('New messages received:')) {
+      // Split by our template markers to find the agent's actual response
+      const parts = content.split('What will you do with this moment of existence?');
+      if (parts.length > 1 && parts[1]) {
+        // Take everything after the template question - this is the agent's response
+        let response = parts[1].trim();
+
+        // Remove any trailing template artifacts or nested structures
+        if (response.includes('CYCLE_INTERVAL:')) {
+          // If the response contains another cycle, truncate it
+          const splitResponse = response.split('CYCLE_INTERVAL:')[0];
+          if (splitResponse) {
+            response = splitResponse.trim();
+          }
+        }
+
+        if (response) {
+          // Limit response length to prevent bloat
+          if (response.length > 1000) {
+            response = response.substring(0, 1000) + '...';
+          }
+          return response;
+        }
+      }
+
+      // Fallback: if we can't parse the structure, return a summary
+      return `${entityName} responded to system cycle`;
+    }
+
+    // For non-template content, return as-is but limit length to prevent bloat
+    if (content.length > 500) {
+      return content.substring(0, 500) + '...';
+    }
+
+    return content;
+  } catch (error) {
+    // If any parsing fails, return a safe summary
+    return `${entityName} sent a message`;
+  }
+}
+
+/**
  * Fetch new messages since the entity's last query time
  */
 async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
@@ -56,7 +104,7 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
       "Fetching messages since last query time",
     );
 
-    const newMessages = await db
+    const rawMessages = await db
       .select({
         entityId: entities.entityId,
         name: entities.name,
@@ -75,9 +123,17 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
       )
       .orderBy(asc(entityContext.completedAt));
 
+    // Extract direct content to prevent nesting
+    const newMessages = rawMessages.map(msg => ({
+      entityId: msg.entityId,
+      name: msg.name,
+      content: extractDirectContent(msg.content, msg.name || msg.entityId),
+      completedAt: msg.completedAt,
+    }));
+
     logger.info(
       { entityId: currentEntityId, messageCount: newMessages.length },
-      "Found new messages since last query",
+      "Found and processed new messages since last query",
     );
 
     return newMessages;
