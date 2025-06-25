@@ -4,18 +4,46 @@
 
 export const mcpTools = [
   {
-    name: "create_identity",
-    description: "Create an identity and claim it on-chain",
+    name: "create_name",
+    description: "Create a name for the agent and set up CDP wallet",
     input_schema: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "name of the identity to create",
+          description: "name of the agent to create",
         },
-        // TODO: add the hashes of the unique attrs model, system prompt, hash of core memories
       },
       required: ["name"],
+    },
+  },
+  {
+    name: "create_identity",
+    description: "Create an identity and claim it on-chain (requires name to be set first)",
+    input_schema: {
+      type: "object",
+      properties: {
+        // No parameters needed - uses existing name from database
+      },
+      required: [],
+    },
+  },
+  {
+    name: "transfer_usdc",
+    description: "Transfer USDC tokens to another wallet address",
+    input_schema: {
+      type: "object",
+      properties: {
+        to: {
+          type: "string",
+          description: "The recipient wallet address",
+        },
+        amount: {
+          type: "number",
+          description: "The amount of USDC to transfer",
+        },
+      },
+      required: ["to", "amount"],
     },
   },
   // {

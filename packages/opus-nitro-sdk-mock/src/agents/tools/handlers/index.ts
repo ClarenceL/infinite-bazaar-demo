@@ -5,7 +5,9 @@
 import type { ToolCallResult } from "../../../types/message.js";
 
 // import { handleClaim } from "./claim/index.js";
+import { handleCreateName } from "./create-name/index.js";
 import { handleCreateIdentity } from "./create-identity/index.js";
+import { handleTransferUsdc } from "./transfer-usdc/index.js";
 
 /**
  * Process a tool call and return the result
@@ -29,8 +31,14 @@ export async function processToolCall(
   console.log(`Tool input: ${JSON.stringify(normalizedInput, null, 2)}`);
 
   switch (toolName) {
+    case "create_name":
+      return handleCreateName(normalizedInput);
+
     case "create_identity":
       return handleCreateIdentity(normalizedInput);
+
+    case "transfer_usdc":
+      return handleTransferUsdc(normalizedInput);
 
     default:
       console.warn(`Unknown tool called: ${toolName}`);

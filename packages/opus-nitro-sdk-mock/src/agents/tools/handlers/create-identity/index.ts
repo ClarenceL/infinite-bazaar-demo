@@ -15,32 +15,17 @@ const SAMPLE_DID = "did:iden3:polygon:amoy:x3HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMea
 const SAMPLE_ISSUER_DID = "did:iden3:polygon:amoy:x1HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMeaQ1H1";
 
 /**
- * Sanitize name for CDP account usage
- * - Convert to lowercase
- * - Replace spaces with underscores
- * - Strip special characters (keep only alphanumeric and underscores)
- */
-function sanitizeName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "");
-  //.replace(/_+/g, "_") // Replace multiple underscores with single
-  //.replace(/^_|_$/g, ""); // Remove leading/trailing underscores
-}
-
-/**
- * Handle create identity with x402 payment using Coinbase CDP SDK
+ * Handle create identity with x402 payment using existing CDP account
  *
  * - The identity is created silently in the opus-genesis-id package using Privado SDK
+ * - Requires that create_name has been called first to set up the CDP account
  *
  * This function:
- * 1. Creates CDP client and account
+ * 1. Retrieves existing CDP account from database
  * 2. Gets service info from opus-genesis-id
  * 3. Creates x402-enabled fetch client using CDP account
  * 4. Submits claim with automatic payment
- * 5. Updates the entities table with CDP account info
- * 6. Returns the result
+ * 5. Returns the result
  */
 export async function handleCreateIdentity(input: Record<string, any>): Promise<ToolCallResult> {
   const OPUS_GENESIS_ID_URL = process.env.OPUS_GENESIS_ID_URL || "http://localhost:3106";
@@ -49,22 +34,10 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
   const CDP_WALLET_SECRET = process.env.CDP_WALLET_SECRET;
 
   try {
-    logger.info({ input }, "Starting identity creation process with CDP SDK and x402 payment");
+    logger.info({ input }, "Starting identity creation process with x402 payment");
 
-    // Extract name and entity_id from input
-    const { name, entity_id } = input;
-
-    if (!name || typeof name !== "string") {
-      return {
-        type: "tool_result",
-        tool_use_id: "",
-        data: {
-          success: false,
-          error: "name is required and must be a string",
-        },
-        name: "create_identity",
-      };
-    }
+    // Extract entity_id from input
+    const { entity_id } = input;
 
     if (!entity_id || typeof entity_id !== "string") {
       return {
@@ -77,10 +50,6 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
         name: "create_identity",
       };
     }
-
-    // Sanitize the name for CDP usage
-    const cdp_name = sanitizeName(name);
-    logger.info({ originalName: name, sanitizedName: cdp_name }, "Sanitized name for CDP account");
 
     // Validate required environment variables
     if (!CDP_API_KEY_ID || !CDP_API_KEY_SECRET || !CDP_WALLET_SECRET) {
@@ -97,7 +66,43 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       };
     }
 
-    // Step 1: Initialize CDP client and create/get account
+    // Step 1: Get existing CDP account info from database
+    logger.info({ entity_id }, "Retrieving existing CDP account info from database");
+
+    const entityResults = await db
+      .select()
+      .from(entities)
+      .where(eq(entities.entityId, entity_id))
+      .limit(1);
+
+    if (entityResults.length === 0) {
+      logger.error({ entity_id }, "Entity not found in database");
+      return {
+        type: "tool_result",
+        tool_use_id: "",
+        data: {
+          success: false,
+          error: "Entity not found. Please create a name first using create_name.",
+        },
+        name: "create_identity",
+      };
+    }
+
+    const entity = entityResults[0]!; // We know it exists because we checked length above
+    if (!entity.cdp_name || !entity.name) {
+      logger.error({ entity_id }, "Entity does not have a name or CDP account");
+      return {
+        type: "tool_result",
+        tool_use_id: "",
+        data: {
+          success: false,
+          error: "Entity does not have a name or CDP account. Please create a name first using create_name.",
+        },
+        name: "create_identity",
+      };
+    }
+
+    // Step 2: Initialize CDP client and get existing account
     logger.info("Initializing Coinbase CDP client...");
     const cdpClient = new CdpClient({
       apiKeyId: CDP_API_KEY_ID,
@@ -105,9 +110,9 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       walletSecret: CDP_WALLET_SECRET,
     });
 
-    logger.info({ cdp_name }, "Creating or retrieving CDP account...");
+    logger.info({ cdpName: entity.cdp_name }, "Retrieving existing CDP account...");
     const cdpAccount = await cdpClient.evm.getOrCreateAccount({
-      name: cdp_name,
+      name: entity.cdp_name,
     });
 
     logger.info(
@@ -115,11 +120,10 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
         accountName: cdpAccount.name,
         accountId: (cdpAccount as any).id || "unknown",
       },
-      "CDP account ready",
+      "CDP account retrieved successfully",
     );
 
-    // Step 1.5: Convert CDP account to viem LocalAccount for x402-fetch
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Step 3: Convert CDP account to viem LocalAccount for x402-fetch
     const viemAccount = toAccount<LocalAccount>(cdpAccount as any);
 
     logger.info(
@@ -128,40 +132,6 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       },
       "Converted CDP account to viem account",
     );
-
-    // Step 1.6: Update the entities table with CDP account info and name
-    try {
-      await db
-        .update(entities)
-        .set({
-          name: name, // Save the original name
-          cdp_name: cdpAccount.name,
-          cdp_address: viemAccount.address,
-        })
-        .where(eq(entities.entityId, entity_id));
-
-      logger.info(
-        {
-          entity_id,
-          name,
-          cdp_name: cdpAccount.name,
-          cdp_address: viemAccount.address,
-        },
-        "Updated entities table with CDP account info and name",
-      );
-    } catch (dbError) {
-      logger.error({ dbError, entity_id }, "Failed to update entities table with CDP info");
-      return {
-        type: "tool_result",
-        tool_use_id: "",
-        data: {
-          success: false,
-          error: "Failed to update database with CDP account information",
-          details: dbError instanceof Error ? dbError.message : "Unknown database error",
-        },
-        name: "create_identity",
-      };
-    }
 
     // Step 2: Get service information and pricing (no payment required)
     logger.info("Fetching service information from opus-genesis-id");
