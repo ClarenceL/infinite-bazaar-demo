@@ -37,81 +37,13 @@ export function CreateNameResult({ message }: ToolResultProps) {
 
       {/* Tool result content */}
       <div className={`rounded-xl ${theme.bg} ${theme.border} p-4 shadow-lg backdrop-blur-sm`}>
-        {data?.success ? (
-          <div className="space-y-3">
-            {/* Success message */}
-            <div className={`${theme.success} font-medium text-sm`}>
-              {data.alreadyExisted
-                ? "Name already exists"
-                : "Name and CDP wallet created successfully"}
-            </div>
+        <div className="space-y-3">
+          {/* Name */}
+          <div className={`${theme.text} font-medium text-sm`}>{data?.name}</div>
 
-            {/* Name information */}
-            <div className="grid grid-cols-1 gap-2 text-sm">
-              <div className="flex justify-between">
-                <span className={`${theme.text} opacity-75`}>Display Name:</span>
-                <span className={`${theme.text} font-mono`}>{data.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className={`${theme.text} opacity-75`}>CDP Name:</span>
-                <span className={`${theme.text} font-mono`}>{data.cdpName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className={`${theme.text} opacity-75`}>Wallet Address:</span>
-                <span className={`${theme.text} break-all font-mono text-xs`}>
-                  {data.walletAddress}
-                </span>
-              </div>
-            </div>
-
-            {/* CDP Account details */}
-            {data.cdpAccount && (
-              <div
-                className={`${theme.bg.replace("bg-", "bg-")} rounded-lg border p-3 ${theme.border}`}
-              >
-                <div className={`${theme.accent} mb-2 font-medium text-xs`}>
-                  CDP Account Details
-                </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className={`${theme.text} opacity-75`}>Account ID:</span>
-                    <span className={`${theme.text} font-mono`}>{data.cdpAccount.id}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className={`${theme.text} opacity-75`}>Network:</span>
-                    <span className={`${theme.text}`}>Base Sepolia</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Timestamp */}
-            {data.timestamp && (
-              <div className={`${theme.text} text-xs opacity-50`}>
-                Created: {new Date(data.timestamp).toLocaleString()}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Error message */}
-            <div className={`${theme.error} font-medium text-sm`}>
-              {data?.error || "Unknown error occurred"}
-            </div>
-
-            {/* Error details */}
-            {data?.details && (
-              <details className="mt-2">
-                <summary className={`${theme.text} cursor-pointer text-xs opacity-75`}>
-                  Error Details
-                </summary>
-                <pre className={`${theme.text} mt-1 whitespace-pre-wrap text-xs opacity-60`}>
-                  {data.details}
-                </pre>
-              </details>
-            )}
-          </div>
-        )}
+          {/* CDP Wallet message */}
+          <div className={`${theme.success} text-sm`}>Assigned Coinbase CDP Wallet:</div>
+        </div>
       </div>
     </div>
   );
