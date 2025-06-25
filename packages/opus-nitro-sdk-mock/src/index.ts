@@ -2,6 +2,7 @@ import * as process from "node:process";
 import { agentRoutes } from "@/modules/agent";
 import { enclaveRoutes } from "@/modules/enclave";
 import { toolsRoutes } from "@/modules/tools";
+import { authMiddleware } from "@/pkg/middleware/auth";
 import { customLogger } from "@/pkg/middleware/custom-logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -16,6 +17,10 @@ console.log(
 console.log(
   "[OPUS-NITRO-SDK-MOCK] ANTHROPIC_API_KEY length",
   process.env.ANTHROPIC_API_KEY?.length || 0,
+);
+console.log(
+  "[OPUS-NITRO-SDK-MOCK] OPUS_NITRO_AUTH_KEY",
+  process.env.OPUS_NITRO_AUTH_KEY ? "✅ Set" : "❌ Missing",
 );
 
 export const app = new Hono();
@@ -35,14 +40,14 @@ app.use(
       "http://localhost:3105",
     ],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowHeaders: ["Content-Type", "Authorization", "X-Enclave-Key", "X-PCR-Hash"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Auth-Key", "X-Enclave-Key", "X-PCR-Hash"],
     exposeHeaders: ["Content-Length", "X-Attestation-Document"],
     maxAge: 600,
     credentials: true,
   }),
 );
 
-// Health check endpoint
+// Health check endpoint (no auth required)
 app.get("/health", (c) => {
   const status = {
     status: "OK",
@@ -53,6 +58,11 @@ app.get("/health", (c) => {
   };
   return c.json(status);
 });
+
+// Apply auth middleware to all routes except health check
+app.use("/enclave/*", authMiddleware());
+app.use("/agent/*", authMiddleware());
+app.use("/v1/mcp/*", authMiddleware());
 
 // Register enclave routes
 app.basePath("/enclave").route("/", enclaveRoutes);

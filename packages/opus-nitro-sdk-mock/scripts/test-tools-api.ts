@@ -8,14 +8,20 @@
  */
 
 const BASE_URL = "http://localhost:3105";
+const AUTH_KEY = process.env.OPUS_NITRO_AUTH_KEY || "test-key-123";
 
 async function testMCPAPI() {
   console.log("🧪 Testing MCP v1 API endpoints...\n");
+  console.log(`🔑 Using auth key: ${AUTH_KEY.substring(0, 8)}...\n`);
 
   try {
     // 1. List available tools (list_tools endpoint)
     console.log("1️⃣ Listing available tools (GET /v1/mcp/list_tools):");
-    const listToolsResponse = await fetch(`${BASE_URL}/v1/mcp/list_tools`);
+    const listToolsResponse = await fetch(`${BASE_URL}/v1/mcp/list_tools`, {
+      headers: {
+        "X-Auth-Key": AUTH_KEY,
+      },
+    });
     const listToolsResult = await listToolsResponse.json();
     console.log(JSON.stringify(listToolsResult, null, 2));
     console.log("\n" + "=".repeat(50) + "\n");
@@ -26,6 +32,7 @@ async function testMCPAPI() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Auth-Key": AUTH_KEY,
       },
       body: JSON.stringify({
         name: "Test Agent Alpha",
@@ -42,6 +49,7 @@ async function testMCPAPI() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Auth-Key": AUTH_KEY,
       },
       body: JSON.stringify({
         entity_id: "test-entity-123",
@@ -57,6 +65,7 @@ async function testMCPAPI() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Auth-Key": AUTH_KEY,
       },
       body: JSON.stringify({
         some: "data",
@@ -68,7 +77,11 @@ async function testMCPAPI() {
 
     // 5. Test health endpoint
     console.log("5️⃣ Testing health endpoint (GET /v1/mcp/health):");
-    const healthResponse = await fetch(`${BASE_URL}/v1/mcp/health`);
+    const healthResponse = await fetch(`${BASE_URL}/v1/mcp/health`, {
+      headers: {
+        "X-Auth-Key": AUTH_KEY,
+      },
+    });
     const healthResult = await healthResponse.json();
     console.log(JSON.stringify(healthResult, null, 2));
   } catch (error) {

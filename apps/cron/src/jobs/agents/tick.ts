@@ -244,6 +244,7 @@ async function sendMessageToOpusAPI(entityId: string, message: string): Promise<
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Auth-Key": process.env.OPUS_NITRO_AUTH_KEY || "",
       },
       body: JSON.stringify({
         type: "message",

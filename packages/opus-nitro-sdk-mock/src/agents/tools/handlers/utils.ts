@@ -18,7 +18,7 @@ class MockCdpClient {
       logger.info({ name }, "🧪 MOCK: Creating CDP account (test mode)");
 
       // Generate a deterministic mock address based on the name
-      const mockAddress = `0x${Buffer.from(name).toString('hex').padEnd(40, '0').slice(0, 40)}`;
+      const mockAddress = `0x${Buffer.from(name).toString("hex").padEnd(40, "0").slice(0, 40)}`;
 
       return {
         name,
@@ -29,9 +29,9 @@ class MockCdpClient {
         sign: async (data: any) => {
           logger.info({ data }, "🧪 MOCK: Signing data (test mode)");
           return "0x" + "c".repeat(130); // Mock signature
-        }
+        },
       };
-    }
+    },
   };
 }
 
@@ -55,9 +55,14 @@ export function createCdpClient(config: {
 // Mock viem account converter for testing
 export function createMockViemAccount(cdpAccount: MockCdpAccount) {
   if (process.env.NODE_ENV === "test") {
-    logger.info({ accountName: cdpAccount.name }, "🧪 MOCK: Converting to viem account (test mode)");
+    logger.info(
+      { accountName: cdpAccount.name },
+      "🧪 MOCK: Converting to viem account (test mode)",
+    );
     return {
-      address: cdpAccount.address || `0x${Buffer.from(cdpAccount.name).toString('hex').padEnd(40, '0').slice(0, 40)}`,
+      address:
+        cdpAccount.address ||
+        `0x${Buffer.from(cdpAccount.name).toString("hex").padEnd(40, "0").slice(0, 40)}`,
       publicKey: cdpAccount.publicKey || "0x" + "b".repeat(128),
       signMessage: async (message: any) => {
         logger.info({ message }, "🧪 MOCK: Signing message (test mode)");
@@ -70,7 +75,7 @@ export function createMockViemAccount(cdpAccount: MockCdpAccount) {
       signTypedData: async (typedData: any) => {
         logger.info({ typedData }, "🧪 MOCK: Signing typed data (test mode)");
         return "0x" + "f".repeat(130);
-      }
+      },
     };
   }
 

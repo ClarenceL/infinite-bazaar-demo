@@ -41,6 +41,7 @@ class E2ETestRunner {
   private readonly OPUS_NITRO_URL = "http://localhost:3105";
   private readonly OPUS_GENESIS_URL = "http://localhost:3106";
   private readonly TEST_TIMEOUT = 30000; // 30 seconds
+  private readonly AUTH_KEY = process.env.OPUS_NITRO_AUTH_KEY || "test-key-123";
 
   async runTests(): Promise<E2ETestResult> {
     const startTime = Date.now();
@@ -196,6 +197,7 @@ class E2ETestRunner {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Auth-Key": this.AUTH_KEY,
         },
         signal: AbortSignal.timeout(this.TEST_TIMEOUT),
       });
@@ -254,6 +256,7 @@ class E2ETestRunner {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Auth-Key": this.AUTH_KEY,
         },
         signal: AbortSignal.timeout(this.TEST_TIMEOUT),
       });

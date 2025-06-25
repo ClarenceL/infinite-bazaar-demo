@@ -170,6 +170,7 @@ async function testOpusTemplate() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Auth-Key": process.env.OPUS_NITRO_AUTH_KEY || "test-key-123",
       },
       body: JSON.stringify({
         type: "message",

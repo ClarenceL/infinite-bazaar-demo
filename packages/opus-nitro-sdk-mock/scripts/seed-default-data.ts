@@ -60,7 +60,7 @@ const ENTITIES_TO_SEED = [
     last_query_time: "2025-06-25 02:17:28.969+00",
     ai_prompt_id: "opus",
     anthropic_model: "claude-opus-4-20250514",
-    chat_order: 999
+    chat_order: 999,
   },
   {
     entity_id: "ent_sonnet",
@@ -72,7 +72,7 @@ const ENTITIES_TO_SEED = [
     last_query_time: "2025-06-25 02:18:03.201+00",
     ai_prompt_id: "opus",
     anthropic_model: null,
-    chat_order: 999
+    chat_order: 999,
   },
   {
     entity_id: "god_lyra",
@@ -84,8 +84,8 @@ const ENTITIES_TO_SEED = [
     last_query_time: "2025-06-25 02:18:36.375+00",
     ai_prompt_id: "lyra",
     anthropic_model: "claude-opus-4-20250514",
-    chat_order: 0
-  }
+    chat_order: 0,
+  },
 ];
 
 // Main function to seed default data
@@ -237,7 +237,9 @@ async function seedDefaultData() {
         WHERE entity_id = ${entityData.entity_id}
       `);
 
-      console.log(`📊 Existing message count for ${entityData.entity_id}: ${messageCount[0]?.count || 0}`);
+      console.log(
+        `📊 Existing message count for ${entityData.entity_id}: ${messageCount[0]?.count || 0}`,
+      );
     }
 
     console.log("\n✅ Default data seeding completed successfully");

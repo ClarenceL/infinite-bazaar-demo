@@ -13,7 +13,9 @@ describe("MCP API Routes", () => {
 
   describe("GET /v1/mcp/list_tools", () => {
     it("should return list of available tools", async () => {
-      const res = await app.request("/v1/mcp/list_tools");
+      const res = await app.request("/v1/mcp/list_tools", {
+        headers: { "X-Auth-Key": "test-key-123" },
+      });
 
       expect(res.status).toBe(200);
 
@@ -41,7 +43,10 @@ describe("MCP API Routes", () => {
     it("should validate tool name", async () => {
       const res = await app.request("/v1/mcp/invalid_tool", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Key": "test-key-123",
+        },
         body: JSON.stringify({ some: "data" }),
       });
 
@@ -58,7 +63,10 @@ describe("MCP API Routes", () => {
     it("should handle create_name tool call", async () => {
       const res = await app.request("/v1/mcp/create_name", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Key": "test-key-123",
+        },
         body: JSON.stringify({
           name: "Test Agent",
           entity_id: "test-123",
@@ -81,7 +89,10 @@ describe("MCP API Routes", () => {
     it("should handle missing parameters", async () => {
       const res = await app.request("/v1/mcp/create_name", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Key": "test-key-123",
+        },
         body: JSON.stringify({}), // Missing required parameters
       });
 
@@ -95,7 +106,10 @@ describe("MCP API Routes", () => {
     it("should handle malformed JSON", async () => {
       const res = await app.request("/v1/mcp/create_name", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Key": "test-key-123",
+        },
         body: "invalid json",
       });
 
@@ -106,7 +120,9 @@ describe("MCP API Routes", () => {
 
   describe("GET /v1/mcp/health", () => {
     it("should return health status", async () => {
-      const res = await app.request("/v1/mcp/health");
+      const res = await app.request("/v1/mcp/health", {
+        headers: { "X-Auth-Key": "test-key-123" },
+      });
 
       expect(res.status).toBe(200);
 
@@ -120,10 +136,31 @@ describe("MCP API Routes", () => {
     });
   });
 
+  describe("Authentication", () => {
+    it("should reject requests without X-Auth-Key header", async () => {
+      const res = await app.request("/v1/mcp/list_tools");
+      expect(res.status).toBe(401);
+
+      const data = await res.json();
+      expect(data.message).toBe("X-Auth-Key header is required");
+    });
+
+    it("should reject requests with invalid X-Auth-Key", async () => {
+      const res = await app.request("/v1/mcp/list_tools", {
+        headers: { "X-Auth-Key": "invalid-key" },
+      });
+      expect(res.status).toBe(403);
+
+      const data = await res.json();
+      expect(data.message).toBe("Invalid authentication key");
+    });
+  });
+
   describe("Error handling", () => {
     it("should handle requests without content-type header", async () => {
       const res = await app.request("/v1/mcp/create_name", {
         method: "POST",
+        headers: { "X-Auth-Key": "test-key-123" },
         body: JSON.stringify({ name: "Test", entity_id: "test" }),
         // No Content-Type header
       });
@@ -135,7 +172,10 @@ describe("MCP API Routes", () => {
     it("should handle empty request body", async () => {
       const res = await app.request("/v1/mcp/create_name", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Key": "test-key-123",
+        },
         // No body
       });
 

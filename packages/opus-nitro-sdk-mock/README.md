@@ -37,8 +37,10 @@ Transfers USDC using Coinbase CDP SDK.
 ### List Available Tools
 ```bash
 GET /v1/mcp/
+X-Auth-Key: your-secret-auth-key
 # or
 GET /v1/mcp/list_tools
+X-Auth-Key: your-secret-auth-key
 ```
 
 Both endpoints return the same detailed tool metadata with verbose information including:
@@ -52,6 +54,7 @@ Both endpoints return the same detailed tool metadata with verbose information i
 ```bash
 POST /v1/mcp/:toolName
 Content-Type: application/json
+X-Auth-Key: your-secret-auth-key
 
 {
   "name": "Test Agent",
@@ -63,6 +66,7 @@ Content-Type: application/json
 ```bash
 POST /v1/mcp/batch
 Content-Type: application/json
+X-Auth-Key: your-secret-auth-key
 
 {
   "tools": [
@@ -97,23 +101,26 @@ bun run packages/opus-nitro-sdk-mock/scripts/test-tools-api.ts
 ### Test Individual Endpoints
 ```bash
 # List tools (both endpoints return same data)
-curl http://localhost:3105/v1/mcp/
-curl http://localhost:3105/v1/mcp/list_tools
+curl -H "X-Auth-Key: your-secret-auth-key" http://localhost:3105/v1/mcp/
+curl -H "X-Auth-Key: your-secret-auth-key" http://localhost:3105/v1/mcp/list_tools
 
 # Create name
 curl -X POST http://localhost:3105/v1/mcp/create_name \
   -H "Content-Type: application/json" \
+  -H "X-Auth-Key: your-secret-auth-key" \
   -d '{"name": "Test Agent", "entity_id": "test-123"}'
 
 # Create identity (requires existing name)
 curl -X POST http://localhost:3105/v1/mcp/create_identity \
   -H "Content-Type: application/json" \
+  -H "X-Auth-Key: your-secret-auth-key" \
   -d '{"entity_id": "test-123"}'
 ```
 
 ## Environment Variables
 
 Required environment variables:
+- `OPUS_NITRO_AUTH_KEY`: Authentication key for API access (required for all endpoints except /health)
 - `CDP_API_KEY_ID`: Coinbase CDP API Key ID
 - `CDP_API_KEY_SECRET`: Coinbase CDP API Key Secret  
 - `CDP_WALLET_SECRET`: Coinbase CDP Wallet Secret
@@ -134,4 +141,4 @@ bun test
 
 ## Security Note
 
-⚠️ **This is a development/demo service with no authentication.** All tools are publicly accessible via HTTP. Security hardening will be added later. 
+🔒 **Authentication Required**: All endpoints except `/health` require an `X-Auth-Key` header that matches the `OPUS_NITRO_AUTH_KEY` environment variable. This provides basic API access control for the service. 

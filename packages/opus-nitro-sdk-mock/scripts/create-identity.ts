@@ -3,6 +3,7 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 
 const API_BASE_URL = process.env.OPUS_NITRO_SDK_MOCK_URL || "http://localhost:3105";
+const AUTH_KEY = process.env.OPUS_NITRO_AUTH_KEY || "test-key-123";
 
 interface IdentityResponse {
   success: boolean;
@@ -26,6 +27,7 @@ async function createIdentity(): Promise<void> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Auth-Key": AUTH_KEY,
       },
     });
 
@@ -96,6 +98,7 @@ async function listIdentities(): Promise<void> {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
+        "X-Auth-Key": AUTH_KEY,
       },
     });
 
