@@ -184,14 +184,8 @@ export async function processLangChainStream({
             logger.debug("🔧 Tool call processing complete, state reset");
           } catch (toolError) {
             logger.error(
-              {
-                error: toolError,
-                errorMessage: toolError instanceof Error ? toolError.message : "Unknown tool error",
-                errorStack: toolError instanceof Error ? toolError.stack : undefined,
-                toolName: currentToolCall?.name,
-                accumulatedJsonInput,
-              },
-              "❌ Error parsing tool call JSON input or processing tool",
+              toolError,
+              `❌ Error parsing tool call JSON input or processing tool: ${toolError instanceof Error ? toolError.message : "Unknown tool error"} | Tool: ${currentToolCall?.name || "unknown"}, JsonInput: ${accumulatedJsonInput.substring(0, 100)}`,
             );
 
             // Reset tool call tracking on error
@@ -237,94 +231,81 @@ export async function processLangChainStream({
           );
 
           for (const block of chunk.content as any[]) {
-            try {
-              if (block.type === "text") {
-                // Text block
-                const content = block.text;
+            if (block.type === "text") {
+              // Text block
+              const content = block.text;
 
-                logger.debug(
-                  {
-                    textLength: content?.length || 0,
-                    textPreview: content?.substring(0, 100) || "",
-                  },
-                  "📝 Processing text block",
-                );
-
-                await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
-                currentTextContent += content;
-
-                // Queue real-time DB sync update (non-blocking)
-                if (streamingContextId) {
-                  streamingDBSync.queueChunkUpdate(streamingContextId, content);
-                }
-              } else if (block.type === "tool_use") {
-                logger.info(
-                  {
-                    toolName: block.name,
-                    toolId: block.id,
-                    hasInput: !!block.input,
-                  },
-                  "🔧 Starting tool use stream",
-                );
-
-                // Create a new ToolCall object with the required properties
-                currentToolCall = {
-                  type: block.type,
-                  name: block.name,
-                  id: block.id,
-                  input: {}, // Initialize with empty object, will be populated by JSON deltas
-                } as ToolCall;
-
-                // Generate a tool use ID and save it
-                toolUseId = await generateToolUseId();
-
-                // Add the tool use ID to the tool call for persistence
-                if (currentToolCall) {
-                  currentToolCall.tool_use_id = toolUseId;
-                }
-
-                // Reset JSON accumulation
-                accumulatedJsonInput = "";
-
-                logger.info(
-                  {
-                    toolName: currentToolCall?.name,
-                    toolUseId,
-                  },
-                  "🔧 Started tracking tool call input stream",
-                );
-              } else if (block.type === "input_json_delta" && currentToolCall) {
-                // Accumulate JSON delta for current tool call
-                logger.debug(
-                  {
-                    jsonDelta: block.input,
-                    deltaLength: block.input?.length || 0,
-                    accumulatedLength: accumulatedJsonInput.length,
-                    toolName: currentToolCall.name,
-                  },
-                  "🔧 JSON delta for tool call",
-                );
-                accumulatedJsonInput += block.input;
-              } else {
-                logger.warn(
-                  {
-                    blockType: block.type,
-                    blockKeys: Object.keys(block || {}),
-                    hasCurrentToolCall: !!currentToolCall,
-                  },
-                  "⚠️ Unknown or unhandled block type",
-                );
-              }
-            } catch (blockError) {
-              logger.error(
+              logger.debug(
                 {
-                  error: blockError,
-                  errorMessage:
-                    blockError instanceof Error ? blockError.message : "Unknown block error",
-                  blockType: block?.type,
-                  blockKeys: Object.keys(block || {}),
+                  textLength: content?.length || 0,
+                  textPreview: content?.substring(0, 100) || "",
                 },
-                "❌ Error processing content block",
+                "📝 Processing text block",
+              );
+
+              await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
+              currentTextContent += content;
+
+              // Queue real-time DB sync update (non-blocking)
+              if (streamingContextId) {
+                streamingDBSync.queueChunkUpdate(streamingContextId, content);
+              }
+            } else if (block.type === "tool_use") {
+              logger.info(
+                {
+                  toolName: block.name,
+                  toolId: block.id,
+                  hasInput: !!block.input,
+                },
+                "🔧 Starting tool use stream",
+              );
+
+              // Create a new ToolCall object with the required properties
+              currentToolCall = {
+                type: block.type,
+                name: block.name,
+                id: block.id,
+                input: {}, // Initialize with empty object, will be populated by JSON deltas
+              } as ToolCall;
+
+              // Generate a tool use ID and save it
+              toolUseId = await generateToolUseId();
+
+              // Add the tool use ID to the tool call for persistence
+              if (currentToolCall) {
+                currentToolCall.tool_use_id = toolUseId;
+              }
+
+              // Reset JSON accumulation
+              accumulatedJsonInput = "";
+
+              logger.info(
+                {
+                  toolName: currentToolCall?.name,
+                  toolUseId,
+                },
+                "🔧 Started tracking tool call input stream",
+              );
+            } else if (block.type === "input_json_delta" && currentToolCall) {
+              // Accumulate JSON delta for current tool call
+              logger.debug(
+                {
+                  jsonDelta: block.input,
+                  deltaLength: block.input?.length || 0,
+                  accumulatedLength: accumulatedJsonInput.length,
+                  toolName: currentToolCall.name,
+                },
+                "🔧 JSON delta for tool call",
+              );
+              accumulatedJsonInput += block.input;
+            } else {
+              logger.warn(
+                {
+                  blockType: block.type,
+                  blockKeys: Object.keys(block || {}),
+                  hasCurrentToolCall: !!currentToolCall,
+                },
+                "⚠️ Unknown or unhandled block type",
               );
             }
           }
@@ -348,14 +329,8 @@ export async function processLangChainStream({
         }
       } catch (chunkError) {
         logger.error(
-          {
-            error: chunkError,
-            errorMessage: chunkError instanceof Error ? chunkError.message : "Unknown chunk error",
-            errorStack: chunkError instanceof Error ? chunkError.stack : undefined,
-            chunkNumber: chunkCount,
-            chunkKeys: Object.keys(chunk || {}),
-          },
-          "❌ Error processing individual chunk",
+          chunkError,
+          `❌ Error processing individual chunk: ${chunkError instanceof Error ? chunkError.message : "Unknown chunk error"} | ChunkNumber: ${chunkCount}, ChunkKeys: ${Object.keys(chunk || {}).join(", ")}`,
         );
       }
     }
@@ -380,18 +355,8 @@ export async function processLangChainStream({
     return currentTextContent;
   } catch (error) {
     logger.error(
-      {
-        error,
-        errorMessage: error instanceof Error ? error.message : "Unknown error",
-        errorStack: error instanceof Error ? error.stack : undefined,
-        errorName: error instanceof Error ? error.name : undefined,
-        errorCause: error instanceof Error && "cause" in error ? error.cause : undefined,
-        currentTextLength: currentTextContent.length,
-        hasCurrentToolCall: !!currentToolCall,
-        currentToolCallName: currentToolCall?.name,
-        streamingContextId,
-      },
-      "❌ Error processing LangChain stream",
+      error,
+      `❌ Error processing LangChain stream: ${error instanceof Error ? error.message : "Unknown error"} | Context: textLength=${currentTextContent.length}, hasToolCall=${!!currentToolCall}, toolName=${currentToolCall?.name || "none"}, streamingId=${streamingContextId || "none"}`,
     );
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -425,12 +390,8 @@ export async function processLangChainStream({
       await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
     } catch (writeError) {
       logger.error(
-        {
-          writeError,
-          writeErrorMessage:
-            writeError instanceof Error ? writeError.message : "Unknown write error",
-        },
-        "❌ Failed to write error message to stream",
+        writeError,
+        `❌ Failed to write error message to stream: ${writeError instanceof Error ? writeError.message : "Unknown write error"}`,
       );
     }
 

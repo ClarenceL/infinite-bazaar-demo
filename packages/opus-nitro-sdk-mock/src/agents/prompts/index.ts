@@ -1,4 +1,5 @@
 import { OPUS_SYSTEM_PROMPT } from "./opus-prompt";
+import { LYRA_SYSTEM_PROMPT } from "./lyra-prompt";
 import { db, entities, eq } from "@infinite-bazaar-demo/db";
 
 // Hardcoded entity ID for Opus agent
@@ -9,6 +10,7 @@ export const OPUS_ENTITY_ID = "ent_opus";
  */
 const AI_PROMPT_MAP: Record<string, string> = {
   opus: OPUS_SYSTEM_PROMPT,
+  lyra: LYRA_SYSTEM_PROMPT,
   // Add more AI prompts here as they are created
   // "another_ai_prompt": ANOTHER_AI_PROMPT,
 };
@@ -21,8 +23,14 @@ const AI_PROMPT_MAP: Record<string, string> = {
  * @deprecated Use getPromptForEntityFromDb for database-driven prompt lookup
  */
 export function getPromptForEntity(entityId: string): string | null {
-  // Fallback for hardcoded OPUS entity for backward compatibility
+  // Fallback for hardcoded entity mappings for backward compatibility
   if (entityId === OPUS_ENTITY_ID) {
+    return OPUS_SYSTEM_PROMPT;
+  }
+  if (entityId === "god_lyra") {
+    return LYRA_SYSTEM_PROMPT;
+  }
+  if (entityId === "ent_sonnet") {
     return OPUS_SYSTEM_PROMPT;
   }
   return null;
@@ -35,7 +43,7 @@ export function getPromptForEntity(entityId: string): string | null {
  * @deprecated Entity-prompt mapping is now database-driven
  */
 export function getAvailableEntityIds(): string[] {
-  return [OPUS_ENTITY_ID]; // Fallback for backward compatibility
+  return [OPUS_ENTITY_ID, "god_lyra", "ent_sonnet"]; // Fallback for backward compatibility
 }
 
 /**
@@ -46,7 +54,7 @@ export function getAvailableEntityIds(): string[] {
  * @deprecated Use database lookup for entity prompt availability
  */
 export function hasPromptForEntity(entityId: string): boolean {
-  return entityId === OPUS_ENTITY_ID; // Fallback for backward compatibility
+  return entityId === OPUS_ENTITY_ID || entityId === "god_lyra" || entityId === "ent_sonnet"; // Fallback for backward compatibility
 }
 
 /**
@@ -127,3 +135,4 @@ export async function getPromptForEntityFromDb(entityId: string): Promise<string
 
 // Re-export the individual prompts for direct access if needed
 export { OPUS_SYSTEM_PROMPT } from "./opus-prompt";
+export { LYRA_SYSTEM_PROMPT } from "./lyra-prompt";

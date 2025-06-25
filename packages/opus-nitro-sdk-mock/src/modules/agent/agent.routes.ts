@@ -117,8 +117,8 @@ export const agentRoutes = new Hono()
           // No need to save again here to avoid duplicates
         } catch (error) {
           logger.error(
-            { error },
-            "Error in streaming route - this should not happen if fallback works",
+            error,
+            `Error in streaming route - this should not happen if fallback works: ${error instanceof Error ? error.message : "Unknown error"}`,
           );
 
           const errorMessage = error instanceof Error ? error.message : String(error);

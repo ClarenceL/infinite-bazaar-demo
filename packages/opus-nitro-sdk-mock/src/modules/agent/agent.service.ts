@@ -93,16 +93,37 @@ export class AgentService {
           // For regular MESSAGE context type, check if content was JSON stringified
           // This happens when non-string, non-tool content is saved (fallback case)
           let parsedContent = record.content;
+
+          // CRITICAL FIX: Prevent recursive JSON parsing
+          // Only attempt to parse if it looks like valid JSON and we haven't already parsed it
           try {
-            // If it starts with { or [, it might be JSON stringified content
             if (
               typeof record.content === "string" &&
-              (record.content.startsWith("{") || record.content.startsWith("["))
+              (record.content.startsWith("{") || record.content.startsWith("[")) &&
+              !record.content.startsWith("[Array with") && // Skip our safe representations
+              !record.content.startsWith("[Object with") // Skip our safe representations
             ) {
               const parsed = JSON.parse(record.content);
               // Only use parsed content if it's an object/array (not a simple string)
-              if (typeof parsed === "object") {
-                parsedContent = parsed;
+              // AND if it doesn't look like it's already been through multiple parse cycles
+              if (typeof parsed === "object" && parsed !== null) {
+                // Check if this looks like over-escaped content
+                const stringified = JSON.stringify(parsed);
+                const backslashCount = (stringified.match(/\\/g) || []).length;
+
+                if (backslashCount > 50) {
+                  logger.warn(
+                    {
+                      backslashCount,
+                      contentPreview: record.content.substring(0, 200),
+                      entityId: record.entityId
+                    },
+                    "Detected over-escaped content, using original string"
+                  );
+                  parsedContent = record.content;
+                } else {
+                  parsedContent = parsed;
+                }
               }
             }
           } catch (e) {
@@ -146,9 +167,9 @@ export class AgentService {
         .where(
           message.chatId
             ? and(
-                eq(entityContext.entityId, actualEntityId),
-                eq(entityContext.chatId, message.chatId),
-              )
+              eq(entityContext.entityId, actualEntityId),
+              eq(entityContext.chatId, message.chatId),
+            )
             : eq(entityContext.entityId, actualEntityId),
         );
 
@@ -182,8 +203,26 @@ export class AgentService {
           dbRecord.toolUseId = toolResult.tool_use_id;
           dbRecord.toolResultData = toolResult.data;
         } else {
-          // Fallback for other object types
-          dbRecord.content = JSON.stringify(message.content);
+          // CRITICAL FIX: Avoid recursive JSON.stringify escaping
+          // This fallback should only be used for truly unknown object types
+          // Most message content should be handled by the specific cases above
+          logger.warn(
+            {
+              contentType: typeof message.content,
+              hasType: "type" in message.content,
+              contentKeys: Object.keys(message.content),
+              role: message.role
+            },
+            "Unexpected message content type - this may cause issues"
+          );
+
+          // Instead of JSON.stringify which causes recursive escaping,
+          // convert to a safe string representation
+          if (Array.isArray(message.content)) {
+            dbRecord.content = `[Array with ${message.content.length} items]`;
+          } else {
+            dbRecord.content = `[Object with keys: ${Object.keys(message.content).join(', ')}]`;
+          }
           dbRecord.contextType = "MESSAGE";
         }
       }

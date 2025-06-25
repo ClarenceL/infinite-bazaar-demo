@@ -19,6 +19,7 @@
     "db:test:generate": "node scripts/migrate-env.js test generate",
     "db:test:push": "node scripts/migrate-env.js test push --force",
     "db:test:studio": "node scripts/migrate-env.js test studio",
+    "db:reset": "tsx scripts/reset-entities.ts",
     "lint": "biome check .",
     "lint:format": "biome format . --write",
     "lint:fix": "biome check --fix .",

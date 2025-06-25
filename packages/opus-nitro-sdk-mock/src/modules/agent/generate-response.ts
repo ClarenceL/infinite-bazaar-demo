@@ -5,6 +5,52 @@ import { getAnthropicModelForEntity } from "../../agents/prompts/index";
 import { prepLLMMessages, processLangChainStream } from "../../agents/utils";
 import { streamingDBSync } from "../../services/streaming-db-sync";
 import type { Message } from "../../types/message";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+// Debug flag to write LLM messages to log file
+const LOG_WRITE_LLM_MESSAGES = true;
+
+/**
+ * Write LLM messages to a log file for debugging
+ */
+function writeLLMMessagesToFile(llmMessages: any[], entityId: string, context: string) {
+  if (!LOG_WRITE_LLM_MESSAGES) return;
+
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `llm-messages-${entityId}-${context}-${timestamp}.json`;
+    const filepath = join(process.cwd(), 'logs', filename);
+
+    const logData = {
+      timestamp: new Date().toISOString(),
+      entityId,
+      context,
+      messageCount: llmMessages.length,
+      messages: llmMessages.map((msg, index) => ({
+        index,
+        role: msg.role,
+        contentType: typeof msg.content,
+        contentLength: typeof msg.content === 'string'
+          ? msg.content.length
+          : Array.isArray(msg.content)
+            ? JSON.stringify(msg.content).length
+            : 0,
+        contentPreview: typeof msg.content === 'string'
+          ? msg.content.substring(0, 500) + (msg.content.length > 500 ? '...' : '')
+          : Array.isArray(msg.content)
+            ? JSON.stringify(msg.content).substring(0, 500) + '...'
+            : 'non-string content',
+        fullContent: msg.content // Full content for debugging
+      }))
+    };
+
+    writeFileSync(filepath, JSON.stringify(logData, null, 2));
+    logger.info({ filepath, messageCount: llmMessages.length }, "Wrote LLM messages to log file");
+  } catch (error) {
+    logger.error({ error }, "Failed to write LLM messages to log file");
+  }
+}
 
 /**
  * Generate a response using Claude via LangChain
@@ -48,6 +94,9 @@ export async function generateResponse(
     // Prepare messages for LLM
     const llmMessages = await prepLLMMessages(messages, entityId);
     logger.info({ llmMessageCount: llmMessages.length }, "Prepared messages for LLM");
+
+    // Write LLM messages to log file for debugging
+    writeLLMMessagesToFile(llmMessages, entityId, "non-streaming");
 
     // Create a mock stream writer for processing
     const chunks: string[] = [];
@@ -175,6 +224,9 @@ export async function generateStreamingResponse(
       "Prepared messages for LLM - streaming version",
     );
 
+    // Write LLM messages to log file for debugging
+    writeLLMMessagesToFile(llmMessages, entityId, "streaming");
+
     // Log the actual messages being sent (for debugging)
     logger.info(
       {
@@ -257,7 +309,10 @@ export async function generateStreamingResponse(
         "processLangChainStream completed",
       );
     } catch (error) {
-      logger.error(error, "Error in processLangChainStream");
+      logger.error(
+        error,
+        `Error in processLangChainStream: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
       textContent = "Error processing stream";
       // Still send done signal even on error
       writer.write(encoder.encode(`data: {"type":"done"}\n\n`));
@@ -279,7 +334,10 @@ export async function generateStreamingResponse(
       logger.info("Real-time sync enabled - response already saved incrementally");
     }
   } catch (error) {
-    logger.error({ error }, "Error in streaming response");
+    logger.error(
+      error,
+      `Error in streaming response: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
     // Send error to client
     const errorData = JSON.stringify({ error: "Internal server error" });
     await writer.write(encoder.encode(`error:${errorData}\n`));

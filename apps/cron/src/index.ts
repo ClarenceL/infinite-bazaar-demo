@@ -1,7 +1,7 @@
 import { Agenda } from "agenda";
 import "./environment";
 import { createLogger } from "@infinite-bazaar-demo/logs";
-import { setupOpusAgentCron } from "./jobs/agents/opus";
+import { setupOpusAgentCron } from "./jobs/agents/tick";
 
 // Initialize logger
 const logger = createLogger({

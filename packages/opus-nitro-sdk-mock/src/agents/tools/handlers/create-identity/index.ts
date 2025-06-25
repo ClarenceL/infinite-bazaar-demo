@@ -96,7 +96,7 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
         tool_use_id: "",
         data: {
           success: false,
-          error: "Entity does not have a name or CDP account. Please create a name first using create_name.",
+          error: "Entity does not have a name yet. Please create a name first using create_name.",
         },
         name: "create_identity",
       };

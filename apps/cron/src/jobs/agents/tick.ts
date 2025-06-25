@@ -232,7 +232,7 @@ async function getActiveEntities() {
 /**
  * Single Opus agent job that processes all entities
  */
-async function opusAgentJob(job: Job) {
+async function agentJob(job: Job) {
   const { cycle_interval = "1 minute" } = job.attrs.data || {};
 
   logger.info({ jobId: job.attrs._id, cycle_interval }, "Starting Opus agent job for all entities");
@@ -263,13 +263,13 @@ async function opusAgentJob(job: Job) {
           { entityId: entity.entityId, delaySeconds: 10 },
           "Waiting before processing next entity",
         );
-        await new Promise((resolve) => setTimeout(resolve, 10000));
+        await new Promise((resolve) => setTimeout(resolve, 30000));
       }
     }
 
     logger.info({ entitiesProcessed: entitiesList.length }, "Opus agent job completed");
   } catch (error) {
-    logger.error({ error }, "Opus agent job failed");
+    logger.error({ error }, "Agent job failed");
     throw error;
   }
 }
@@ -284,7 +284,7 @@ export async function setupOpusAgentCron(agenda: any) {
     logger.info({ cycleInterval }, "Setting up Opus agent cron job");
 
     // Define the single job
-    agenda.define("opus-agent", opusAgentJob);
+    agenda.define("opus-agent", agentJob);
     logger.info("Defined opus-agent job handler");
 
     // Delete existing opus-agent jobs

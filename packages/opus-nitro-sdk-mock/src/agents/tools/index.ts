@@ -5,13 +5,13 @@
 export const mcpTools = [
   {
     name: "create_name",
-    description: "Create a name for the agent and set up CDP wallet",
+    description: "Create a name for yourself and set up wallet address",
     input_schema: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "name of the agent to create",
+          description: "name",
         },
       },
       required: ["name"],
