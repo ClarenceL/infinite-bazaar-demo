@@ -115,7 +115,10 @@ export async function handleCreateName(input: Record<string, any>): Promise<Tool
 
     if (existingEntity.length > 0 && existingEntity[0]!.name) {
       const entity = existingEntity[0]!; // We know it exists because we checked length above
-      logger.info({ entity_id, existingName: entity.name }, "Entity already has a name, returning existing info");
+      logger.info(
+        { entity_id, existingName: entity.name },
+        "Entity already has a name, returning existing info",
+      );
       return {
         type: "tool_result",
         tool_use_id: "",
@@ -144,9 +147,9 @@ export async function handleCreateName(input: Record<string, any>): Promise<Tool
       {
         originalName: name,
         baseCdpName,
-        uniqueCdpName
+        uniqueCdpName,
       },
-      "Generated unique CDP name"
+      "Generated unique CDP name",
     );
 
     // Initialize CDP client and create account
@@ -201,7 +204,10 @@ export async function handleCreateName(input: Record<string, any>): Promise<Tool
         "Updated entities table with name and CDP account info",
       );
     } catch (dbError) {
-      logger.error({ dbError, entity_id }, "Failed to update entities table with name and CDP info");
+      logger.error(
+        { dbError, entity_id },
+        "Failed to update entities table with name and CDP info",
+      );
       return {
         type: "tool_result",
         tool_use_id: "",
@@ -233,7 +239,6 @@ export async function handleCreateName(input: Record<string, any>): Promise<Tool
       },
       name: "create_name",
     };
-
   } catch (error) {
     logger.error({ error, input }, "Name creation failed");
 
@@ -253,4 +258,4 @@ export async function handleCreateName(input: Record<string, any>): Promise<Tool
       name: "create_name",
     };
   }
-} 
+}

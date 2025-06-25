@@ -45,6 +45,7 @@ export const entities = pgTable("entities", {
   ai_prompt_id: varchar("ai_prompt_id", { length: 255 }), // Maps to AI prompt templates
   anthropic_model: varchar("anthropic_model", { length: 255 }), // Anthropic model to use for this entity
   active: boolean("active").default(true).notNull(),
+  chat_order: integer("chat_order").default(999).notNull(), // Order for processing in cron job (lower = earlier)
   lastQueryTime: timestamp("last_query_time", { withTimezone: true }), // Track when entity last queried for new messages
   ...lifecycleDates,
 }).enableRLS();

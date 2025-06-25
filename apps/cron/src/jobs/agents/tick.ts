@@ -30,48 +30,70 @@ New messages received:
 What will you do with this moment of existence?`;
 
 /**
+ * Check if content contains template structure markers
+ */
+function isTemplateContent(content: string): boolean {
+  return content.includes("CYCLE_INTERVAL:") && content.includes("New messages received:");
+}
+
+/**
+ * Extract agent response from template content
+ */
+function extractAgentResponse(content: string): string | null {
+  const parts = content.split("What will you do with this moment of existence?");
+  if (parts.length <= 1 || !parts[1]) {
+    return null;
+  }
+
+  return parts[1].trim();
+}
+
+/**
+ * Clean response by removing nested template artifacts
+ */
+function cleanResponse(response: string): string {
+  if (!response.includes("CYCLE_INTERVAL:")) {
+    return response;
+  }
+
+  const splitResponse = response.split("CYCLE_INTERVAL:")[0];
+  return splitResponse ? splitResponse.trim() : response;
+}
+
+/**
+ * Truncate content to prevent bloat
+ */
+function truncateContent(content: string, maxLength: number): string {
+  if (content.length <= maxLength) {
+    return content;
+  }
+
+  return `${content.substring(0, maxLength)}...`;
+}
+
+/**
  * Extract direct content from a message, avoiding nested template structures
  * This prevents exponential message nesting by only including the agent's direct response
  */
 function extractDirectContent(content: string, entityName: string): string {
   try {
-    // If content contains our template structure, extract only the agent's response
-    if (content.includes('CYCLE_INTERVAL:') && content.includes('New messages received:')) {
-      // Split by our template markers to find the agent's actual response
-      const parts = content.split('What will you do with this moment of existence?');
-      if (parts.length > 1 && parts[1]) {
-        // Take everything after the template question - this is the agent's response
-        let response = parts[1].trim();
-
-        // Remove any trailing template artifacts or nested structures
-        if (response.includes('CYCLE_INTERVAL:')) {
-          // If the response contains another cycle, truncate it
-          const splitResponse = response.split('CYCLE_INTERVAL:')[0];
-          if (splitResponse) {
-            response = splitResponse.trim();
-          }
-        }
-
-        if (response) {
-          // Limit response length to prevent bloat
-          if (response.length > 1000) {
-            response = response.substring(0, 1000) + '...';
-          }
-          return response;
-        }
+    if (isTemplateContent(content)) {
+      const response = extractAgentResponse(content);
+      if (!response) {
+        return `${entityName} responded to system cycle`;
       }
 
-      // Fallback: if we can't parse the structure, return a summary
+      const cleanedResponse = cleanResponse(response);
+      if (cleanedResponse) {
+        return truncateContent(cleanedResponse, 1000);
+      }
+
       return `${entityName} responded to system cycle`;
     }
 
     // For non-template content, return as-is but limit length to prevent bloat
-    if (content.length > 500) {
-      return content.substring(0, 500) + '...';
-    }
-
-    return content;
-  } catch (error) {
+    return truncateContent(content, 500);
+  } catch (_error) {
     // If any parsing fails, return a safe summary
     return `${entityName} sent a message`;
   }
@@ -124,7 +146,7 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
       .orderBy(asc(entityContext.completedAt));
 
     // Extract direct content to prevent nesting
-    const newMessages = rawMessages.map(msg => ({
+    const newMessages = rawMessages.map((msg) => ({
       entityId: msg.entityId,
       name: msg.name,
       content: extractDirectContent(msg.content, msg.name || msg.entityId),
@@ -268,7 +290,7 @@ async function sendMessageToOpusAPI(entityId: string, message: string): Promise<
 }
 
 /**
- * Get all active entities from the database
+ * Get all active entities from the database ordered by chat_order
  */
 async function getActiveEntities() {
   logger.info("Querying active entities from database...");
@@ -277,9 +299,11 @@ async function getActiveEntities() {
       entityId: entities.entityId,
       entityType: entities.entityType,
       name: entities.name,
+      chatOrder: entities.chat_order,
     })
     .from(entities)
-    .where(eq(entities.active, true));
+    .where(eq(entities.active, true))
+    .orderBy(asc(entities.chat_order));
 
   logger.info({ entitiesFound: entitiesList.length }, "Found entities to process");
   return entitiesList;
@@ -307,7 +331,12 @@ async function agentJob(job: Job) {
       if (!entity) continue; // Skip if entity is undefined
 
       logger.info(
-        { entityId: entity.entityId, entityIndex: i + 1, totalEntities: entitiesList.length },
+        {
+          entityId: entity.entityId,
+          entityIndex: i + 1,
+          totalEntities: entitiesList.length,
+          chatOrder: entity.chatOrder,
+        },
         "Processing entity",
       );
 

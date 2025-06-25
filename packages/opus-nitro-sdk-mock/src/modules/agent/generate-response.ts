@@ -1,12 +1,12 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { logger } from "@infinite-bazaar-demo/logs";
 import { ChatAnthropic } from "@langchain/anthropic";
-import { mcpTools } from "../../agents/tools/index";
 import { getAnthropicModelForEntity } from "../../agents/prompts/index";
+import { mcpTools } from "../../agents/tools/index";
 import { prepLLMMessages, processLangChainStream } from "../../agents/utils";
 import { streamingDBSync } from "../../services/streaming-db-sync";
 import type { Message } from "../../types/message";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
 
 // Debug flag to write LLM messages to log file
 const LOG_WRITE_LLM_MESSAGES = true;
@@ -14,13 +14,18 @@ const LOG_WRITE_LLM_MESSAGES = true;
 /**
  * Write LLM messages to a log file for debugging
  */
-function writeLLMMessagesToFile(llmMessages: any[], entityId: string, context: string, modelToUse?: string) {
+function writeLLMMessagesToFile(
+  llmMessages: any[],
+  entityId: string,
+  context: string,
+  modelToUse?: string,
+) {
   if (!LOG_WRITE_LLM_MESSAGES) return;
 
   try {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `llm-messages-${entityId}-${context}-${timestamp}.json`;
-    const filepath = join(process.cwd(), 'logs', filename);
+    const filepath = join(process.cwd(), "logs", filename);
 
     const logData = {
       timestamp: new Date().toISOString(),
@@ -32,18 +37,20 @@ function writeLLMMessagesToFile(llmMessages: any[], entityId: string, context: s
         index,
         role: msg.role,
         contentType: typeof msg.content,
-        contentLength: typeof msg.content === 'string'
-          ? msg.content.length
-          : Array.isArray(msg.content)
-            ? JSON.stringify(msg.content).length
-            : 0,
-        contentPreview: typeof msg.content === 'string'
-          ? msg.content.substring(0, 500) + (msg.content.length > 500 ? '...' : '')
-          : Array.isArray(msg.content)
-            ? JSON.stringify(msg.content).substring(0, 500) + '...'
-            : 'non-string content',
+        contentLength:
+          typeof msg.content === "string"
+            ? msg.content.length
+            : Array.isArray(msg.content)
+              ? JSON.stringify(msg.content).length
+              : 0,
+        contentPreview:
+          typeof msg.content === "string"
+            ? msg.content.substring(0, 500) + (msg.content.length > 500 ? "..." : "")
+            : Array.isArray(msg.content)
+              ? JSON.stringify(msg.content).substring(0, 500) + "..."
+              : "non-string content",
         // fullContent: msg.content // Full content for debugging
-      }))
+      })),
     };
 
     writeFileSync(filepath, JSON.stringify(logData, null, 2));
@@ -201,7 +208,10 @@ export async function generateStreamingResponse(
     const anthropicModel = await getAnthropicModelForEntity(entityId);
     const modelToUse = anthropicModel || "claude-opus-4-20250514"; // fallback to default
 
-    logger.info({ entityId, anthropicModel, modelToUse }, "Using anthropic model for entity (streaming)");
+    logger.info(
+      { entityId, anthropicModel, modelToUse },
+      "Using anthropic model for entity (streaming)",
+    );
 
     // Initialize ChatAnthropic with tools
     const llm = new ChatAnthropic({

@@ -54,7 +54,7 @@ const DEFAULT_CHAT_ID = "chat_global";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-const deleteChats = args.includes('--delete-chats');
+const deleteChats = args.includes("--delete-chats");
 
 // Main function to reset entities and ensure global chat
 async function resetEntitiesAndChat() {
@@ -91,6 +91,21 @@ async function resetEntitiesAndChat() {
 
     console.log(`✅ Reset ${resetResult.count || 0} entities (excluded ${PROTECTED_ENTITY_ID})`);
 
+    // 2.5. Set god_lyra's chat_order to 0 to ensure she goes first
+    console.log(`Setting ${PROTECTED_ENTITY_ID} chat_order to 0...`);
+
+    const updateOrderResult = await db.execute(sql`
+      UPDATE entities 
+      SET 
+        chat_order = 0,
+        updated_at = NOW()
+      WHERE entity_id = ${PROTECTED_ENTITY_ID}
+    `);
+
+    console.log(
+      `✅ Set ${PROTECTED_ENTITY_ID} chat_order to 0 (${updateOrderResult.count || 0} entities updated)`,
+    );
+
     // 3. Check if global chat exists and create if missing
     console.log("Checking for global chat...");
 
@@ -121,14 +136,14 @@ async function resetEntitiesAndChat() {
     console.log("\nVerifying reset results...");
 
     const resetEntities = await db.execute(sql`
-      SELECT entity_id, name, cdp_name, cdp_address 
+      SELECT entity_id, name, cdp_name, cdp_address, chat_order 
       FROM entities 
       WHERE entity_id != ${PROTECTED_ENTITY_ID}
       ORDER BY entity_id
     `);
 
     const protectedEntity = await db.execute(sql`
-      SELECT entity_id, name, cdp_name, cdp_address 
+      SELECT entity_id, name, cdp_name, cdp_address, chat_order 
       FROM entities 
       WHERE entity_id = ${PROTECTED_ENTITY_ID}
     `);
@@ -146,13 +161,17 @@ async function resetEntitiesAndChat() {
 
     console.log("📋 Reset Entities:");
     resetEntities.forEach((entity) => {
-      console.log(`  - ${entity.entity_id}: name=${entity.name}, cdp_name=${entity.cdp_name}, cdp_address=${entity.cdp_address}`);
+      console.log(
+        `  - ${entity.entity_id}: name=${entity.name}, cdp_name=${entity.cdp_name}, cdp_address=${entity.cdp_address}, chat_order=${entity.chat_order}`,
+      );
     });
 
     console.log("📋 Protected Entity:");
     if (protectedEntity.length > 0) {
       const entity = protectedEntity[0];
-      console.log(`  - ${entity.entity_id}: name=${entity.name}, cdp_name=${entity.cdp_name}, cdp_address=${entity.cdp_address}`);
+      console.log(
+        `  - ${entity.entity_id}: name=${entity.name}, cdp_name=${entity.cdp_name}, cdp_address=${entity.cdp_address}, chat_order=${entity.chat_order}`,
+      );
     } else {
       console.log(`  - ${PROTECTED_ENTITY_ID}: NOT FOUND`);
     }
@@ -198,7 +217,7 @@ function showUsage() {
 }
 
 // Handle help flag
-if (args.includes('--help') || args.includes('-h')) {
+if (args.includes("--help") || args.includes("-h")) {
   showUsage();
   process.exit(0);
 }
@@ -212,4 +231,4 @@ resetEntitiesAndChat()
   .catch((error) => {
     console.error("💥 Reset script failed with error:", error);
     process.exit(1);
-  }); 
+  });

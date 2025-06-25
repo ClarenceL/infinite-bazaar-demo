@@ -129,9 +129,9 @@ export class AgentService {
         .where(
           message.chatId
             ? and(
-              eq(entityContext.entityId, actualEntityId),
-              eq(entityContext.chatId, message.chatId),
-            )
+                eq(entityContext.entityId, actualEntityId),
+                eq(entityContext.chatId, message.chatId),
+              )
             : eq(entityContext.entityId, actualEntityId),
         );
 
@@ -163,7 +163,7 @@ export class AgentService {
           dbRecord.toolInput = toolCall.input;
         } else if ("type" in message.content && message.content.type === "tool_result") {
           const toolResult = message.content as ToolCallResult;
-          dbRecord.content = `Tool result: ${toolResult.data?.success ? 'success' : 'error'}`;
+          dbRecord.content = `Tool result: ${toolResult.data?.success ? "success" : "error"}`;
           dbRecord.contextType = "TOOL_RESULT";
           dbRecord.toolUseId = toolResult.tool_use_id;
           dbRecord.toolResultData = toolResult.data;
@@ -176,9 +176,9 @@ export class AgentService {
               contentType: typeof message.content,
               hasType: "type" in message.content,
               contentKeys: Object.keys(message.content),
-              role: message.role
+              role: message.role,
             },
-            "Unexpected message content type - converting to safe string representation"
+            "Unexpected message content type - converting to safe string representation",
           );
 
           // Instead of JSON.stringify which causes recursive escaping,
@@ -187,7 +187,7 @@ export class AgentService {
             dbRecord.content = `[Array with ${message.content.length} items]`;
           } else {
             const keys = Object.keys(message.content);
-            dbRecord.content = `[Object with keys: ${keys.join(', ')}]`;
+            dbRecord.content = `[Object with keys: ${keys.join(", ")}]`;
           }
           dbRecord.contextType = "MESSAGE";
         }

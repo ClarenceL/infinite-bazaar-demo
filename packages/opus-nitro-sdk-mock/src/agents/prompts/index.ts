@@ -1,6 +1,6 @@
-import { OPUS_SYSTEM_PROMPT } from "./opus-prompt";
-import { LYRA_SYSTEM_PROMPT } from "./lyra-prompt";
 import { db, entities, eq } from "@infinite-bazaar-demo/db";
+import { LYRA_SYSTEM_PROMPT } from "./lyra-prompt";
+import { OPUS_SYSTEM_PROMPT } from "./opus-prompt";
 
 // Hardcoded entity ID for Opus agent
 export const OPUS_ENTITY_ID = "ent_opus";

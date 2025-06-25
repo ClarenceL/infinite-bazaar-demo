@@ -138,7 +138,7 @@ export async function handleTransferUsdc(input: Record<string, any>): Promise<To
     const amountInSmallestUnit = BigInt(Math.floor(amount * 1_000_000));
 
     // Ensure 'to' address has 0x prefix
-    const toAddress = to.startsWith('0x') ? to : `0x${to}`;
+    const toAddress = to.startsWith("0x") ? to : `0x${to}`;
 
     logger.info(
       {
@@ -187,7 +187,6 @@ export async function handleTransferUsdc(input: Record<string, any>): Promise<To
       },
       name: "transfer_usdc",
     };
-
   } catch (error) {
     logger.error({ error, input }, "USDC transfer failed");
 
@@ -207,4 +206,4 @@ export async function handleTransferUsdc(input: Record<string, any>): Promise<To
       name: "transfer_usdc",
     };
   }
-} 
+}

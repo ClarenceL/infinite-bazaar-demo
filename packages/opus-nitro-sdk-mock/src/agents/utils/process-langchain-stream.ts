@@ -329,8 +329,10 @@ export async function processLangChainStream({
         }
       } catch (chunkError) {
         // Only log chunk errors that aren't related to overloaded API responses
-        const chunkErrorMessage = chunkError instanceof Error ? chunkError.message : "Unknown chunk error";
-        const isOverloadedChunkError = chunkErrorMessage.includes("overloaded") || chunkErrorMessage.includes("Overloaded");
+        const chunkErrorMessage =
+          chunkError instanceof Error ? chunkError.message : "Unknown chunk error";
+        const isOverloadedChunkError =
+          chunkErrorMessage.includes("overloaded") || chunkErrorMessage.includes("Overloaded");
 
         if (isOverloadedChunkError) {
           // Don't log individual chunk errors for overloaded responses - let the main error handler deal with it
@@ -423,7 +425,9 @@ export async function processLangChainStream({
 
       // Last resort: try to write a minimal error message
       try {
-        await writer.write(encoder.encode(`0:"System temporarily unavailable. Please try again."\n\n`));
+        await writer.write(
+          encoder.encode(`0:"System temporarily unavailable. Please try again."\n\n`),
+        );
         await writer.write(encoder.encode(`data: {"type":"done","error":"write_failed"}\n\n`));
       } catch (finalError) {
         logger.error(
