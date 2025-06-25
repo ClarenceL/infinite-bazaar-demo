@@ -1,0 +1,108 @@
+/* Custom styles for toast notifications */
+
+/* Apply gradient border to toast notifications */
+[data-sonner-toast][data-styled="true"] {
+  position: relative;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(8px);
+  color: white !important;
+  border: none !important;
+}
+
+/* Create gradient border effect */
+[data-sonner-toast][data-styled="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.5rem; /* Matches toast border radius */
+  padding: 1px; /* Border width */
+  background: linear-gradient(to right, #2563eb, #9333ea);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Special styling for error toasts */
+[data-sonner-toast][data-type="error"][data-styled="true"]::before {
+  background: linear-gradient(to right, #ef4444, #b91c1c) !important;
+}
+
+/* Adjust toast description color */
+[data-sonner-toast] [data-description] {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Improve visibility of action buttons */
+[data-sonner-toast] [data-button] {
+  background: linear-gradient(to right, #2563eb, #9333ea) !important;
+  color: white !important;
+  font-weight: 500;
+}
+
+/* Custom icons for different toast types */
+[data-sonner-toast][data-type="error"] [data-icon] svg {
+  display: none;
+}
+
+[data-sonner-toast][data-type="error"] [data-icon]::before {
+  content: "×";
+  font-size: 24px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.2);
+  border-radius: 50%;
+}
+
+/* Error toast title styling */
+[data-sonner-toast][data-type="error"] [data-title] {
+  color: #ef4444 !important;
+  font-weight: 600;
+}
+
+/* Position toaster in top right */
+[data-sonner-toaster][data-position^="top-right"] {
+  top: 1.5rem !important;
+  right: 1.5rem !important;
+}
+
+/* Make successive toasts overlap */
+[data-sonner-toaster] > [data-sonner-toast] {
+  margin-top: -65px !important; /* Increased negative margin for more overlap */
+  position: relative; /* Ensure z-index works properly */
+}
+
+/* First toast doesn't need negative margin */
+[data-sonner-toaster] > [data-sonner-toast]:first-child {
+  margin-top: 0 !important;
+}
+
+/* Ensure proper z-index stacking - newest on top */
+[data-sonner-toaster] > [data-sonner-toast]:nth-child(1) {
+  z-index: 100;
+}
+[data-sonner-toaster] > [data-sonner-toast]:nth-child(2) {
+  z-index: 99;
+}
+[data-sonner-toaster] > [data-sonner-toast]:nth-child(3) {
+  z-index: 98;
+}
+[data-sonner-toaster] > [data-sonner-toast]:nth-child(4) {
+  z-index: 97;
+}
+[data-sonner-toaster] > [data-sonner-toast]:nth-child(5) {
+  z-index: 96;
+}
+
+/* Show slightly more content when hovering over a toast */
+[data-sonner-toaster] > [data-sonner-toast]:hover {
+  transform: translateY(-5px);
+  transition: transform 0.2s ease;
+}
