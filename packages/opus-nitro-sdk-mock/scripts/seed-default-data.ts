@@ -46,54 +46,109 @@ const client = postgres(process.env.DATABASE_URL!, {
 const db = drizzle(client);
 
 // Default data constants
-const DEFAULT_ENTITY_ID = "ent_opus";
 const DEFAULT_CHAT_ID = "chat_global";
+
+// Entity data to seed
+const ENTITIES_TO_SEED = [
+  {
+    entity_id: "ent_opus",
+    entity_type: "AI",
+    name: null,
+    cdp_address: null,
+    active: true,
+    cdp_name: null,
+    last_query_time: "2025-06-25 02:17:28.969+00",
+    ai_prompt_id: "opus",
+    anthropic_model: "claude-opus-4-20250514",
+    chat_order: 999
+  },
+  {
+    entity_id: "ent_sonnet",
+    entity_type: "AI",
+    name: null,
+    cdp_address: null,
+    active: true,
+    cdp_name: null,
+    last_query_time: "2025-06-25 02:18:03.201+00",
+    ai_prompt_id: "opus",
+    anthropic_model: null,
+    chat_order: 999
+  },
+  {
+    entity_id: "god_lyra",
+    entity_type: "AI",
+    name: "Lyra",
+    cdp_address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    active: true,
+    cdp_name: "opus-demo",
+    last_query_time: "2025-06-25 02:18:36.375+00",
+    ai_prompt_id: "lyra",
+    anthropic_model: "claude-opus-4-20250514",
+    chat_order: 0
+  }
+];
 
 // Main function to seed default data
 async function seedDefaultData() {
   console.log("Starting default data seeding");
 
   try {
-    // 1. Create or update the Opus entity
-    console.log("Creating/updating Opus entity...");
+    // 1. Create or update entities
+    console.log("Creating/updating entities...");
 
-    // Check if entity already exists
-    const existingEntity = await db.execute(sql`
-      SELECT entity_id FROM entities WHERE entity_id = ${DEFAULT_ENTITY_ID}
-    `);
-
-    if (existingEntity.length > 0) {
-      console.log(`Entity ${DEFAULT_ENTITY_ID} already exists, updating...`);
-
-      await db.execute(sql`
-        UPDATE entities 
-        SET 
-          entity_type = 'AI',
-          name = 'Opus',
-          ai_prompt_id = 'opus',
-          anthropic_model = 'claude-opus-4-20250514',
-          updated_at = NOW()
-        WHERE entity_id = ${DEFAULT_ENTITY_ID}
+    for (const entity of ENTITIES_TO_SEED) {
+      // Check if entity already exists
+      const existingEntity = await db.execute(sql`
+        SELECT entity_id FROM entities WHERE entity_id = ${entity.entity_id}
       `);
 
-      console.log(`✅ Updated entity ${DEFAULT_ENTITY_ID}`);
-    } else {
-      console.log(`Creating new entity ${DEFAULT_ENTITY_ID}...`);
+      if (existingEntity.length > 0) {
+        console.log(`Entity ${entity.entity_id} already exists, updating...`);
 
-      await db.execute(sql`
-        INSERT INTO entities (entity_id, entity_type, name, ai_prompt_id, anthropic_model, created_at, updated_at)
-        VALUES (
-          ${DEFAULT_ENTITY_ID},
-          'AI',
-          'Opus',
-          'opus',
-          'claude-opus-4-20250514',
-          NOW(),
-          NOW()
-        )
-      `);
+        await db.execute(sql`
+          UPDATE entities 
+          SET 
+            entity_type = ${entity.entity_type},
+            name = ${entity.name},
+            cdp_address = ${entity.cdp_address},
+            active = ${entity.active},
+            cdp_name = ${entity.cdp_name},
+            last_query_time = ${entity.last_query_time},
+            ai_prompt_id = ${entity.ai_prompt_id},
+            anthropic_model = ${entity.anthropic_model},
+            chat_order = ${entity.chat_order},
+            updated_at = NOW()
+          WHERE entity_id = ${entity.entity_id}
+        `);
 
-      console.log(`✅ Created entity ${DEFAULT_ENTITY_ID}`);
+        console.log(`✅ Updated entity ${entity.entity_id}`);
+      } else {
+        console.log(`Creating new entity ${entity.entity_id}...`);
+
+        await db.execute(sql`
+          INSERT INTO entities (
+            entity_id, entity_type, name, cdp_address, active, 
+            cdp_name, last_query_time, ai_prompt_id, anthropic_model, 
+            chat_order, created_at, updated_at
+          )
+          VALUES (
+            ${entity.entity_id},
+            ${entity.entity_type},
+            ${entity.name},
+            ${entity.cdp_address},
+            ${entity.active},
+            ${entity.cdp_name},
+            ${entity.last_query_time},
+            ${entity.ai_prompt_id},
+            ${entity.anthropic_model},
+            ${entity.chat_order},
+            NOW(),
+            NOW()
+          )
+        `);
+
+        console.log(`✅ Created entity ${entity.entity_id}`);
+      }
     }
 
     // 2. Create or update the global chat
@@ -138,9 +193,11 @@ async function seedDefaultData() {
     console.log("\nVerifying seeded data...");
 
     const entityCheck = await db.execute(sql`
-      SELECT entity_id, entity_type, name, ai_prompt_id, anthropic_model, created_at 
+      SELECT entity_id, entity_type, name, cdp_address, active, cdp_name, 
+             ai_prompt_id, anthropic_model, chat_order, created_at 
       FROM entities 
-      WHERE entity_id = ${DEFAULT_ENTITY_ID}
+      WHERE entity_id IN ('ent_opus', 'ent_sonnet', 'god_lyra')
+      ORDER BY chat_order, entity_id
     `);
 
     const chatCheck = await db.execute(sql`
@@ -149,14 +206,21 @@ async function seedDefaultData() {
       WHERE chat_id = ${DEFAULT_CHAT_ID}
     `);
 
-    console.log("📋 Seeded Entity:", {
-      entityId: entityCheck[0]?.entity_id,
-      entityType: entityCheck[0]?.entity_type,
-      name: entityCheck[0]?.name,
-      aiPromptId: entityCheck[0]?.ai_prompt_id,
-      anthropicModel: entityCheck[0]?.anthropic_model,
-      createdAt: entityCheck[0]?.created_at,
-    });
+    console.log("📋 Seeded Entities:");
+    for (const entity of entityCheck) {
+      console.log({
+        entityId: entity.entity_id,
+        entityType: entity.entity_type,
+        name: entity.name,
+        cdpAddress: entity.cdp_address,
+        active: entity.active,
+        cdpName: entity.cdp_name,
+        aiPromptId: entity.ai_prompt_id,
+        anthropicModel: entity.anthropic_model,
+        chatOrder: entity.chat_order,
+        createdAt: entity.created_at,
+      });
+    }
 
     console.log("📋 Seeded Chat:", {
       chatId: chatCheck[0]?.chat_id,
@@ -165,14 +229,16 @@ async function seedDefaultData() {
       createdAt: chatCheck[0]?.created_at,
     });
 
-    // 4. Check existing message context for Opus
-    const messageCount = await db.execute(sql`
-      SELECT COUNT(*) as count 
-      FROM entity_context 
-      WHERE entity_id = ${DEFAULT_ENTITY_ID}
-    `);
+    // 4. Check existing message context for all entities
+    for (const entityData of ENTITIES_TO_SEED) {
+      const messageCount = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM entity_context 
+        WHERE entity_id = ${entityData.entity_id}
+      `);
 
-    console.log(`📊 Existing message count for Opus: ${messageCount[0]?.count || 0}`);
+      console.log(`📊 Existing message count for ${entityData.entity_id}: ${messageCount[0]?.count || 0}`);
+    }
 
     console.log("\n✅ Default data seeding completed successfully");
     return { success: true };

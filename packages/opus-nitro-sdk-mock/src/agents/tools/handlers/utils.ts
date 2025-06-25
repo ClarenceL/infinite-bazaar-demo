@@ -1,3 +1,84 @@
+import { CdpClient } from "@coinbase/cdp-sdk";
+import { logger } from "@infinite-bazaar-demo/logs";
+
+// Mock CDP Account interface
+interface MockCdpAccount {
+  name: string;
+  id: string;
+  address?: string;
+  privateKey?: string;
+  publicKey?: string;
+  sign?: (data: any) => Promise<string>;
+}
+
+// Mock CDP Client for testing
+class MockCdpClient {
+  evm = {
+    getOrCreateAccount: async ({ name }: { name: string }): Promise<MockCdpAccount> => {
+      logger.info({ name }, "🧪 MOCK: Creating CDP account (test mode)");
+
+      // Generate a deterministic mock address based on the name
+      const mockAddress = `0x${Buffer.from(name).toString('hex').padEnd(40, '0').slice(0, 40)}`;
+
+      return {
+        name,
+        id: `mock-account-${name}`,
+        address: mockAddress,
+        privateKey: "0x" + "a".repeat(64), // Mock private key
+        publicKey: "0x" + "b".repeat(128), // Mock public key
+        sign: async (data: any) => {
+          logger.info({ data }, "🧪 MOCK: Signing data (test mode)");
+          return "0x" + "c".repeat(130); // Mock signature
+        }
+      };
+    }
+  };
+}
+
+/**
+ * Factory function to create CDP client - returns mock in test mode
+ */
+export function createCdpClient(config: {
+  apiKeyId: string;
+  apiKeySecret: string;
+  walletSecret: string;
+}): CdpClient | MockCdpClient {
+  if (process.env.NODE_ENV === "test") {
+    logger.info("🧪 Creating MOCK CDP client for test environment");
+    return new MockCdpClient() as any;
+  }
+
+  logger.info("🔑 Creating REAL CDP client for production environment");
+  return new CdpClient(config);
+}
+
+// Mock viem account converter for testing
+export function createMockViemAccount(cdpAccount: MockCdpAccount) {
+  if (process.env.NODE_ENV === "test") {
+    logger.info({ accountName: cdpAccount.name }, "🧪 MOCK: Converting to viem account (test mode)");
+    return {
+      address: cdpAccount.address || `0x${Buffer.from(cdpAccount.name).toString('hex').padEnd(40, '0').slice(0, 40)}`,
+      publicKey: cdpAccount.publicKey || "0x" + "b".repeat(128),
+      signMessage: async (message: any) => {
+        logger.info({ message }, "🧪 MOCK: Signing message (test mode)");
+        return "0x" + "d".repeat(130);
+      },
+      signTransaction: async (transaction: any) => {
+        logger.info({ transaction }, "🧪 MOCK: Signing transaction (test mode)");
+        return "0x" + "e".repeat(130);
+      },
+      signTypedData: async (typedData: any) => {
+        logger.info({ typedData }, "🧪 MOCK: Signing typed data (test mode)");
+        return "0x" + "f".repeat(130);
+      }
+    };
+  }
+
+  // In production, use the real toAccount function
+  const { toAccount } = require("viem/accounts");
+  return toAccount(cdpAccount as any);
+}
+
 /**
  * Processes an API response and handles different response types and error states
  * consistently across all tool handlers

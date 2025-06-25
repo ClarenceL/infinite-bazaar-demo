@@ -1,9 +1,8 @@
-import { CdpClient } from "@coinbase/cdp-sdk";
 import { db, entities, eq } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 import type { LocalAccount } from "viem";
-import { toAccount } from "viem/accounts";
 import type { ToolCallResult } from "../../../../types/message.js";
+import { createCdpClient, createMockViemAccount } from "../utils.js";
 
 /**
  * Sanitize name for CDP account usage
@@ -154,7 +153,7 @@ export async function handleCreateName(input: Record<string, any>): Promise<Tool
 
     // Initialize CDP client and create account
     logger.info("Initializing Coinbase CDP client...");
-    const cdpClient = new CdpClient({
+    const cdpClient = createCdpClient({
       apiKeyId: CDP_API_KEY_ID,
       apiKeySecret: CDP_API_KEY_SECRET,
       walletSecret: CDP_WALLET_SECRET,
@@ -174,7 +173,7 @@ export async function handleCreateName(input: Record<string, any>): Promise<Tool
     );
 
     // Convert CDP account to viem LocalAccount to get address
-    const viemAccount = toAccount<LocalAccount>(cdpAccount as any);
+    const viemAccount = createMockViemAccount(cdpAccount as any);
 
     logger.info(
       {

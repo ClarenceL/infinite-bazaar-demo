@@ -1,12 +1,10 @@
-import { CdpClient } from "@coinbase/cdp-sdk";
 import { db, entities, eq } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 import type { LocalAccount } from "viem";
-import { toAccount } from "viem/accounts";
 // @ts-ignore
 import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 import type { ToolCallResult } from "../../../../types/message.js";
-import { processApiResponse } from "../utils.js";
+import { createCdpClient, createMockViemAccount, processApiResponse } from "../utils.js";
 
 /**
  * Sample DID and claim data for testing
@@ -104,7 +102,7 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
 
     // Step 2: Initialize CDP client and get existing account
     logger.info("Initializing Coinbase CDP client...");
-    const cdpClient = new CdpClient({
+    const cdpClient = createCdpClient({
       apiKeyId: CDP_API_KEY_ID,
       apiKeySecret: CDP_API_KEY_SECRET,
       walletSecret: CDP_WALLET_SECRET,
@@ -124,7 +122,7 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
     );
 
     // Step 3: Convert CDP account to viem LocalAccount for x402-fetch
-    const viemAccount = toAccount<LocalAccount>(cdpAccount as any);
+    const viemAccount = createMockViemAccount(cdpAccount as any);
 
     logger.info(
       {
