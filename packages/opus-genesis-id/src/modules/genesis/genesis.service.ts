@@ -79,6 +79,46 @@ export class GenesisService {
   }
 
   /**
+   * List all published IPFS claims
+   */
+  async listIPFSClaims(): Promise<
+    Array<{
+      entityId: string;
+      did: string;
+      timestamp: string;
+      ipfsHash: string;
+      filePath?: string;
+      pinataId?: string;
+      source: "pinata" | "local";
+    }>
+  > {
+    try {
+      logger.info("Listing all IPFS claims");
+      return await this.claimService.listIPFSClaims();
+    } catch (error) {
+      logger.error({ error }, "Failed to list IPFS claims");
+      throw error;
+    }
+  }
+
+  /**
+   * Verify a published claim from IPFS
+   */
+  async verifyClaimFromIPFS(ipfsHash: string): Promise<{
+    valid: boolean;
+    data?: any;
+    errors?: string[];
+  }> {
+    try {
+      logger.info({ ipfsHash }, "Verifying claim from IPFS");
+      return await this.claimService.verifyClaimFromIPFS(ipfsHash);
+    } catch (error) {
+      logger.error({ error, ipfsHash }, "Failed to verify claim from IPFS");
+      throw error;
+    }
+  }
+
+  /**
    * Get service status and pricing information
    */
   async getServiceInfo() {
@@ -94,6 +134,8 @@ export class GenesisService {
       endpoints: {
         submitClaim: "POST /genesis/claim/submit",
         getClaim: "GET /genesis/claim/:did",
+        listIPFS: "GET /genesis/ipfs/list",
+        verifyIPFS: "GET /genesis/ipfs/verify/:ipfsHash",
         serviceInfo: "GET /genesis/info",
       },
       status: "active",

@@ -422,6 +422,60 @@ export const genesisRoutes = baseRoutes
     }
   })
 
+  // List all IPFS claims
+  .get("/ipfs/list", async (c) => {
+    try {
+      logger.info("🔍 GET /ipfs/list ENDPOINT REACHED");
+
+      const claims = await genesisService.listIPFSClaims();
+
+      return c.json(claims);
+    } catch (error) {
+      logger.error({ error }, "Error listing IPFS claims");
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          timestamp: new Date().toISOString(),
+        },
+        500,
+      );
+    }
+  })
+
+  // Verify IPFS claim by hash
+  .get("/ipfs/verify/:ipfsHash", async (c) => {
+    try {
+      const ipfsHash = c.req.param("ipfsHash");
+      logger.info({ ipfsHash }, "🔍 GET /ipfs/verify/:ipfsHash ENDPOINT REACHED");
+
+      if (!ipfsHash) {
+        return c.json(
+          {
+            success: false,
+            error: "IPFS hash parameter is required",
+            timestamp: new Date().toISOString(),
+          },
+          400,
+        );
+      }
+
+      const verificationResult = await genesisService.verifyClaimFromIPFS(ipfsHash);
+
+      return c.json(verificationResult);
+    } catch (error) {
+      logger.error({ error }, "Error verifying IPFS claim");
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          timestamp: new Date().toISOString(),
+        },
+        500,
+      );
+    }
+  })
+
   // Health check endpoint
   .get("/health", async (c) => {
     return c.json({
