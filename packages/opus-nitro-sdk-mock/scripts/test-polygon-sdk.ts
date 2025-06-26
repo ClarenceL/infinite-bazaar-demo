@@ -84,10 +84,10 @@ function saveIdentityToLogs(testName: string, identity: any, seed?: Uint8Array) 
     },
     seed: seed
       ? {
-        hex: Buffer.from(seed).toString("hex"),
-        base64: Buffer.from(seed).toString("base64"),
-        length: seed.length,
-      }
+          hex: Buffer.from(seed).toString("hex"),
+          base64: Buffer.from(seed).toString("base64"),
+          length: seed.length,
+        }
       : null,
   };
 
@@ -650,7 +650,8 @@ async function testCreateIdentity() {
     const comprehensiveResult = {
       testName: "Unified Identity Creation Following Proper Iden3 Flow",
       timestamp: new Date().toISOString(),
-      architecture: "Step 1: Generate seed → Step 2: Load seed → Create identity → All claims tied together",
+      architecture:
+        "Step 1: Generate seed → Step 2: Load seed → Create identity → All claims tied together",
       securityNote:
         "MOCK IMPLEMENTATION: Seeds are saved to files for testing. In production, seeds should be securely managed in AWS KMS.",
       seedGeneration: {

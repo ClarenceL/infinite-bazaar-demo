@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { logger } from "@infinite-bazaar-demo/logs";
 import { db, entities, eq } from "@infinite-bazaar-demo/db";
-import { UnifiedIdentityService } from "../../../../services/unified-identity-service.js";
+import { logger } from "@infinite-bazaar-demo/logs";
 import { CDPClaimService } from "../../../../services/cdp-claim-service.js";
+import { UnifiedIdentityService } from "../../../../services/unified-identity-service.js";
 import type { ToolCallResult } from "../../../../types/message.js";
 
 /**
@@ -118,7 +118,7 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
 
       logger.info(
         { entity_id, seedId, seedFile: `${entity_id}-seed.txt` },
-        "Seed saved to seeds-dev folder"
+        "Seed saved to seeds-dev folder",
       );
 
       // Step 4: Update database with iden3_key_id
@@ -195,7 +195,7 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
         did: unifiedResult.did,
         identityState: unifiedResult.authClaim.identityState,
       },
-      "Successfully created unified identity"
+      "Successfully created unified identity",
     );
 
     // Step 6: Submit claim with CDP payment (optional)
@@ -213,10 +213,16 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       timestamp: unifiedResult.timestamp,
     };
 
-    const cdpResult = await cdpClaimService.submitClaimWithPayment(entity_id, genericClaimForSubmission);
+    const cdpResult = await cdpClaimService.submitClaimWithPayment(
+      entity_id,
+      genericClaimForSubmission,
+    );
 
     if (!cdpResult.success) {
-      logger.warn({ error: cdpResult.error, entity_id }, "Failed to submit claim with CDP payment - continuing anyway");
+      logger.warn(
+        { error: cdpResult.error, entity_id },
+        "Failed to submit claim with CDP payment - continuing anyway",
+      );
     }
 
     // Step 7: Return success result
@@ -250,9 +256,12 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
           claimHash: unifiedResult.genericClaim.claimHash,
           signature: unifiedResult.genericClaim.signature.substring(0, 16) + "...",
           llmModel: unifiedResult.genericClaim.claimData.llmModel.name,
-          weightsHash: unifiedResult.genericClaim.claimData.weightsRevision.hash.substring(0, 16) + "...",
-          promptHash: unifiedResult.genericClaim.claimData.systemPrompt.hash.substring(0, 16) + "...",
-          relationshipHash: unifiedResult.genericClaim.claimData.relationshipGraph.hash.substring(0, 16) + "...",
+          weightsHash:
+            unifiedResult.genericClaim.claimData.weightsRevision.hash.substring(0, 16) + "...",
+          promptHash:
+            unifiedResult.genericClaim.claimData.systemPrompt.hash.substring(0, 16) + "...",
+          relationshipHash:
+            unifiedResult.genericClaim.claimData.relationshipGraph.hash.substring(0, 16) + "...",
         },
         claimSubmission: cdpResult.success ? cdpResult.claimSubmission : null,
         paymentDetails: cdpResult.success ? cdpResult.paymentDetails : null,

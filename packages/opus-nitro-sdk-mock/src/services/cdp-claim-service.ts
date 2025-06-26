@@ -79,7 +79,8 @@ export class CDPClaimService {
       if (!entity.cdp_name) {
         return {
           success: false,
-          error: "Entity does not have a CDP account. Please create a name first using create_name.",
+          error:
+            "Entity does not have a CDP account. Please create a name first using create_name.",
           timestamp: new Date().toISOString(),
         };
       }

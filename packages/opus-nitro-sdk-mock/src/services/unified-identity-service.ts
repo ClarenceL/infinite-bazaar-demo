@@ -242,13 +242,43 @@ export class UnifiedIdentityService {
 
   /**
    * Load seed from file based on entity_id
+   * Supports two modes:
+   * 1. TEST_ENTITY_NUMBER env var set: Load from logs/seeds/{TEST_ENTITY_NUMBER}.txt
+   * 2. Normal mode: Load from seeds-dev/{entityId}-seed.txt
+   *
+   * TODO: Delete TEST_ENTITY_NUMBER later and have a proper testing methodology
    */
   private loadSeedFromFile(entityId: string): Uint8Array {
-    const seedsDir = path.join(process.cwd(), "seeds-dev");
-    const seedFile = path.join(seedsDir, `${entityId}-seed.txt`);
+    let seedFile: string;
+    let seedsDir: string;
+    let expectedFileName: string;
+
+    // Check if TEST_ENTITY_NUMBER is set (testing mode)
+    if (process.env.TEST_ENTITY_NUMBER) {
+      // Testing mode: Load from logs/seeds/{TEST_ENTITY_NUMBER}.txt
+      seedsDir = path.join(process.cwd(), "logs", "seeds");
+      expectedFileName = `${process.env.TEST_ENTITY_NUMBER}.txt`;
+      seedFile = path.join(seedsDir, expectedFileName);
+
+      logger.info(
+        { entityId, testEntityNumber: process.env.TEST_ENTITY_NUMBER, expectedFileName },
+        "🔍 TEST_ENTITY_NUMBER detected, loading seed from logs/seeds",
+      );
+    } else {
+      // Normal mode: Load from seeds-dev/{entityId}-seed.txt
+      seedsDir = path.join(process.cwd(), "seeds-dev");
+      expectedFileName = `${entityId}-seed.txt`;
+      seedFile = path.join(seedsDir, expectedFileName);
+
+      logger.info({ entityId, expectedFileName }, "🔍 Normal mode, loading seed from seeds-dev");
+    }
 
     if (!fs.existsSync(seedFile)) {
-      throw new Error(`Seed file not found: ${entityId}-seed.txt. Run createIdentityKey() first.`);
+      const errorMessage = process.env.TEST_ENTITY_NUMBER
+        ? `Seed file not found: ${expectedFileName}. Expected location: ${seedsDir}/`
+        : `Seed file not found: ${expectedFileName}. Run createIdentityKey() first.`;
+
+      throw new Error(errorMessage);
     }
 
     try {
@@ -256,13 +286,15 @@ export class UnifiedIdentityService {
       const seed = new Uint8Array(Buffer.from(seedHex, "hex"));
 
       logger.info(
-        { entityId, seedFile: path.basename(seedFile) },
+        { entityId, seedFile: path.basename(seedFile), seedLength: seed.length },
         "🔐 Loaded seed from file",
       );
 
       return seed;
     } catch (error) {
-      throw new Error(`Failed to load seed from file ${entityId}-seed.txt: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(
+        `Failed to load seed from file ${expectedFileName}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   }
 
@@ -289,10 +321,7 @@ export class UnifiedIdentityService {
       // Step 1: Load seed from file
       const seed = this.loadSeedFromFile(agentId);
 
-      logger.info(
-        { agentId },
-        "🔐 Loaded seed from file for unified identity creation",
-      );
+      logger.info({ agentId }, "🔐 Loaded seed from file for unified identity creation");
 
       // Step 2: Create identity from seed
       const { did, credential } = await this.identityWallet.createIdentity({
