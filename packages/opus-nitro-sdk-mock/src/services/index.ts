@@ -5,5 +5,5 @@ export { StreamingDBSyncService } from "./streaming-db-sync.js";
 export {
   Iden3AuthClaimService,
   type AuthClaimResult,
-  type IdentityWithTrees
+  type IdentityWithTrees,
 } from "./iden3-auth-claim-service.js";

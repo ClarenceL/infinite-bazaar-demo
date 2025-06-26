@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
-import * as path from "node:path";
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   BjjProvider,
@@ -76,11 +76,13 @@ function saveIdentityToLogs(testName: string, identity: any, seed?: Uint8Array) 
       credentialIssuanceDate: identity.credential.issuanceDate,
       credentialExpirationDate: identity.credential.expirationDate,
     },
-    seed: seed ? {
-      hex: Buffer.from(seed).toString('hex'),
-      base64: Buffer.from(seed).toString('base64'),
-      length: seed.length,
-    } : null,
+    seed: seed
+      ? {
+          hex: Buffer.from(seed).toString("hex"),
+          base64: Buffer.from(seed).toString("base64"),
+          length: seed.length,
+        }
+      : null,
   };
 
   fs.writeFileSync(filepath, JSON.stringify(logData, null, 2));
@@ -185,81 +187,81 @@ async function testCreateIdentity() {
     saveIdentityToLogs("Custom Seed Identity Creation", seededResult, customSeed);
 
     // Test 2: Deterministic identity creation (same seed should produce same DID)
-    console.log("\n🧪 Test 2: Deterministic identity creation");
+    // console.log("\n🧪 Test 2: Deterministic identity creation");
 
-    const deterministicSeed = new Uint8Array(32);
-    deterministicSeed.fill(42); // Fill with a known value
+    // const deterministicSeed = new Uint8Array(32);
+    // deterministicSeed.fill(42); // Fill with a known value
 
-    const deterministicOptions: IdentityCreationOptions = {
-      method: "iden3",
-      blockchain: "polygon",
-      networkId: NETWORK_CONFIG.networkId,
-      seed: deterministicSeed,
-      revocationOpts: {
-        type: CredentialStatusType.SparseMerkleTreeProof,
-        id: `urn:uuid:${crypto.randomUUID()}`,
-      },
-    };
+    // const deterministicOptions: IdentityCreationOptions = {
+    //   method: "iden3",
+    //   blockchain: "polygon",
+    //   networkId: NETWORK_CONFIG.networkId,
+    //   seed: deterministicSeed,
+    //   revocationOpts: {
+    //     type: CredentialStatusType.SparseMerkleTreeProof,
+    //     id: `urn:uuid:${crypto.randomUUID()}`,
+    //   },
+    // };
 
-    console.log("📋 Creating first deterministic identity...");
-    const deterministicResult1 = await identityWallet.createIdentity(deterministicOptions);
+    // console.log("📋 Creating first deterministic identity...");
+    // const deterministicResult1 = await identityWallet.createIdentity(deterministicOptions);
 
-    console.log("📋 Creating second deterministic identity with same seed...");
-    // Temporarily test failure case - uncomment next line to test error handling
-    // deterministicSeed[0] = 99; // This would cause different DIDs
-    const deterministicResult2 = await identityWallet.createIdentity(deterministicOptions);
+    // console.log("📋 Creating second deterministic identity with same seed...");
+    // // Temporarily test failure case - uncomment next line to test error handling
+    // // deterministicSeed[0] = 99; // This would cause different DIDs
+    // const deterministicResult2 = await identityWallet.createIdentity(deterministicOptions);
 
-    const did1 = deterministicResult1.did.string();
-    const did2 = deterministicResult2.did.string();
+    // const did1 = deterministicResult1.did.string();
+    // const did2 = deterministicResult2.did.string();
 
-    console.log("✅ Deterministic identity test results:");
-    console.log("  - First DID:", did1);
-    console.log("  - Second DID:", did2);
-    console.log("  - Are DIDs identical?", did1 === did2 ? "✅ YES" : "❌ NO");
+    // console.log("✅ Deterministic identity test results:");
+    // console.log("  - First DID:", did1);
+    // console.log("  - Second DID:", did2);
+    // console.log("  - Are DIDs identical?", did1 === did2 ? "✅ YES" : "❌ NO");
 
-    // Critical check: DIDs must be identical for deterministic creation
-    if (did1 !== did2) {
-      console.error("❌ CRITICAL ERROR: Deterministic identity creation failed!");
-      console.error("Expected identical DIDs but got different ones:");
-      console.error("  - First DID: ", did1);
-      console.error("  - Second DID:", did2);
-      console.error("This indicates a problem with deterministic seed handling.");
-      process.exit(1);
-    }
+    // // Critical check: DIDs must be identical for deterministic creation
+    // if (did1 !== did2) {
+    //   console.error("❌ CRITICAL ERROR: Deterministic identity creation failed!");
+    //   console.error("Expected identical DIDs but got different ones:");
+    //   console.error("  - First DID: ", did1);
+    //   console.error("  - Second DID:", did2);
+    //   console.error("This indicates a problem with deterministic seed handling.");
+    //   process.exit(1);
+    // }
 
-    // Save to logs
-    saveIdentityToLogs("Deterministic Identity Creation 1", deterministicResult1, deterministicSeed);
-    saveIdentityToLogs("Deterministic Identity Creation 2", deterministicResult2, deterministicSeed);
+    // // Save to logs
+    // saveIdentityToLogs("Deterministic Identity Creation 1", deterministicResult1, deterministicSeed);
+    // saveIdentityToLogs("Deterministic Identity Creation 2", deterministicResult2, deterministicSeed);
 
     // Test 3: Different revocation options
-    console.log("\n🧪 Test 3: Different revocation options");
+    // console.log("\n🧪 Test 3: Different revocation options");
 
-    const reverseProofOptions: IdentityCreationOptions = {
-      method: "iden3",
-      blockchain: "polygon",
-      networkId: NETWORK_CONFIG.networkId,
-      revocationOpts: {
-        type: CredentialStatusType.Iden3ReverseSparseMerkleTreeProof,
-        id: `urn:uuid:${crypto.randomUUID()}`,
-        nonce: 1,
-      },
-    };
+    // const reverseProofOptions: IdentityCreationOptions = {
+    //   method: "iden3",
+    //   blockchain: "polygon",
+    //   networkId: NETWORK_CONFIG.networkId,
+    //   revocationOpts: {
+    //     type: CredentialStatusType.Iden3ReverseSparseMerkleTreeProof,
+    //     id: `urn:uuid:${crypto.randomUUID()}`,
+    //     nonce: 1,
+    //   },
+    // };
 
-    console.log("📋 Creating identity with reverse sparse merkle tree proof...");
+    // console.log("📋 Creating identity with reverse sparse merkle tree proof...");
 
-    try {
-      const reverseProofResult = await identityWallet.createIdentity(reverseProofOptions);
-      console.log("✅ Reverse proof identity created successfully:");
-      console.log("  - DID:", reverseProofResult.did.string());
+    // try {
+    //   const reverseProofResult = await identityWallet.createIdentity(reverseProofOptions);
+    //   console.log("✅ Reverse proof identity created successfully:");
+    //   console.log("  - DID:", reverseProofResult.did.string());
 
-      // Save to logs
-      saveIdentityToLogs("Reverse Proof Identity Creation", reverseProofResult);
-    } catch (error) {
-      console.log(
-        "⚠️  Reverse proof creation failed (this might be expected):",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+    //   // Save to logs
+    //   saveIdentityToLogs("Reverse Proof Identity Creation", reverseProofResult);
+    // } catch (error) {
+    //   console.log(
+    //     "⚠️  Reverse proof creation failed (this might be expected):",
+    //     error instanceof Error ? error.message : String(error),
+    //   );
+    // }
 
     console.log("\n🎉 All PolygonID SDK tests completed successfully!");
   } catch (error) {

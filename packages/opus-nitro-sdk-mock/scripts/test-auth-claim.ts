@@ -48,8 +48,12 @@ async function testAuthClaimCreation(): Promise<void> {
     console.log(`Roots Tree Root: ${identityWithTrees.authClaimResult.rootsTreeRoot}`);
     console.log(`Auth Claim hIndex: ${identityWithTrees.authClaimResult.hIndex}`);
     console.log(`Auth Claim hValue: ${identityWithTrees.authClaimResult.hValue}`);
-    console.log(`Public Key X: ${identityWithTrees.authClaimResult.publicKeyX.substring(0, 32)}...`);
-    console.log(`Public Key Y: ${identityWithTrees.authClaimResult.publicKeyY.substring(0, 32)}...`);
+    console.log(
+      `Public Key X: ${identityWithTrees.authClaimResult.publicKeyX.substring(0, 32)}...`,
+    );
+    console.log(
+      `Public Key Y: ${identityWithTrees.authClaimResult.publicKeyY.substring(0, 32)}...`,
+    );
     console.log(`Verification: ${isValid ? "✅ Valid" : "❌ Invalid"}`);
 
     console.log("\n📋 Tree Structure Information:");
@@ -69,4 +73,4 @@ async function testAuthClaimCreation(): Promise<void> {
 }
 
 // Run the test
-testAuthClaimCreation(); 
+testAuthClaimCreation();

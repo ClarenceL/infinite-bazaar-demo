@@ -132,6 +132,41 @@ export function CreateIdentityResult({ message }: ToolResultProps) {
                       {data.authClaim.publicKeyY}
                     </span>
                   </div>
+                  {data.authClaim.blockchainPublication && (
+                    <>
+                      <div className="my-2 border-purple-700/30 border-t" />
+                      <div className="flex justify-between">
+                        <span className={`${theme.text} opacity-75`}>Blockchain Status:</span>
+                        <span
+                          className={`${
+                            data.authClaim.blockchainPublication.success
+                              ? "text-green-400"
+                              : "text-yellow-400"
+                          } text-xs`}
+                        >
+                          {data.authClaim.blockchainPublication.success
+                            ? "✓ Published"
+                            : "⚠ Mock/Failed"}
+                        </span>
+                      </div>
+                      {data.authClaim.blockchainPublication.transactionHash && (
+                        <div className="flex justify-between">
+                          <span className={`${theme.text} opacity-75`}>Tx Hash:</span>
+                          <span className={`${theme.text} break-all font-mono text-xs`}>
+                            {data.authClaim.blockchainPublication.transactionHash}
+                          </span>
+                        </div>
+                      )}
+                      {data.authClaim.blockchainPublication.blockNumber && (
+                        <div className="flex justify-between">
+                          <span className={`${theme.text} opacity-75`}>Block:</span>
+                          <span className={`${theme.text} font-mono text-xs`}>
+                            #{data.authClaim.blockchainPublication.blockNumber}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}

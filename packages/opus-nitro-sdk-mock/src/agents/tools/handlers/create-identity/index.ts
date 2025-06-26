@@ -1,7 +1,10 @@
 import { logger } from "@infinite-bazaar-demo/logs";
 import { CDPClaimService } from "../../../../services/cdp-claim-service.js";
+import {
+  Iden3AuthClaimService,
+  type IdentityWithTrees,
+} from "../../../../services/iden3-auth-claim-service.js";
 import { type AgentClaimData, NitroDIDService } from "../../../../services/nitro-did-service.js";
-import { Iden3AuthClaimService, type IdentityWithTrees } from "../../../../services/iden3-auth-claim-service.js";
 import type { ToolCallResult } from "../../../../types/message.js";
 
 /**
@@ -88,6 +91,33 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       "Successfully created proper AuthClaim with Iden3 tree structure",
     );
 
+    // Step 2.5: Publish Identity State to blockchain (optional)
+    logger.info({ entity_id }, "Publishing Identity State to blockchain");
+
+    const blockchainResult = await iden3AuthClaimService.publishIdentityStateOnChain(
+      identityWithTrees,
+      entity_id,
+    );
+
+    if (blockchainResult.success) {
+      logger.info(
+        {
+          transactionHash: blockchainResult.transactionHash,
+          blockNumber: blockchainResult.blockNumber,
+          entity_id,
+        },
+        "Identity State published to blockchain successfully",
+      );
+    } else {
+      logger.warn(
+        {
+          error: blockchainResult.error,
+          entity_id,
+        },
+        "Identity State blockchain publication failed or was mocked",
+      );
+    }
+
     // Step 3: Prepare agent claim data for additional claims
     // TODO: These should come from the agent's actual configuration
     const agentClaimData: AgentClaimData = NitroDIDService.createAgentClaimData(
@@ -163,7 +193,8 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       tool_use_id: "",
       data: {
         success: true,
-        message: "Identity created successfully with proper Iden3 AuthClaim, Nitro DID and x402 payment",
+        message:
+          "Identity created successfully with proper Iden3 AuthClaim, Nitro DID and x402 payment",
         identity: {
           did: nitroDIDResult.did,
           agentId: nitroDIDResult.agentId,
@@ -180,6 +211,12 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
           hValue: identityWithTrees.authClaimResult.hValue.substring(0, 16) + "...",
           publicKeyX: identityWithTrees.authClaimResult.publicKeyX.substring(0, 16) + "...",
           publicKeyY: identityWithTrees.authClaimResult.publicKeyY.substring(0, 16) + "...",
+          blockchainPublication: {
+            success: blockchainResult.success,
+            transactionHash: blockchainResult.transactionHash,
+            blockNumber: blockchainResult.blockNumber,
+            error: blockchainResult.error,
+          },
         },
         claimSubmission: cdpResult.claimSubmission,
         paymentDetails: cdpResult.paymentDetails,
