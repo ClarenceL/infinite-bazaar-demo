@@ -16,8 +16,8 @@ export interface IPFSPublicationData {
   timestamp: string;
   networkId: string;
 
-  // Agent Identity
-  agentId: string;
+  // Entity Identity (can be AI, human, or other)
+  entityId: string;
   did: string;
 
   // AuthClaim Public Data (for verification)
@@ -32,7 +32,7 @@ export interface IPFSPublicationData {
     hValue: string;
   };
 
-  // Generic Claim Data (signed agent configuration)
+  // Generic Claim Data (signed entity configuration)
   genericClaim: {
     claimHash: string;
     signature: string;
@@ -63,7 +63,7 @@ export interface IPFSPublicationData {
   verification: {
     schemaHashes: {
       authClaim: string;
-      agentConfig: string;
+      entityConfig: string;
     };
     merkleProofs?: {
       claimsTreeProof: any;
@@ -98,7 +98,7 @@ export class IPFSPublicationService {
 
     if (this.ipfsEnabled) {
       // Initialize Pinata SDK only if IPFS upload is enabled
-      const pinataJwt = process.env.PINATA_JWT;
+      const pinataJwt = process.env.PINATA_API_JWT;
       const pinataGateway = process.env.PINATA_GATEWAY;
 
       if (!pinataJwt) {
@@ -136,7 +136,7 @@ export class IPFSPublicationService {
    * Excludes all sensitive information (private keys, seeds, payment details)
    */
   preparePublicationData(
-    agentId: string,
+    entityId: string,
     did: string,
     authClaimResult: any,
     genericClaimResult: any,
@@ -147,8 +147,8 @@ export class IPFSPublicationService {
       timestamp: new Date().toISOString(),
       networkId: "polygon:amoy",
 
-      // Agent Identity
-      agentId,
+      // Entity Identity
+      entityId,
       did,
 
       // AuthClaim Public Data (for verification)
@@ -174,7 +174,8 @@ export class IPFSPublicationService {
       verification: {
         schemaHashes: {
           authClaim: "ca938857241db9451ea329256b9c06e5", // Standard Iden3 auth schema
-          agentConfig: "f9c2b5e8a7d3c1e4f6a8b9c0d1e2f3a4", // Custom agent config schema
+          entityConfig:
+            genericClaimResult.genericClaim?.schemaHash || "2e2d1c11ad3e500de68d7ce16a0a559e", // Use actual schema hash from claim
         },
         networkConfig: {
           chainId: 80002,
@@ -186,7 +187,7 @@ export class IPFSPublicationService {
 
     logger.info(
       {
-        agentId,
+        entityId,
         did,
         dataSize: JSON.stringify(publicationData).length,
       },
@@ -208,8 +209,11 @@ export class IPFSPublicationService {
     mode: "ipfs+local" | "local-only";
   }> {
     const dataString = JSON.stringify(publicationData, null, 2);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `ipfs-${publicationData.agentId}-${timestamp}.json`;
+
+    // Generate filename using entityId and DID
+    const entityId = process.env.TEST_ENTITY_NUMBER || publicationData.entityId;
+    const didSuffix = publicationData.did.split(":").pop() || "unknown"; // Extract the last part of the DID
+    const filename = `entity-${entityId}-${didSuffix}.json`;
     const localFilePath = path.join(this.ipfsDir, filename);
 
     // Always save locally first
@@ -217,7 +221,7 @@ export class IPFSPublicationService {
       fs.writeFileSync(localFilePath, dataString);
       logger.info(
         {
-          agentId: publicationData.agentId,
+          entityId: publicationData.entityId,
           did: publicationData.did,
           filePath: localFilePath,
           dataSize: dataString.length,
@@ -228,7 +232,7 @@ export class IPFSPublicationService {
       logger.error(
         {
           error: localError,
-          agentId: publicationData.agentId,
+          entityId: publicationData.entityId,
         },
         "Failed to save claim data locally",
       );
@@ -245,32 +249,37 @@ export class IPFSPublicationService {
     if (this.ipfsEnabled && this.pinata) {
       try {
         // Create a File object for Pinata upload
-        const file = new File([dataString], `claim-${publicationData.agentId}-${Date.now()}.json`, {
+        const entityId = process.env.TEST_ENTITY_NUMBER || publicationData.entityId;
+        const didSuffix = publicationData.did.split(":").pop() || "unknown";
+        const pinataFileName = `entity-${entityId}-${didSuffix}.json`;
+        const pinataDisplayName = `Entity ${entityId} Identity Claim`;
+
+        const file = new File([dataString], pinataFileName, {
           type: "application/json",
         });
 
         logger.info(
           {
-            agentId: publicationData.agentId,
+            entityId: publicationData.entityId,
             did: publicationData.did,
             dataSize: dataString.length,
             hasBaseGroup: !!this.baseGroupId,
+            resolvedEntityId: entityId,
+            didSuffix: didSuffix,
+            filename: pinataFileName,
           },
           "Uploading verifiable claim data to IPFS via Pinata",
         );
 
         // Upload to Pinata with metadata and group
-        let upload = this.pinata.upload.public
-          .file(file)
-          .name(`Agent Claim: ${publicationData.agentId}`)
-          .keyvalues({
-            agentId: publicationData.agentId,
-            did: publicationData.did,
-            claimType: "genesis-identity",
-            version: publicationData.version,
-            networkId: publicationData.networkId,
-            timestamp: publicationData.timestamp,
-          });
+        let upload = this.pinata.upload.public.file(file).name(pinataDisplayName).keyvalues({
+          entityId: publicationData.entityId,
+          did: publicationData.did,
+          claimType: "genesis-identity",
+          version: publicationData.version,
+          networkId: publicationData.networkId,
+          timestamp: publicationData.timestamp,
+        });
 
         // Add to group if specified
         if (this.baseGroupId) {
@@ -281,7 +290,7 @@ export class IPFSPublicationService {
 
         logger.info(
           {
-            agentId: publicationData.agentId,
+            entityId: publicationData.entityId,
             did: publicationData.did,
             ipfsHash: result.cid,
             pinataId: result.id,
@@ -303,7 +312,7 @@ export class IPFSPublicationService {
         logger.warn(
           {
             error: ipfsError,
-            agentId: publicationData.agentId,
+            entityId: publicationData.entityId,
           },
           "IPFS upload failed, but local save succeeded",
         );
@@ -318,7 +327,7 @@ export class IPFSPublicationService {
     } else {
       logger.info(
         {
-          agentId: publicationData.agentId,
+          entityId: publicationData.entityId,
           ipfsEnabled: this.ipfsEnabled,
           reason: !this.ipfsEnabled ? "IPFS upload disabled" : "Pinata not initialized",
         },
@@ -407,8 +416,8 @@ export class IPFSPublicationService {
         errors.push("Invalid or missing DID");
       }
 
-      if (!data.agentId || typeof data.agentId !== "string") {
-        errors.push("Invalid or missing agent ID");
+      if (!data.entityId || typeof data.entityId !== "string") {
+        errors.push("Invalid or missing entity ID");
       }
 
       if (!data.version || !data.timestamp) {
@@ -470,7 +479,7 @@ export class IPFSPublicationService {
           valid: isValid,
           errorCount: errors.length,
           source,
-          agentId: data.agentId,
+          entityId: data.entityId,
           did: data.did,
         },
         "Completed claim verification",
@@ -497,7 +506,7 @@ export class IPFSPublicationService {
    */
   async listPublishedClaims(): Promise<
     Array<{
-      agentId: string;
+      entityId: string;
       did: string;
       timestamp: string;
       ipfsHash: string;
@@ -510,7 +519,7 @@ export class IPFSPublicationService {
       logger.info("Listing published claims from Pinata and local storage");
 
       const claims: Array<{
-        agentId: string;
+        entityId: string;
         did: string;
         timestamp: string;
         ipfsHash: string;
@@ -538,7 +547,7 @@ export class IPFSPublicationService {
               const keyvalues = file.keyvalues || {};
 
               claims.push({
-                agentId: keyvalues.agentId || "unknown",
+                entityId: keyvalues.entityId || "unknown",
                 did: keyvalues.did || "unknown",
                 timestamp: keyvalues.timestamp || new Date().toISOString(),
                 ipfsHash: file.cid,
@@ -575,7 +584,7 @@ export class IPFSPublicationService {
               // Check if this claim is already in the Pinata results
               const existsInPinata = claims.some(
                 (claim) =>
-                  claim.agentId === data.agentId &&
+                  claim.entityId === data.entityId &&
                   claim.did === data.did &&
                   Math.abs(
                     new Date(claim.timestamp).getTime() - new Date(data.timestamp).getTime(),
@@ -587,7 +596,7 @@ export class IPFSPublicationService {
                 const mockIpfsHash = `Qm${Buffer.from(dataString).toString("base64").slice(0, 44)}`;
 
                 claims.push({
-                  agentId: data.agentId,
+                  entityId: data.entityId,
                   did: data.did,
                   timestamp: data.timestamp,
                   ipfsHash: mockIpfsHash,

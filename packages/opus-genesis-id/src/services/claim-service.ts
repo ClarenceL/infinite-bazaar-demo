@@ -290,6 +290,60 @@ export class ClaimService {
         // Don't throw here - the claim was successfully submitted
       }
 
+      // Automatically attempt IPFS upload for genesis-identity claims with entity data
+      if (claim.claimType === "genesis-identity" && claim.claimData?.entityId) {
+        try {
+          logger.info(
+            {
+              claimId,
+              entityId: claim.claimData.entityId,
+              did: claim.did,
+            },
+            "Automatically uploading genesis identity claim to IPFS",
+          );
+
+          // Extract and structure the identity data for IPFS upload
+          const authClaimData = this.extractAuthClaimData(claim.claimData);
+          const genericClaimData = this.extractGenericClaimData(claim.claimData);
+
+          const ipfsResult = await this.publishClaimToIPFS(
+            claim.claimData.entityId as string, // We already checked entityId exists above
+            claim.did,
+            authClaimData,
+            genericClaimData,
+          );
+
+          if (ipfsResult.success) {
+            logger.info(
+              {
+                claimId,
+                ipfsHash: ipfsResult.ipfsHash,
+                pinataId: ipfsResult.pinataId,
+                mode: ipfsResult.mode,
+              },
+              "Successfully uploaded genesis identity claim to IPFS",
+            );
+          } else {
+            logger.warn(
+              {
+                claimId,
+                error: ipfsResult.error,
+              },
+              "Failed to upload genesis identity claim to IPFS, but blockchain submission succeeded",
+            );
+          }
+        } catch (ipfsError) {
+          logger.error(
+            {
+              claimId,
+              error: ipfsError,
+            },
+            "Error during automatic IPFS upload - continuing with successful claim submission",
+          );
+          // Don't throw here - the claim was successfully submitted to blockchain
+        }
+      }
+
       return result;
     } catch (error) {
       logger.error({ error, claim, paymentId }, "Failed to submit claim");
@@ -492,7 +546,7 @@ export class ClaimService {
    * This should be called after successful claim submission with the complete identity data
    */
   async publishClaimToIPFS(
-    agentId: string,
+    entityId: string,
     did: string,
     authClaimResult: any,
     genericClaimResult: any,
@@ -507,7 +561,7 @@ export class ClaimService {
     try {
       logger.info(
         {
-          agentId,
+          entityId,
           did,
         },
         "Publishing verifiable claim data to IPFS",
@@ -515,7 +569,7 @@ export class ClaimService {
 
       // Prepare publication data (excludes sensitive information)
       const publicationData = this.ipfsService.preparePublicationData(
-        agentId,
+        entityId,
         did,
         authClaimResult,
         genericClaimResult,
@@ -527,7 +581,7 @@ export class ClaimService {
       if (result.success) {
         logger.info(
           {
-            agentId,
+            entityId,
             did,
             ipfsHash: result.ipfsHash,
             filePath: result.filePath,
@@ -537,7 +591,7 @@ export class ClaimService {
       } else {
         logger.error(
           {
-            agentId,
+            entityId,
             did,
             error: result.error,
           },
@@ -550,7 +604,7 @@ export class ClaimService {
       logger.error(
         {
           error,
-          agentId,
+          entityId,
           did,
         },
         "Error publishing claim to IPFS",
@@ -601,11 +655,13 @@ export class ClaimService {
    */
   async listIPFSClaims(): Promise<
     Array<{
-      agentId: string;
+      entityId: string;
       did: string;
       timestamp: string;
       ipfsHash: string;
-      filePath: string;
+      filePath?: string;
+      pinataId?: string;
+      source: "pinata" | "local";
     }>
   > {
     try {
@@ -620,5 +676,72 @@ export class ClaimService {
       logger.error({ error }, "Error listing IPFS claims");
       return [];
     }
+  }
+
+  /**
+   * Extract AuthClaim data from claim submission data
+   */
+  private extractAuthClaimData(claimData: any): any {
+    // Check if authClaim data is nested under authClaim property
+    const authClaim = claimData.authClaim || claimData;
+
+    return {
+      identityState: authClaim.identityState || claimData.identityState || "mock-identity-state",
+      claimsTreeRoot:
+        authClaim.claimsTreeRoot || claimData.claimsTreeRoot || "mock-claims-tree-root",
+      revocationTreeRoot:
+        authClaim.revocationTreeRoot || claimData.revocationTreeRoot || "mock-revocation-tree-root",
+      rootsTreeRoot: authClaim.rootsTreeRoot || claimData.rootsTreeRoot || "mock-roots-tree-root",
+      publicKeyX: authClaim.publicKeyX || claimData.publicKeyX || "mock-public-key-x",
+      publicKeyY: authClaim.publicKeyY || claimData.publicKeyY || "mock-public-key-y",
+      hIndex: authClaim.hIndex || claimData.hIndex || "mock-h-index",
+      hValue: authClaim.hValue || claimData.hValue || "mock-h-value",
+    };
+  }
+
+  /**
+   * Extract GenericClaim data from claim submission data
+   */
+  private extractGenericClaimData(claimData: any): any {
+    // Check if genericClaim data is nested under genericClaim property
+    const genericClaim = claimData.genericClaim || claimData;
+
+    return {
+      claimHash: genericClaim.claimHash || claimData.claimHash || "mock-claim-hash",
+      signature: genericClaim.signature || claimData.signature || "mock-signature",
+      claimData: {
+        llmModel: {
+          name: claimData.llmModel || genericClaim.claimData?.llmModel?.name || "unknown-model",
+          version: "1.0.0",
+          provider: "unknown",
+        },
+        weightsRevision: {
+          hash:
+            claimData.weightsHash ||
+            genericClaim.claimData?.weightsRevision?.hash ||
+            "mock-weights-hash",
+          version: "1.0.0",
+          checksum:
+            claimData.weightsHash ||
+            genericClaim.claimData?.weightsRevision?.hash ||
+            "mock-weights-hash",
+        },
+        systemPrompt: {
+          hash:
+            claimData.promptHash ||
+            genericClaim.claimData?.systemPrompt?.hash ||
+            "mock-prompt-hash",
+          template: "Mock system prompt for testing",
+        },
+        relationshipGraph: {
+          hash:
+            claimData.relationshipHash ||
+            genericClaim.claimData?.relationshipGraph?.hash ||
+            "mock-relationship-hash",
+          nodeCount: 2,
+          edgeCount: 1,
+        },
+      },
+    };
   }
 }

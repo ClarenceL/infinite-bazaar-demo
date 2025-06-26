@@ -33,7 +33,7 @@ export class GenesisService {
       // Generate unique payment ID for tracking (payment already verified by middleware)
       const paymentId = `x402_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
-      // Submit claim to blockchain storage
+      // Submit claim to blockchain storage (ClaimService will handle IPFS upload automatically)
       const claimResult = await this.claimService.submitClaim(claim, paymentId);
 
       if (!claimResult.success) {

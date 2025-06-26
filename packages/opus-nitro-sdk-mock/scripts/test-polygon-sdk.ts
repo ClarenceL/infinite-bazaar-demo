@@ -54,6 +54,11 @@ if (!process.env.MOCK_AWS_NITRO_PRIV_KEY) {
   console.log("Set MOCK_AWS_NITRO_PRIV_KEY for testing");
 }
 
+// Enable IPFS upload for testing
+process.env.ENABLE_IPFS_UPLOAD = "true";
+console.log("🌐 ENABLE_IPFS_UPLOAD set to:", process.env.ENABLE_IPFS_UPLOAD);
+console.log("📡 IPFS uploads will be attempted via Pinata during testing");
+
 // Ensure logs directory exists
 const logsDir = path.join(__dirname, "..", "logs");
 const identitiesDir = path.join(logsDir, "identities");
@@ -172,18 +177,46 @@ async function submitClaimToOpusGenesis(
   try {
     const opusGenesisUrl = "http://localhost:3106";
 
-    // Prepare the claim data for submission
+    // Prepare the claim data for submission with complete identity data
     const claimData = {
       did: genericClaimResult.did,
       claimType: "genesis-identity",
       claimData: {
-        agentId,
-        llmModel: genericClaimResult.claimData.llmModel.name,
-        weightsHash: genericClaimResult.claimData.weightsRevision.hash,
-        promptHash: genericClaimResult.claimData.systemPrompt.hash,
-        relationshipHash: genericClaimResult.claimData.relationshipGraph.hash,
-        claimHash: genericClaimResult.claimHash,
-        signature: genericClaimResult.signature,
+        // Entity identification (can be agent, human, or other)
+        entityId: process.env.TEST_ENTITY_NUMBER || agentId,
+
+        // Complete identity data (for IPFS upload)
+        authClaim: {
+          identityState: genericClaimResult.authClaim?.identityState || "mock-identity-state",
+          claimsTreeRoot: genericClaimResult.authClaim?.claimsTreeRoot || "mock-claims-tree-root",
+          publicKeyX: genericClaimResult.publicKeyX || "mock-public-key-x",
+          publicKeyY: genericClaimResult.publicKeyY || "mock-public-key-y",
+          hIndex: genericClaimResult.authClaim?.hIndex || "mock-h-index",
+          hValue: genericClaimResult.authClaim?.hValue || "mock-h-value",
+        },
+
+        // Generic claim data (agent configuration)
+        genericClaim: {
+          claimHash: genericClaimResult.claimHash,
+          signature: genericClaimResult.signature,
+          claimData: genericClaimResult.claimData,
+        },
+
+        // Identity keypair (for verification)
+        privateKey: genericClaimResult.privateKey,
+        seed: {
+          hex: Buffer.from(genericClaimResult.seed).toString("hex"),
+          base64: Buffer.from(genericClaimResult.seed).toString("base64"),
+          length: genericClaimResult.seed.length,
+        },
+
+        // Legacy fields (for backward compatibility)
+        llmModel: genericClaimResult.genericClaim.claimData.llmModel.name,
+        weightsHash: genericClaimResult.genericClaim.claimData.weightsRevision.hash,
+        promptHash: genericClaimResult.genericClaim.claimData.systemPrompt.hash,
+        relationshipHash: genericClaimResult.genericClaim.claimData.relationshipGraph.hash,
+        claimHash: genericClaimResult.genericClaim.claimHash,
+        signature: genericClaimResult.genericClaim.signature,
         timestamp: new Date().toISOString(),
       },
       issuer: "did:iden3:polygon:amoy:nitro-enclave-issuer",
@@ -621,16 +654,22 @@ async function testCreateIdentity() {
     // Test 3: Submit generic claim to opus-genesis-id service
     console.log("\n🧪 Test 3: Submit GenericClaim to opus-genesis-id service");
 
-    // Convert unified result to format expected by submitClaimToOpusGenesis
-    const genericClaimForSubmission = {
-      did: unifiedResult.did,
-      claimHash: unifiedResult.genericClaim.claimHash,
-      signature: unifiedResult.genericClaim.signature,
-      claimData: unifiedResult.genericClaim.claimData,
-    };
+    // Pass the complete unified result to submitClaimToOpusGenesis for full IPFS upload
+    console.log("🔍 Preparing complete identity data for submission:");
+    console.log("  - DID:", unifiedResult.did);
+    console.log(
+      "  - Auth Claim Identity State:",
+      unifiedResult.authClaim?.identityState?.substring(0, 16) + "...",
+    );
+    console.log(
+      "  - Generic Claim Hash:",
+      unifiedResult.genericClaim.claimHash.substring(0, 16) + "...",
+    );
+    console.log("  - Private Key:", unifiedResult.privateKey.substring(0, 16) + "...");
+    console.log("  - Seed Length:", unifiedResult.seed.length, "bytes");
 
     const opusGenesisResult = await submitClaimToOpusGenesis(
-      genericClaimForSubmission,
+      unifiedResult, // Pass the complete unified result
       testAgentId,
     );
 
