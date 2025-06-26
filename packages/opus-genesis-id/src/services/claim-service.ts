@@ -5,8 +5,8 @@ import { logger } from "@infinite-bazaar-demo/logs";
 import { http, createPublicClient, formatUnits, parseAbi } from "viem";
 import { baseSepolia } from "viem/chains";
 import { z } from "zod";
-import { createCdpClient } from "./mock-cdp-service.js";
 import { IPFSPublicationService } from "./ipfs-publication-service.js";
+import { createCdpClient } from "./mock-cdp-service.js";
 // For now, I'll implement a simplified x402 integration
 // The x402 package has module resolution issues with the current setup
 // TODO: Fix module resolution to use proper x402 imports
@@ -136,9 +136,9 @@ export class ClaimService {
         },
         payment: paymentId
           ? {
-            paymentId,
-            details: paymentDetails,
-          }
+              paymentId,
+              details: paymentDetails,
+            }
           : null,
         metadata: {
           serviceWalletConfigured: !!this.SERVICE_WALLET_ADDRESS,
@@ -283,7 +283,10 @@ export class ClaimService {
           "Claim submitted and saved to file successfully",
         );
       } catch (saveError) {
-        logger.error({ saveError, claimId }, "Failed to save claim to file, but submission succeeded");
+        logger.error(
+          { saveError, claimId },
+          "Failed to save claim to file, but submission succeeded",
+        );
         // Don't throw here - the claim was successfully submitted
       }
 
@@ -324,7 +327,8 @@ export class ClaimService {
       return {
         success: true,
         claimId,
-        transactionHash: blockchainResult.transactionHash || `0x${Math.random().toString(16).substring(2, 66)}`,
+        transactionHash:
+          blockchainResult.transactionHash || `0x${Math.random().toString(16).substring(2, 66)}`,
         timestamp: new Date().toISOString(),
         gasUsed: 65000, // Estimated gas usage
       };
@@ -406,7 +410,9 @@ export class ClaimService {
         return [];
       }
 
-      const files = fs.readdirSync(this.claimsDir).filter((file) => file.startsWith("claim-") && file.endsWith(".json"));
+      const files = fs
+        .readdirSync(this.claimsDir)
+        .filter((file) => file.startsWith("claim-") && file.endsWith(".json"));
 
       // Sort files by modification time (newest first)
       const fileStats = files.map((file) => ({
@@ -421,15 +427,17 @@ export class ClaimService {
       const paginatedFiles = fileStats.slice(offset, offset + limit);
 
       // Read and parse claim files
-      const claims = paginatedFiles.map((fileInfo) => {
-        try {
-          const content = fs.readFileSync(fileInfo.path, "utf8");
-          return JSON.parse(content);
-        } catch (parseError) {
-          logger.error({ error: parseError, file: fileInfo.file }, "Failed to parse claim file");
-          return null;
-        }
-      }).filter(Boolean); // Remove null entries
+      const claims = paginatedFiles
+        .map((fileInfo) => {
+          try {
+            const content = fs.readFileSync(fileInfo.path, "utf8");
+            return JSON.parse(content);
+          } catch (parseError) {
+            logger.error({ error: parseError, file: fileInfo.file }, "Failed to parse claim file");
+            return null;
+          }
+        })
+        .filter(Boolean); // Remove null entries
 
       logger.info(
         {
@@ -455,7 +463,9 @@ export class ClaimService {
     try {
       logger.info({ claimId }, "Retrieving claim by ID from saved files");
 
-      const files = fs.readdirSync(this.claimsDir).filter((file) => file.includes(claimId) && file.endsWith(".json"));
+      const files = fs
+        .readdirSync(this.claimsDir)
+        .filter((file) => file.includes(claimId) && file.endsWith(".json"));
 
       if (files.length === 0) {
         logger.info({ claimId }, "Claim not found in saved files");
@@ -492,7 +502,7 @@ export class ClaimService {
     filePath?: string;
     pinataId?: string;
     error?: string;
-    mode?: 'ipfs+local' | 'local-only';
+    mode?: "ipfs+local" | "local-only";
   }> {
     try {
       logger.info(
@@ -589,13 +599,15 @@ export class ClaimService {
   /**
    * List all published claims in IPFS
    */
-  async listIPFSClaims(): Promise<Array<{
-    agentId: string;
-    did: string;
-    timestamp: string;
-    ipfsHash: string;
-    filePath: string;
-  }>> {
+  async listIPFSClaims(): Promise<
+    Array<{
+      agentId: string;
+      did: string;
+      timestamp: string;
+      ipfsHash: string;
+      filePath: string;
+    }>
+  > {
     try {
       logger.info("Listing all published claims from IPFS");
 

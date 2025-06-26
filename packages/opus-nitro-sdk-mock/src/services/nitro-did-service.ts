@@ -179,7 +179,7 @@ export class NitroDIDService {
 
         logger.warn(
           { agentId },
-          "MOCK IMPLEMENTATION: Using random seed for identity creation. In production, this would be handled by AWS Nitro Enclaves with proper key management."
+          "MOCK IMPLEMENTATION: Using random seed for identity creation. In production, this would be handled by AWS Nitro Enclaves with proper key management.",
         );
 
         const identityResult = await this.identityWallet.createIdentity({
@@ -293,12 +293,12 @@ export class NitroDIDService {
 
   /**
    * REMOVED: createDeterministicSeed() method was insecure
-   * 
+   *
    * SECURITY NOTE: The previous deterministic seed approach was vulnerable because:
    * - Anyone with MOCK_AWS_NITRO_PRIV_KEY + agentId could recreate seeds
    * - Environment variables are often exposed in logs/configs
    * - This would allow complete identity impersonation
-   * 
+   *
    * Now using crypto.getRandomValues() for proper security.
    * In production, AWS Nitro Enclaves would handle key generation securely.
    */

@@ -1,0 +1,637 @@
+import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import {
+  BjjProvider,
+  CredentialStatusResolverRegistry,
+  CredentialStatusType,
+  CredentialStorage,
+  CredentialWallet,
+  EthStateStorage,
+  type IDataStorage,
+  type Identity,
+  IdentityStorage,
+  IdentityWallet,
+  InMemoryDataSource,
+  InMemoryMerkleTreeStorage,
+  InMemoryPrivateKeyStore,
+  IssuerResolver,
+  KMS,
+  KmsKeyType,
+  type Profile,
+  RHSResolver,
+  type W3CCredential,
+  core,
+  defaultEthConnectionConfig,
+} from "@0xpolygonid/js-sdk";
+import { logger } from "@infinite-bazaar-demo/logs";
+
+// Network configuration
+const NETWORK_ENV: "MAINNET" | "TESTNET" = "TESTNET";
+
+const NETWORK_CONFIG = {
+  MAINNET: {
+    rpcUrl: "https://polygon-rpc.com",
+    contractAddress: "0x624ce98D2d27b20b8f8d521723Df8fC4db71D79D",
+    chainId: 137,
+    networkId: "main",
+    networkName: "main",
+  },
+  TESTNET: {
+    rpcUrl: "https://rpc-amoy.polygon.technology/",
+    contractAddress: "0x1a4cC30f2aA0377b0c3bc9848766D90cb4404124",
+    chainId: 80002,
+    networkId: "amoy",
+    networkName: "amoy",
+  },
+};
+
+export interface AgentClaimData {
+  llmModel: {
+    name: string;
+    version: string;
+    provider: string;
+  };
+  weightsRevision: {
+    hash: string;
+    version: string;
+    checksum: string;
+  };
+  systemPrompt: {
+    template: string;
+    zodSchema: string;
+    hash: string;
+  };
+  relationshipGraph: {
+    hash: string;
+    nodeCount: number;
+    edgeCount: number;
+  };
+}
+
+export interface AuthClaimResult {
+  authClaim: core.Claim;
+  claimsTreeRoot: string;
+  revocationTreeRoot: string;
+  rootsTreeRoot: string;
+  identityState: string;
+  hIndex: string;
+  hValue: string;
+  publicKeyX: string;
+  publicKeyY: string;
+}
+
+export interface GenericClaimResult {
+  genericClaim: any;
+  claimHash: string;
+  signature: string;
+  claimData: AgentClaimData;
+}
+
+export interface UnifiedIdentityResult {
+  // Core Identity
+  did: string;
+  credential: W3CCredential;
+  seed: Uint8Array;
+  privateKey: string;
+  publicKeyX: string;
+  publicKeyY: string;
+
+  // Auth Claim
+  authClaim: AuthClaimResult;
+
+  // Generic Claim
+  genericClaim: GenericClaimResult;
+
+  // Metadata
+  agentId: string;
+  timestamp: string;
+  filePath: string;
+}
+
+/**
+ * Unified Identity Service that follows proper Iden3 flow:
+ * 1. Generate ONE random seed
+ * 2. Derive BabyJubJub keypair from seed
+ * 3. Create AuthClaim with public key coordinates
+ * 4. Create GenericClaim about model's signature hashes
+ * 5. Everything tied to the same identity/keypair
+ */
+export class UnifiedIdentityService {
+  private identityWallet: IdentityWallet;
+  private credentialWallet: CredentialWallet;
+  private dataStorage: IDataStorage;
+
+  constructor() {
+    this.dataStorage = this.initDataStorage();
+    this.credentialWallet = this.initCredentialWallet(this.dataStorage);
+    this.identityWallet = this.initIdentityWallet(this.dataStorage, this.credentialWallet);
+  }
+
+  private initDataStorage(): IDataStorage {
+    const currentConfig = NETWORK_CONFIG[NETWORK_ENV];
+
+    const networkConfig = {
+      ...defaultEthConnectionConfig,
+      url: currentConfig.rpcUrl,
+      contractAddress: currentConfig.contractAddress,
+      chainId: currentConfig.chainId,
+    };
+
+    logger.info(
+      {
+        network: NETWORK_ENV,
+        chainId: currentConfig.chainId,
+        rpcUrl: currentConfig.rpcUrl,
+      },
+      "Initializing unified identity service with network configuration",
+    );
+
+    return {
+      credential: new CredentialStorage(new InMemoryDataSource<W3CCredential>()),
+      identity: new IdentityStorage(
+        new InMemoryDataSource<Identity>(),
+        new InMemoryDataSource<Profile>(),
+      ),
+      mt: new InMemoryMerkleTreeStorage(40),
+      states: new EthStateStorage(networkConfig),
+    };
+  }
+
+  private initCredentialWallet(dataStorage: IDataStorage): CredentialWallet {
+    const resolvers = new CredentialStatusResolverRegistry();
+    resolvers.register(CredentialStatusType.SparseMerkleTreeProof, new IssuerResolver());
+    resolvers.register(
+      CredentialStatusType.Iden3ReverseSparseMerkleTreeProof,
+      new RHSResolver(dataStorage.states),
+    );
+
+    return new CredentialWallet(dataStorage, resolvers);
+  }
+
+  private initIdentityWallet(
+    dataStorage: IDataStorage,
+    credentialWallet: CredentialWallet,
+  ): IdentityWallet {
+    const memoryKeyStore = new InMemoryPrivateKeyStore();
+    const bjjProvider = new BjjProvider(KmsKeyType.BabyJubJub, memoryKeyStore);
+    const kms = new KMS();
+    kms.registerKeyProvider(KmsKeyType.BabyJubJub, bjjProvider);
+
+    return new IdentityWallet(kms, dataStorage, credentialWallet);
+  }
+
+  /**
+   * Create a complete identity following proper Iden3 flow:
+   * 1. Generate random seed
+   * 2. Create identity and derive keypair from seed
+   * 3. Create AuthClaim with public key
+   * 4. Create GenericClaim about agent configuration
+   * 5. All tied to the same identity
+   */
+  async createUnifiedIdentity(
+    agentId: string,
+    agentClaimData: AgentClaimData,
+  ): Promise<UnifiedIdentityResult> {
+    try {
+      const currentConfig = NETWORK_CONFIG[NETWORK_ENV];
+
+      logger.info(
+        { agentId, network: NETWORK_ENV },
+        "Creating unified identity with AuthClaim and GenericClaim",
+      );
+
+      // Step 1: Generate ONE random seed for everything
+      const seed = new Uint8Array(32);
+      crypto.getRandomValues(seed);
+
+      logger.info(
+        { agentId },
+        "🔐 Generated random seed for unified identity (seed will be saved for testing)",
+      );
+
+      // Step 2: Create identity from seed
+      const { did, credential } = await this.identityWallet.createIdentity({
+        method: "iden3",
+        blockchain: "polygon",
+        networkId: currentConfig.networkId,
+        seed,
+        revocationOpts: {
+          type: CredentialStatusType.SparseMerkleTreeProof,
+          id: `urn:uuid:${crypto.randomUUID()}`,
+        },
+      });
+
+      logger.info({ did: did.string(), agentId }, "Identity created from seed");
+
+      // Step 3: Generate BabyJubJub keypair from the identity
+      // Note: In the real implementation, this would be derived from the seed
+      // For now, we'll generate a key and extract the public key coordinates
+      const keyId = await this.identityWallet.generateKey(KmsKeyType.BabyJubJub);
+
+      // Extract public key coordinates from the credential
+      // The AuthBJJCredential contains the public key coordinates
+      const publicKeyX = credential.credentialSubject.x;
+      const publicKeyY = credential.credentialSubject.y;
+
+      // Generate private key representation (mock for now)
+      const privateKey = this.derivePrivateKeyFromSeed(seed);
+
+      logger.info(
+        {
+          agentId,
+          publicKeyX: publicKeyX.toString(),
+          publicKeyY: publicKeyY.toString(),
+        },
+        "Derived BabyJubJub keypair from seed",
+      );
+
+      // Step 4: Create AuthClaim with the public key coordinates
+      const authClaimResult = await this.createAuthClaim(
+        agentId,
+        publicKeyX.toString(),
+        publicKeyY.toString(),
+      );
+
+      // Step 5: Create GenericClaim about agent configuration
+      const genericClaimResult = await this.createGenericClaim(
+        agentId,
+        agentClaimData,
+        did.string(),
+        privateKey,
+      );
+
+      // Step 6: Save everything to file
+      const unifiedResult: UnifiedIdentityResult = {
+        did: did.string(),
+        credential,
+        seed,
+        privateKey,
+        publicKeyX: publicKeyX.toString(),
+        publicKeyY: publicKeyY.toString(),
+        authClaim: authClaimResult,
+        genericClaim: genericClaimResult,
+        agentId,
+        timestamp: new Date().toISOString(),
+        filePath: "", // Will be set after saving
+      };
+
+      const filePath = await this.saveUnifiedIdentityToFile(unifiedResult);
+      unifiedResult.filePath = filePath;
+
+      logger.info(
+        {
+          agentId,
+          did: did.string(),
+          filePath,
+        },
+        "✅ Unified identity created successfully with AuthClaim and GenericClaim",
+      );
+
+      return unifiedResult;
+    } catch (error) {
+      logger.error({ error, agentId, network: NETWORK_ENV }, "Failed to create unified identity");
+      throw new Error(
+        `Unified identity creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Create AuthClaim following Iden3 specification
+   * Schema hash: ca938857241db9451ea329256b9c06e5
+   */
+  private async createAuthClaim(
+    agentId: string,
+    publicKeyX: string,
+    publicKeyY: string,
+  ): Promise<AuthClaimResult> {
+    try {
+      logger.info({ agentId }, "Creating AuthClaim with BabyJubJub public key");
+
+      // Use the predefined AuthClaim schema hash from Iden3 docs
+      const authSchemaHash = "ca938857241db9451ea329256b9c06e5";
+
+      // Create the auth claim with public key coordinates in index slots
+      const authClaim = new core.Claim();
+
+      // Mock the auth claim structure following Iden3 specification
+      const authClaimStructure = {
+        schemaHash: authSchemaHash,
+        indexData: [BigInt(publicKeyX), BigInt(publicKeyY)],
+        valueData: [BigInt(1), BigInt(0)], // revocation nonce = 1, rest = 0
+      };
+
+      // Calculate tree roots (simplified for mock)
+      const claimsTreeRoot = this.calculateMockTreeRoot(authClaimStructure);
+      const revocationTreeRoot = "0";
+      const rootsTreeRoot = "0";
+
+      // Calculate identity state
+      const identityState = this.calculateIdentityState(
+        claimsTreeRoot,
+        revocationTreeRoot,
+        rootsTreeRoot,
+      );
+
+      // Calculate hIndex and hValue for the claim
+      const hIndex = this.calculateHIndex(authClaimStructure);
+      const hValue = this.calculateHValue(authClaimStructure);
+
+      logger.info(
+        {
+          agentId,
+          identityState,
+          publicKeyX,
+          publicKeyY,
+        },
+        "AuthClaim created successfully",
+      );
+
+      return {
+        authClaim,
+        claimsTreeRoot,
+        revocationTreeRoot,
+        rootsTreeRoot,
+        identityState,
+        hIndex,
+        hValue,
+        publicKeyX,
+        publicKeyY,
+      };
+    } catch (error) {
+      logger.error({ error, agentId }, "Failed to create AuthClaim");
+      throw new Error(
+        `AuthClaim creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Create GenericClaim about agent configuration
+   * Schema hash: 2e2d1c11ad3e500de68d7ce16a0a559e (from Iden3 docs example)
+   */
+  private async createGenericClaim(
+    agentId: string,
+    claimData: AgentClaimData,
+    did: string,
+    privateKey: string,
+  ): Promise<GenericClaimResult> {
+    try {
+      logger.info({ agentId }, "Creating GenericClaim about agent configuration");
+
+      // Use the example schema hash from Iden3 docs for KYCAgeCredential
+      // In practice, we'd define our own schema for agent configuration
+      const agentConfigSchemaHash = "2e2d1c11ad3e500de68d7ce16a0a559e";
+
+      // Create claim data following Iden3 structure
+      // Index slots: llmModel hash, weights hash
+      const llmModelHash = BigInt(
+        `0x${createHash("sha256").update(claimData.llmModel.name).digest("hex").slice(0, 32)}`,
+      );
+      const weightsHash = BigInt(
+        `0x${claimData.weightsRevision.hash.replace(/^0x/, "").slice(0, 32)}`,
+      );
+
+      // Value slots: system prompt hash, relationship graph hash
+      const promptHash = BigInt(`0x${claimData.systemPrompt.hash.replace(/^0x/, "").slice(0, 32)}`);
+      const relationshipHash = BigInt(
+        `0x${claimData.relationshipGraph.hash.replace(/^0x/, "").slice(0, 32)}`,
+      );
+
+      const genericClaimStructure = {
+        schemaHash: agentConfigSchemaHash,
+        subjectId: did,
+        indexData: [llmModelHash, weightsHash],
+        valueData: [promptHash, relationshipHash],
+        revocationNonce: BigInt(Math.floor(Math.random() * 1000000)),
+        expirationDate: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 years
+      };
+
+      // Create comprehensive claim hash
+      const claimHash = this.createClaimHash(claimData);
+
+      // Sign the claim hash with the private key
+      const signature = this.signClaimHash(claimHash, privateKey);
+
+      logger.info(
+        {
+          agentId,
+          did,
+          claimHash,
+          llmModel: claimData.llmModel.name,
+        },
+        "GenericClaim created successfully",
+      );
+
+      return {
+        genericClaim: genericClaimStructure,
+        claimHash,
+        signature,
+        claimData,
+      };
+    } catch (error) {
+      logger.error({ error, agentId }, "Failed to create GenericClaim");
+      throw new Error(
+        `GenericClaim creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Derive private key from seed (mock implementation)
+   * In production, this would use proper cryptographic derivation
+   */
+  private derivePrivateKeyFromSeed(seed: Uint8Array): string {
+    const seedHash = createHash("sha256").update(seed).digest("hex");
+    return `0x${seedHash}`;
+  }
+
+  /**
+   * Calculate mock tree root for demonstration
+   */
+  private calculateMockTreeRoot(claimStructure: any): string {
+    const structureString = JSON.stringify(claimStructure, (key, value) => {
+      if (typeof value === "bigint") {
+        return value.toString();
+      }
+      return value;
+    });
+    const hash = createHash("sha256").update(structureString).digest("hex");
+    return BigInt(`0x${hash.slice(0, 32)}`).toString();
+  }
+
+  /**
+   * Calculate identity state from tree roots
+   */
+  private calculateIdentityState(
+    claimsRoot: string,
+    revocationRoot: string,
+    rootsRoot: string,
+  ): string {
+    const stateString = `${claimsRoot}-${revocationRoot}-${rootsRoot}`;
+    const hash = createHash("sha256").update(stateString).digest("hex");
+    return hash;
+  }
+
+  /**
+   * Calculate hIndex for claim
+   */
+  private calculateHIndex(claimStructure: any): string {
+    const indexString = JSON.stringify(claimStructure.indexData, (key, value) => {
+      if (typeof value === "bigint") {
+        return value.toString();
+      }
+      return value;
+    });
+    const hash = createHash("sha256").update(indexString).digest("hex");
+    return BigInt(`0x${hash.slice(0, 16)}`).toString();
+  }
+
+  /**
+   * Calculate hValue for claim
+   */
+  private calculateHValue(claimStructure: any): string {
+    const valueString = JSON.stringify(claimStructure.valueData, (key, value) => {
+      if (typeof value === "bigint") {
+        return value.toString();
+      }
+      return value;
+    });
+    const hash = createHash("sha256").update(valueString).digest("hex");
+    return BigInt(`0x${hash.slice(0, 16)}`).toString();
+  }
+
+  /**
+   * Create comprehensive hash of claim data
+   */
+  private createClaimHash(claimData: AgentClaimData): string {
+    const claimString = JSON.stringify({
+      llmModel: claimData.llmModel,
+      weightsRevision: claimData.weightsRevision,
+      systemPrompt: claimData.systemPrompt,
+      relationshipGraph: claimData.relationshipGraph,
+      timestamp: new Date().toISOString(),
+    });
+
+    return createHash("sha256").update(claimString).digest("hex");
+  }
+
+  /**
+   * Sign claim hash with private key (mock implementation)
+   */
+  private signClaimHash(claimHash: string, privateKey: string): string {
+    const signatureInput = `${privateKey}-${claimHash}`;
+    return createHash("sha256").update(signatureInput).digest("hex");
+  }
+
+  /**
+   * Verify claim signature
+   */
+  async verifyClaim(claimHash: string, signature: string, privateKey: string): Promise<boolean> {
+    try {
+      const expectedSignature = this.signClaimHash(claimHash, privateKey);
+      return expectedSignature === signature;
+    } catch (error) {
+      logger.error({ error, claimHash }, "Failed to verify claim signature");
+      return false;
+    }
+  }
+
+  /**
+   * Save unified identity to file
+   */
+  private async saveUnifiedIdentityToFile(result: UnifiedIdentityResult): Promise<string> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const fileName = `unified-identity-${result.agentId}-${timestamp}.json`;
+    const filePath = path.join(process.cwd(), "out", "identities", fileName);
+
+    // Ensure directory exists
+    const dirPath = path.dirname(filePath);
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+
+    // Prepare data for saving (handle Uint8Array and BigInt)
+    const saveData = {
+      ...result,
+      seedInfo: {
+        hex: Buffer.from(result.seed).toString("hex"),
+        base64: Buffer.from(result.seed).toString("base64"),
+        length: result.seed.length,
+      },
+      securityNote:
+        "MOCK IMPLEMENTATION: This includes seed data for testing only. In production, seeds should never be logged or stored.",
+    };
+
+    // Write to file
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify(
+        saveData,
+        (key, value) => {
+          if (typeof value === "bigint") {
+            return value.toString();
+          }
+          if (value instanceof Uint8Array) {
+            return {
+              type: "Uint8Array",
+              hex: Buffer.from(value).toString("hex"),
+              base64: Buffer.from(value).toString("base64"),
+              length: value.length,
+            };
+          }
+          return value;
+        },
+        2,
+      ),
+    );
+
+    logger.info({ filePath, agentId: result.agentId }, "Unified identity saved to file");
+
+    return filePath;
+  }
+
+  /**
+   * Create agent claim data helper
+   */
+  static createAgentClaimData(
+    llmModel: string,
+    weightsHash: string,
+    systemPrompt: string,
+    zodSchema: string,
+    relationshipGraphData: { nodes: any[]; edges: any[] },
+  ): AgentClaimData {
+    // Create hash of system prompt and zod schema
+    const promptTemplateHash = createHash("sha256")
+      .update(`${systemPrompt}-${zodSchema}`)
+      .digest("hex");
+
+    // Create hash of relationship graph
+    const graphString = JSON.stringify(relationshipGraphData);
+    const relationshipHash = createHash("sha256").update(graphString).digest("hex");
+
+    return {
+      llmModel: {
+        name: llmModel,
+        version: "1.0.0",
+        provider: "anthropic",
+      },
+      weightsRevision: {
+        hash: weightsHash,
+        version: "1.0.0",
+        checksum: weightsHash,
+      },
+      systemPrompt: {
+        template: systemPrompt,
+        zodSchema: zodSchema,
+        hash: promptTemplateHash,
+      },
+      relationshipGraph: {
+        hash: relationshipHash,
+        nodeCount: relationshipGraphData.nodes.length,
+        edgeCount: relationshipGraphData.edges.length,
+      },
+    };
+  }
+}

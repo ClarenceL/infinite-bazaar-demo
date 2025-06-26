@@ -17,14 +17,7 @@
     "lint:fix": "biome check --fix .",
     "lint:fix-unsafe": "biome check --fix --unsafe ."
   },
-  "keywords": [
-    "x402",
-    "privado-id",
-    "blockchain",
-    "identity",
-    "coinbase",
-    "cdp"
-  ],
+  "keywords": ["x402", "privado-id", "blockchain", "identity", "coinbase", "cdp"],
   "author": "",
   "license": "ISC",
   "dependencies": {

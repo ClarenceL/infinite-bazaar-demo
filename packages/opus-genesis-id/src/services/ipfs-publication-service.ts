@@ -197,15 +197,15 @@ export class IPFSPublicationService {
   }
 
   /**
- * Publish claim data (always saves locally, optionally uploads to IPFS via Pinata)
- */
+   * Publish claim data (always saves locally, optionally uploads to IPFS via Pinata)
+   */
   async publishToIPFS(publicationData: IPFSPublicationData): Promise<{
     success: boolean;
     ipfsHash?: string;
     filePath?: string;
     pinataId?: string;
     error?: string;
-    mode: 'ipfs+local' | 'local-only';
+    mode: "ipfs+local" | "local-only";
   }> {
     const dataString = JSON.stringify(publicationData, null, 2);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -237,7 +237,7 @@ export class IPFSPublicationService {
         success: false,
         error: `Local save failed: ${localError instanceof Error ? localError.message : "Unknown error"}`,
         filePath: localFilePath,
-        mode: 'local-only',
+        mode: "local-only",
       };
     }
 
@@ -260,7 +260,8 @@ export class IPFSPublicationService {
         );
 
         // Upload to Pinata with metadata and group
-        let upload = this.pinata.upload.public.file(file)
+        let upload = this.pinata.upload.public
+          .file(file)
           .name(`Agent Claim: ${publicationData.agentId}`)
           .keyvalues({
             agentId: publicationData.agentId,
@@ -296,7 +297,7 @@ export class IPFSPublicationService {
           ipfsHash: result.cid,
           pinataId: result.id,
           filePath: localFilePath,
-          mode: 'ipfs+local',
+          mode: "ipfs+local",
         };
       } catch (ipfsError) {
         logger.warn(
@@ -311,7 +312,7 @@ export class IPFSPublicationService {
           success: true, // Local save succeeded
           error: `IPFS upload failed: ${ipfsError instanceof Error ? ipfsError.message : "Unknown error"}`,
           filePath: localFilePath,
-          mode: 'local-only',
+          mode: "local-only",
         };
       }
     } else {
@@ -327,33 +328,33 @@ export class IPFSPublicationService {
       return {
         success: true,
         filePath: localFilePath,
-        mode: 'local-only',
+        mode: "local-only",
       };
     }
   }
 
   /**
- * Verify published claim data from IPFS
- * This fetches the data from IPFS via Pinata gateway and validates it
- */
+   * Verify published claim data from IPFS
+   * This fetches the data from IPFS via Pinata gateway and validates it
+   */
   async verifyPublishedClaim(ipfsHash: string): Promise<{
     valid: boolean;
     data?: IPFSPublicationData;
     errors?: string[];
-    source?: 'pinata' | 'local';
+    source?: "pinata" | "local";
   }> {
     try {
       logger.info({ ipfsHash }, "Verifying published claim from IPFS");
 
       let data: IPFSPublicationData;
-      let source: 'pinata' | 'local' = 'pinata';
+      let source: "pinata" | "local" = "pinata";
 
       try {
         // Try to fetch from IPFS via Pinata gateway
         const gatewayUrl = this.pinata?.config?.pinataGateway;
-        const ipfsUrl = gatewayUrl ?
-          `https://${gatewayUrl}/ipfs/${ipfsHash}` :
-          `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+        const ipfsUrl = gatewayUrl
+          ? `https://${gatewayUrl}/ipfs/${ipfsHash}`
+          : `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
 
         logger.info({ ipfsUrl }, "Fetching claim data from IPFS gateway");
 
@@ -366,7 +367,10 @@ export class IPFSPublicationService {
         const dataString = await response.text();
         data = JSON.parse(dataString);
 
-        logger.info({ ipfsHash, source: 'pinata' }, "Successfully fetched claim data from IPFS gateway");
+        logger.info(
+          { ipfsHash, source: "pinata" },
+          "Successfully fetched claim data from IPFS gateway",
+        );
       } catch (gatewayError) {
         logger.warn(
           { error: gatewayError, ipfsHash },
@@ -375,7 +379,7 @@ export class IPFSPublicationService {
 
         // Fallback to local storage
         const files = fs.readdirSync(this.ipfsDir);
-        const matchingFile = files.find(file => file.includes(ipfsHash.slice(2, 10)));
+        const matchingFile = files.find((file) => file.includes(ipfsHash.slice(2, 10)));
 
         if (!matchingFile) {
           return {
@@ -385,66 +389,73 @@ export class IPFSPublicationService {
         }
 
         const filePath = path.join(this.ipfsDir, matchingFile);
-        const dataString = fs.readFileSync(filePath, 'utf-8');
+        const dataString = fs.readFileSync(filePath, "utf-8");
         data = JSON.parse(dataString);
-        source = 'local';
+        source = "local";
 
-        logger.info({ ipfsHash, source: 'local' }, "Successfully fetched claim data from local storage");
+        logger.info(
+          { ipfsHash, source: "local" },
+          "Successfully fetched claim data from local storage",
+        );
       }
 
       // Perform comprehensive validation
       const errors: string[] = [];
 
       // Basic structure validation
-      if (!data.did || !data.did.startsWith('did:iden3:')) {
-        errors.push('Invalid or missing DID');
+      if (!data.did || !data.did.startsWith("did:iden3:")) {
+        errors.push("Invalid or missing DID");
       }
 
-      if (!data.agentId || typeof data.agentId !== 'string') {
-        errors.push('Invalid or missing agent ID');
+      if (!data.agentId || typeof data.agentId !== "string") {
+        errors.push("Invalid or missing agent ID");
       }
 
       if (!data.version || !data.timestamp) {
-        errors.push('Missing version or timestamp');
+        errors.push("Missing version or timestamp");
       }
 
       // AuthClaim validation
       if (!data.authClaim) {
-        errors.push('Missing authClaim data');
+        errors.push("Missing authClaim data");
       } else {
         if (!data.authClaim.identityState || data.authClaim.identityState.length !== 64) {
-          errors.push('Invalid identity state');
+          errors.push("Invalid identity state");
         }
 
         if (!data.authClaim.publicKeyX || !data.authClaim.publicKeyY) {
-          errors.push('Missing public key coordinates');
+          errors.push("Missing public key coordinates");
         }
 
-        if (!data.authClaim.claimsTreeRoot || !data.authClaim.revocationTreeRoot || !data.authClaim.rootsTreeRoot) {
-          errors.push('Missing Merkle tree roots');
+        if (
+          !data.authClaim.claimsTreeRoot ||
+          !data.authClaim.revocationTreeRoot ||
+          !data.authClaim.rootsTreeRoot
+        ) {
+          errors.push("Missing Merkle tree roots");
         }
       }
 
       // Generic claim validation
       if (!data.genericClaim) {
-        errors.push('Missing genericClaim data');
+        errors.push("Missing genericClaim data");
       } else {
         if (!data.genericClaim.signature || data.genericClaim.signature.length < 100) {
-          errors.push('Invalid or missing signature');
+          errors.push("Invalid or missing signature");
         }
 
         if (!data.genericClaim.claimHash) {
-          errors.push('Missing claim hash');
+          errors.push("Missing claim hash");
         }
 
         if (!data.genericClaim.claimData || !data.genericClaim.claimData.llmModel) {
-          errors.push('Missing or invalid claim data structure');
+          errors.push("Missing or invalid claim data structure");
         }
       }
 
       // Verification metadata validation
       if (!data.verification || !data.verification.networkConfig) {
-        errors.push('Missing verification metadata');
+        errors.push("Missing verification metadata");
       }
 
       // TODO: Add cryptographic verification of signatures and Merkle proofs
@@ -482,17 +493,19 @@ export class IPFSPublicationService {
   }
 
   /**
- * List all published claims from Pinata and local storage
- */
-  async listPublishedClaims(): Promise<Array<{
-    agentId: string;
-    did: string;
-    timestamp: string;
-    ipfsHash: string;
-    filePath?: string;
-    pinataId?: string;
-    source: 'pinata' | 'local';
-  }>> {
+   * List all published claims from Pinata and local storage
+   */
+  async listPublishedClaims(): Promise<
+    Array<{
+      agentId: string;
+      did: string;
+      timestamp: string;
+      ipfsHash: string;
+      filePath?: string;
+      pinataId?: string;
+      source: "pinata" | "local";
+    }>
+  > {
     try {
       logger.info("Listing published claims from Pinata and local storage");
 
@@ -503,7 +516,7 @@ export class IPFSPublicationService {
         ipfsHash: string;
         filePath?: string;
         pinataId?: string;
-        source: 'pinata' | 'local';
+        source: "pinata" | "local";
       }> = [];
 
       // Try to list files from Pinata (only if IPFS is enabled and Pinata is initialized)
@@ -525,19 +538,22 @@ export class IPFSPublicationService {
               const keyvalues = file.keyvalues || {};
 
               claims.push({
-                agentId: keyvalues.agentId || 'unknown',
-                did: keyvalues.did || 'unknown',
+                agentId: keyvalues.agentId || "unknown",
+                did: keyvalues.did || "unknown",
                 timestamp: keyvalues.timestamp || new Date().toISOString(),
                 ipfsHash: file.cid,
                 pinataId: file.id,
-                source: 'pinata',
+                source: "pinata",
               });
             } catch (fileError) {
               logger.warn({ file: file.id, error: fileError }, "Failed to process Pinata file");
             }
           }
         } catch (pinataError) {
-          logger.warn({ error: pinataError }, "Failed to list files from Pinata, continuing with local only");
+          logger.warn(
+            { error: pinataError },
+            "Failed to list files from Pinata, continuing with local only",
+          );
         }
       } else {
         logger.info("Skipping Pinata file listing - IPFS disabled or not initialized");
@@ -546,26 +562,29 @@ export class IPFSPublicationService {
       // Also check local storage as backup/fallback
       try {
         if (fs.existsSync(this.ipfsDir)) {
-          const localFiles = fs.readdirSync(this.ipfsDir).filter(file =>
-            file.startsWith('ipfs-') && file.endsWith('.json')
-          );
+          const localFiles = fs
+            .readdirSync(this.ipfsDir)
+            .filter((file) => file.startsWith("ipfs-") && file.endsWith(".json"));
 
           for (const file of localFiles) {
             try {
               const filePath = path.join(this.ipfsDir, file);
-              const dataString = fs.readFileSync(filePath, 'utf-8');
+              const dataString = fs.readFileSync(filePath, "utf-8");
               const data: IPFSPublicationData = JSON.parse(dataString);
 
               // Check if this claim is already in the Pinata results
-              const existsInPinata = claims.some(claim =>
-                claim.agentId === data.agentId &&
-                claim.did === data.did &&
-                Math.abs(new Date(claim.timestamp).getTime() - new Date(data.timestamp).getTime()) < 60000 // Within 1 minute
+              const existsInPinata = claims.some(
+                (claim) =>
+                  claim.agentId === data.agentId &&
+                  claim.did === data.did &&
+                  Math.abs(
+                    new Date(claim.timestamp).getTime() - new Date(data.timestamp).getTime(),
+                  ) < 60000, // Within 1 minute
               );
 
               if (!existsInPinata) {
                 // Generate a mock IPFS hash for local files that weren't uploaded to Pinata
-                const mockIpfsHash = `Qm${Buffer.from(dataString).toString('base64').slice(0, 44)}`;
+                const mockIpfsHash = `Qm${Buffer.from(dataString).toString("base64").slice(0, 44)}`;
 
                 claims.push({
                   agentId: data.agentId,
@@ -573,7 +592,7 @@ export class IPFSPublicationService {
                   timestamp: data.timestamp,
                   ipfsHash: mockIpfsHash,
                   filePath,
-                  source: 'local',
+                  source: "local",
                 });
               }
             } catch (fileError) {
@@ -586,15 +605,13 @@ export class IPFSPublicationService {
       }
 
       // Sort by timestamp (newest first)
-      claims.sort((a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
+      claims.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       logger.info(
         {
           totalClaims: claims.length,
-          pinataClaims: claims.filter(c => c.source === 'pinata').length,
-          localClaims: claims.filter(c => c.source === 'local').length,
+          pinataClaims: claims.filter((c) => c.source === "pinata").length,
+          localClaims: claims.filter((c) => c.source === "local").length,
         },
         "Listed all published claims",
       );
@@ -605,4 +622,4 @@ export class IPFSPublicationService {
       return [];
     }
   }
-} 
+}
