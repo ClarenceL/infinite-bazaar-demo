@@ -1,6 +1,5 @@
 import * as process from "node:process";
 import { agentRoutes } from "@/modules/agent";
-import { enclaveRoutes } from "@/modules/enclave";
 import { toolsRoutes } from "@/modules/tools";
 import { authMiddleware } from "@/pkg/middleware/auth";
 import { customLogger } from "@/pkg/middleware/custom-logger";
@@ -60,12 +59,8 @@ app.get("/health", (c) => {
 });
 
 // Apply auth middleware to all routes except health check
-app.use("/enclave/*", authMiddleware());
 app.use("/agent/*", authMiddleware());
 app.use("/v1/mcp/*", authMiddleware());
-
-// Register enclave routes
-app.basePath("/enclave").route("/", enclaveRoutes);
 
 // Register agent routes
 app.basePath("/agent").route("/", agentRoutes);

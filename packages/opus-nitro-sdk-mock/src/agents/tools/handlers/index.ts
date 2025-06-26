@@ -4,7 +4,7 @@
 // import { mcpTools } from "..";
 import type { ToolCallResult } from "../../../types/message.js";
 
-// import { handleClaim } from "./claim/index.js";
+
 import { handleCreateName } from "./create-name/index.js";
 import { handleTransferUsdc } from "./transfer-usdc/index.js";
 

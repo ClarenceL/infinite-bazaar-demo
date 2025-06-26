@@ -6,20 +6,13 @@ export default defineConfig({
     environment: "node",
     alias: {
       "@/": new URL("./src/", import.meta.url).pathname,
-      "@/services/identity-service": new URL(
-        "./src/tests/__mocks__/identity-service.ts",
-        import.meta.url,
-      ).pathname,
     },
     setupFiles: ["./src/tests/setup.ts"],
   },
   resolve: {
     conditions: ["node"],
     alias: {
-      "@/services/identity-service": new URL(
-        "./src/tests/__mocks__/identity-service.ts",
-        import.meta.url,
-      ).pathname,
+      // Add any future mock aliases here if needed
     },
   },
   define: {

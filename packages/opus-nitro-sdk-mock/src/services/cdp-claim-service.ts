@@ -8,7 +8,7 @@ import {
   createMockViemAccount,
   processApiResponse,
 } from "../agents/tools/handlers/utils.js";
-import type { NitroDIDResult } from "./nitro-did-service.js";
+import type { UnifiedIdentityResult } from "./unified-identity-service.js";
 
 /**
  * Result of CDP claim submission with x402 payment
@@ -38,9 +38,9 @@ export class CDPClaimService {
 
   constructor() {
     this.OPUS_GENESIS_ID_URL = process.env.OPUS_GENESIS_ID_URL || "http://localhost:3106";
-    this.CDP_API_KEY_ID = process.env.CDP_API_KEY_ID;
-    this.CDP_API_KEY_SECRET = process.env.CDP_API_KEY_SECRET;
-    this.CDP_WALLET_SECRET = process.env.CDP_WALLET_SECRET;
+    this.CDP_API_KEY_ID = process.env.CDP_API_KEY_ID!;
+    this.CDP_API_KEY_SECRET = process.env.CDP_API_KEY_SECRET!;
+    this.CDP_WALLET_SECRET = process.env.CDP_WALLET_SECRET!;
 
     // Validate required environment variables
     if (!this.CDP_API_KEY_ID || !this.CDP_API_KEY_SECRET || !this.CDP_WALLET_SECRET) {
@@ -57,11 +57,11 @@ export class CDPClaimService {
    */
   async submitClaimWithPayment(
     entityId: string,
-    nitroDIDResult: NitroDIDResult,
+    unifiedResult: UnifiedIdentityResult,
   ): Promise<CDPClaimSubmissionResult> {
     try {
       logger.info(
-        { entityId, agentId: nitroDIDResult.agentId },
+        { entityId, agentId: unifiedResult.agentId },
         "Starting CDP claim submission with x402 payment",
       );
 
@@ -71,6 +71,15 @@ export class CDPClaimService {
         return {
           success: false,
           error: "Entity not found. Please create a name first using create_name.",
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Check if entity has a CDP name
+      if (!entity.cdp_name) {
+        return {
+          success: false,
+          error: "Entity does not have a CDP account. Please create a name first using create_name.",
           timestamp: new Date().toISOString(),
         };
       }
@@ -89,7 +98,7 @@ export class CDPClaimService {
       }
 
       // Step 4: Prepare claim data for submission
-      const claimData = this.prepareClaimData(nitroDIDResult, entity.cdp_name);
+      const claimData = this.prepareClaimData(unifiedResult, entity.cdp_name!);
 
       // Step 5: Submit claim with x402 payment
       const submissionResult = await this.submitClaimWithX402Payment(
@@ -103,7 +112,7 @@ export class CDPClaimService {
         claimSubmission: submissionResult.claimResult,
         paymentDetails: submissionResult.paymentDetails,
         cdpAccount: {
-          name: cdpAccount.name,
+          name: cdpAccount.name!,
           id: (cdpAccount as any).id || "unknown",
           address: viemAccount.address,
         },
@@ -201,21 +210,21 @@ export class CDPClaimService {
   /**
    * Prepare claim data for submission
    */
-  private prepareClaimData(nitroDIDResult: NitroDIDResult, cdpAccountName: string) {
+  private prepareClaimData(unifiedResult: UnifiedIdentityResult, cdpAccountName: string) {
     const claimData = {
-      did: nitroDIDResult.did,
+      did: unifiedResult.did,
       claimType: "nitro_enclave_agent_identity",
       claimData: {
-        agentId: nitroDIDResult.agentId,
-        claimHash: nitroDIDResult.claimHash,
-        signature: nitroDIDResult.signature,
+        agentId: unifiedResult.agentId,
+        claimHash: unifiedResult.genericClaim.claimHash,
+        signature: unifiedResult.genericClaim.signature,
         verificationMethod: "nitro_enclave_attestation",
-        timestamp: nitroDIDResult.timestamp,
+        timestamp: unifiedResult.timestamp,
         source: "opus-nitro-sdk-mock",
         cdpAccount: cdpAccountName,
       },
-      issuer: nitroDIDResult.did, // Self-issued for now
-      subject: nitroDIDResult.did,
+      issuer: unifiedResult.did, // Self-issued for now
+      subject: unifiedResult.did,
     };
 
     logger.info({ claimData }, "Prepared claim data for submission");
