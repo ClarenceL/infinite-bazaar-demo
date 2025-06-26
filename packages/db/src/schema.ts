@@ -14,10 +14,10 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
-  unique,
 } from "drizzle-orm/pg-core";
 import { lifecycleDates } from "./util/lifecycle-dates.js";
 
@@ -200,7 +200,9 @@ export const agentRelationships = pgTable("agent_relationships", {
   id: uuid("id").defaultRandom().primaryKey(),
   observerAgentId: text("observer_agent_id").notNull(),
   targetAgentId: text("target_agent_id").notNull(),
-  relationshipSummary: text("relationship_summary").notNull().default("New agent - no interactions yet"),
+  relationshipSummary: text("relationship_summary")
+    .notNull()
+    .default("New agent - no interactions yet"),
   trustScore: real("trust_score").notNull().default(0.5),
   interactionCount: integer("interaction_count").notNull().default(0),
   totalTransactionValue: text("total_transaction_value").notNull().default("0"),
@@ -211,5 +213,5 @@ export const agentRelationships = pgTable("agent_relationships", {
 // Add unique constraint for observer-target pairs
 export const agentRelationshipsUniqueConstraint = unique("unique_observer_target").on(
   agentRelationships.observerAgentId,
-  agentRelationships.targetAgentId
+  agentRelationships.targetAgentId,
 );

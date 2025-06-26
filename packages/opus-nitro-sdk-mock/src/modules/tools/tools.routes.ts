@@ -134,7 +134,14 @@ export const toolsRoutes = new Hono()
       );
 
       // Validate tool name
-      const validTools = ["create_name", "create_identity", "transfer_usdc", "create_x402_service", "discover_services", "call_paid_service"];
+      const validTools = [
+        "create_name",
+        "create_identity",
+        "transfer_usdc",
+        "create_x402_service",
+        "discover_services",
+        "call_paid_service",
+      ];
       if (!validTools.includes(toolName)) {
         return c.json(
           {
@@ -181,7 +188,14 @@ export const toolsRoutes = new Hono()
 
   // Health check endpoint for MCP tools
   .get("/health", (c) => {
-    const validTools = ["create_name", "create_identity", "transfer_usdc", "create_x402_service", "discover_services", "call_paid_service"];
+    const validTools = [
+      "create_name",
+      "create_identity",
+      "transfer_usdc",
+      "create_x402_service",
+      "discover_services",
+      "call_paid_service",
+    ];
 
     return c.json({
       status: "healthy",

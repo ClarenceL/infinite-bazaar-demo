@@ -4,11 +4,11 @@
  * Script to check USDC balance of a wallet address
  */
 
-import { createPublicClient, http, type Address } from "viem";
-import { baseSepolia } from "viem/chains";
-import { getUSDCBalance } from "@infinite-bazaar-demo/x402";
 import { logger } from "@infinite-bazaar-demo/logs";
+import { getUSDCBalance } from "@infinite-bazaar-demo/x402";
 import dotenv from "dotenv";
+import { http, type Address, createPublicClient } from "viem";
+import { baseSepolia } from "viem/chains";
 
 dotenv.config();
 
@@ -16,7 +16,7 @@ async function checkBalance(address: string): Promise<void> {
   try {
     console.log(`🔍 Checking USDC balance for address: ${address}`);
     console.log(`📡 Network: Base Sepolia`);
-    
+
     // Create public client for Base Sepolia
     const publicClient = createPublicClient({
       chain: baseSepolia,
@@ -29,7 +29,7 @@ async function checkBalance(address: string): Promise<void> {
 
     console.log(`💰 Balance: ${balanceUsdc} USDC`);
     console.log(`🔢 Balance (wei): ${balanceWei.toString()}`);
-    
+
     if (balanceUsdc === 0) {
       console.log(`❌ Wallet has no USDC - needs funding from Circle faucet`);
       console.log(`🌐 Fund at: https://faucet.circle.com/`);
@@ -37,10 +37,11 @@ async function checkBalance(address: string): Promise<void> {
     } else {
       console.log(`✅ Wallet has sufficient USDC for transfers`);
     }
-
   } catch (error) {
     logger.error({ error, address }, "Failed to check balance");
-    console.error(`❌ Error checking balance: ${error instanceof Error ? error.message : "Unknown error"}`);
+    console.error(
+      `❌ Error checking balance: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
 
@@ -71,4 +72,4 @@ async function main() {
 main().catch((error) => {
   logger.error({ error }, "Failed to run balance check script");
   process.exit(1);
-}); 
+});

@@ -55,7 +55,10 @@ export class AgentService {
   async loadMessages(chatId?: string, entityId?: string, limit = 50): Promise<Message[]> {
     const actualEntityId = entityId || OPUS_ENTITY_ID;
     try {
-      logger.info({ chatId, entityId: actualEntityId, limit }, "Loading message history from database");
+      logger.info(
+        { chatId, entityId: actualEntityId, limit },
+        "Loading message history from database",
+      );
 
       // Build query conditions
       const conditions = [eq(entityContext.entityId, actualEntityId)];
@@ -107,14 +110,17 @@ export class AgentService {
 
       // Reverse to get chronological order (oldest first) since we queried in DESC order
       const chronologicalMessages = messages.reverse();
-      
-      logger.info({ 
-        messageCount: chronologicalMessages.length, 
-        chatId,
-        limitApplied: limit,
-        wasLimited: dbMessages.length === limit
-      }, "Messages loaded from database");
-      
+
+      logger.info(
+        {
+          messageCount: chronologicalMessages.length,
+          chatId,
+          limitApplied: limit,
+          wasLimited: dbMessages.length === limit,
+        },
+        "Messages loaded from database",
+      );
+
       return chronologicalMessages;
     } catch (error) {
       logger.error({ error, chatId }, "Error loading messages from database");

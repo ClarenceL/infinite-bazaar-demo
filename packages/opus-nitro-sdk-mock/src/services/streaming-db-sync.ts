@@ -1,4 +1,4 @@
-import { db, entityContext, eq, and, isNull, lte } from "@infinite-bazaar-demo/db";
+import { and, db, entityContext, eq, isNull, lte } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 
 interface StreamingSyncUpdate {
@@ -180,9 +180,7 @@ class StreamingDBSyncService {
 
       if (record.length > 0 && record[0]?.content === "") {
         // Delete the empty incomplete record
-        await db
-          .delete(entityContext)
-          .where(eq(entityContext.contextId, contextId));
+        await db.delete(entityContext).where(eq(entityContext.contextId, contextId));
 
         logger.info({ contextId }, "Cleaned up failed streaming record with empty content");
       }
@@ -194,31 +192,31 @@ class StreamingDBSyncService {
   /**
    * Clean up all incomplete records older than specified minutes with empty content
    */
-  async cleanupStaleIncompleteRecords(olderThanMinutes: number = 5): Promise<void> {
+  async cleanupStaleIncompleteRecords(olderThanMinutes = 5): Promise<void> {
     if (!this.enabled) return;
 
     try {
       const cutoffTime = new Date(Date.now() - olderThanMinutes * 60 * 1000);
-      
+
       const deletedRecords = await db
         .delete(entityContext)
         .where(
           and(
             isNull(entityContext.completedAt),
             eq(entityContext.content, ""),
-            lte(entityContext.createdAt, cutoffTime)
-          )
+            lte(entityContext.createdAt, cutoffTime),
+          ),
         )
         .returning({ contextId: entityContext.contextId });
 
       if (deletedRecords.length > 0) {
         logger.info(
-          { 
+          {
             deletedCount: deletedRecords.length,
             cutoffTime,
-            deletedIds: deletedRecords.map(r => r.contextId)
-          }, 
-          "Cleaned up stale incomplete streaming records"
+            deletedIds: deletedRecords.map((r) => r.contextId),
+          },
+          "Cleaned up stale incomplete streaming records",
         );
       }
     } catch (error) {

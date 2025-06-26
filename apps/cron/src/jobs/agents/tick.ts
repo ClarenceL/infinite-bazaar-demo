@@ -206,8 +206,6 @@ function replaceTemplateVariables(template: string, variables: Record<string, st
   return result;
 }
 
-
-
 /**
  * Process a single entity with the Opus API
  */

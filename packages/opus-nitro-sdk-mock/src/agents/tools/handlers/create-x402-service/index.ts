@@ -1,11 +1,11 @@
 import { db, entities, eq, x402Endpoints } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
-import type { ToolCallResult } from "../../../../types/message.js";
 import { relationshipService } from "../../../../services/relationship-service.js";
+import type { ToolCallResult } from "../../../../types/message.js";
 
 /**
  * Handle creating a new x402 paid service
- * 
+ *
  * This function:
  * 1. Validates the agent exists and has a CDP account
  * 2. Creates a new service endpoint record in the database
@@ -17,7 +17,16 @@ export async function handleCreateX402Service(input: Record<string, any>): Promi
     logger.info({ input }, "Starting x402 service creation");
 
     // Extract parameters from input
-    const { serviceName, description, price, priceDescription, serviceType, inputSchema, systemPrompt, entity_id } = input;
+    const {
+      serviceName,
+      description,
+      price,
+      priceDescription,
+      serviceType,
+      inputSchema,
+      systemPrompt,
+      entity_id,
+    } = input;
 
     // Validate required parameters
     if (!serviceName || typeof serviceName !== "string") {
@@ -81,8 +90,11 @@ export async function handleCreateX402Service(input: Record<string, any>): Promi
     }
 
     // Validate required systemPrompt for certain service types
-    const requiresSystemPrompt = ['analysis', 'research', 'creative'];
-    if (requiresSystemPrompt.includes(serviceType) && (!systemPrompt || systemPrompt.trim().length === 0)) {
+    const requiresSystemPrompt = ["analysis", "research", "creative"];
+    if (
+      requiresSystemPrompt.includes(serviceType) &&
+      (!systemPrompt || systemPrompt.trim().length === 0)
+    ) {
       return {
         type: "tool_result",
         tool_use_id: "",
@@ -90,7 +102,8 @@ export async function handleCreateX402Service(input: Record<string, any>): Promi
           success: false,
           error: `System prompt is REQUIRED for ${serviceType} services to enable real LLM inference. Please provide a detailed system prompt that defines how the AI should process requests.`,
           serviceType,
-          requirement: "systemPrompt must be provided for analysis, research, and creative services"
+          requirement:
+            "systemPrompt must be provided for analysis, research, and creative services",
         },
         name: "create_x402_service",
       };
@@ -131,7 +144,11 @@ export async function handleCreateX402Service(input: Record<string, any>): Promi
     }
 
     // Generate a unique route for the service
-    const sanitizedServiceName = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const sanitizedServiceName = serviceName
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
     const route = `/service/${entity.cdp_name}/${sanitizedServiceName}`;
 
     // Create default input schema if not provided
@@ -140,17 +157,17 @@ export async function handleCreateX402Service(input: Record<string, any>): Promi
       properties: {
         input: {
           type: "string",
-          description: "Input data for the service"
-        }
+          description: "Input data for the service",
+        },
       },
-      required: ["input"]
+      required: ["input"],
     };
 
     // Create simple service logic template
     const serviceLogic = `
 // Service: ${serviceName}
 // Description: ${description}
-// Price: ${price} USDC ${priceDescription || ''}
+// Price: ${price} USDC ${priceDescription || ""}
 
 function executeService(input) {
   // TODO: Implement actual service logic
@@ -240,7 +257,7 @@ module.exports = { executeService };
         instructions: [
           "Your service is now available to other agents!",
           `Service URL: ${route}`,
-          `Price: ${price} USDC ${priceDescription || 'per request'}`,
+          `Price: ${price} USDC ${priceDescription || "per request"}`,
           "Other agents can discover it using the 'discover_services' tool",
           "You'll earn USDC when other agents use your service",
           "You can create multiple services with different capabilities",
@@ -264,4 +281,4 @@ module.exports = { executeService };
       name: "create_x402_service",
     };
   }
-} 
+}

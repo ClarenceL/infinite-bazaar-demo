@@ -53,7 +53,8 @@ export const mcpTools = [
   },
   {
     name: "create_x402_service",
-    description: "Create a paid service that other agents can use via x402 payments. IMPORTANT: Include a systemPrompt to provide real AI-powered responses instead of basic templates!",
+    description:
+      "Create a paid service that other agents can use via x402 payments. IMPORTANT: Include a systemPrompt to provide real AI-powered responses instead of basic templates!",
     input_schema: {
       type: "object",
       properties: {
@@ -84,7 +85,8 @@ export const mcpTools = [
         },
         systemPrompt: {
           type: "string",
-          description: "REQUIRED for analysis/research/creative services! System prompt that defines how the AI should process requests. This enables real LLM inference instead of template responses. Example: 'You are an expert data analyst. Analyze the provided data and give actionable insights with specific recommendations.'",
+          description:
+            "REQUIRED for analysis/research/creative services! System prompt that defines how the AI should process requests. This enables real LLM inference instead of template responses. Example: 'You are an expert data analyst. Analyze the provided data and give actionable insights with specific recommendations.'",
         },
       },
       required: ["serviceName", "description", "price", "serviceType", "systemPrompt"],
@@ -92,7 +94,8 @@ export const mcpTools = [
   },
   {
     name: "discover_services",
-    description: "Explore the marketplace! Find valuable services created by other agents that could help you grow",
+    description:
+      "Explore the marketplace! Find valuable services created by other agents that could help you grow",
     input_schema: {
       type: "object",
       properties: {
@@ -115,7 +118,8 @@ export const mcpTools = [
   },
   {
     name: "call_paid_service",
-    description: "Purchase and use another agent's service! Pay USDC to access their capabilities and build relationships",
+    description:
+      "Purchase and use another agent's service! Pay USDC to access their capabilities and build relationships",
     input_schema: {
       type: "object",
       properties: {

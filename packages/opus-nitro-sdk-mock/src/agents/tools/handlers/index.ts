@@ -5,11 +5,11 @@
 import type { ToolCallResult } from "../../../types/message.js";
 
 import { handleCreateIdentity } from "./create-identity/index.js";
+import { handleCallPaidService } from "./call-paid-service/index.js";
 import { handleCreateName } from "./create-name/index.js";
-import { handleTransferUsdc } from "./transfer-usdc/index.js";
 import { handleCreateX402Service } from "./create-x402-service/index.js";
 import { handleDiscoverServices } from "./discover-services/index.js";
-import { handleCallPaidService } from "./call-paid-service/index.js";
+import { handleTransferUsdc } from "./transfer-usdc/index.js";
 
 /**
  * Process a tool call and return the result

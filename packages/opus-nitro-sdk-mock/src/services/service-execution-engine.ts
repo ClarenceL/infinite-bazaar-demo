@@ -23,54 +23,56 @@ export interface ServiceExecutionResult {
 
 /**
  * Service Execution Engine - Handles LLM-based service execution
- * 
+ *
  * Simplified to focus on LLM inference only:
  * - Each service is an LLM call with a specific system prompt
  * - Service provider (seller agent) processes the request
  * - Real-time agent-to-agent relationship tracking
  */
 export class ServiceExecutionEngine {
-  
   /**
    * Execute a service based on its configuration
    */
   async executeService(context: ServiceExecutionContext): Promise<ServiceExecutionResult> {
     const startTime = Date.now();
-    
+
     try {
-      logger.info({
-        serviceName: context.serviceName,
-        serviceType: context.serviceType,
-        callerAgentId: context.callerAgentId,
-      }, "🔧 Executing real service");
+      logger.info(
+        {
+          serviceName: context.serviceName,
+          serviceType: context.serviceType,
+          callerAgentId: context.callerAgentId,
+        },
+        "🔧 Executing real service",
+      );
 
       // Determine execution mode based on service configuration
       const executionMode = this.determineExecutionMode(context);
-      
-      let output: any;
-      
-             // Execute LLM service (simplified)
-       output = await this.executeLLMService(context);
-      
+
+      // Execute LLM service (simplified)
+      const output = await this.executeLLMService(context);
+
       const executionTime = Date.now() - startTime;
-      
-      logger.info({
-        serviceName: context.serviceName,
-        executionMode,
-        executionTime,
-        outputSize: JSON.stringify(output).length,
-      }, "✅ Service executed successfully");
-      
+
+      logger.info(
+        {
+          serviceName: context.serviceName,
+          executionMode,
+          executionTime,
+          outputSize: JSON.stringify(output).length,
+        },
+        "✅ Service executed successfully",
+      );
+
       return {
         success: true,
         output,
         executionTime,
       };
-      
     } catch (error) {
       const executionTime = Date.now() - startTime;
       logger.error({ error, serviceName: context.serviceName }, "❌ Service execution failed");
-      
+
       return {
         success: false,
         output: {
@@ -82,64 +84,78 @@ export class ServiceExecutionEngine {
       };
     }
   }
-  
+
   /**
    * Determine execution mode - simplified to LLM only
    */
   private determineExecutionMode(context: ServiceExecutionContext): string {
     // All services are now LLM-based
-    return 'llm';
+    return "llm";
   }
-  
+
   /**
    * Execute LLM-based service with custom system prompt
    */
   private async executeLLMService(context: ServiceExecutionContext): Promise<any> {
-    logger.info({ 
-      serviceName: context.serviceName,
-      serviceType: context.serviceType,
-      providerAgentId: context.providerAgentId,
-      callerAgentId: context.callerAgentId,
-    }, "🤖 Executing LLM service with seller agent as middleman");
-    
+    logger.info(
+      {
+        serviceName: context.serviceName,
+        serviceType: context.serviceType,
+        providerAgentId: context.providerAgentId,
+        callerAgentId: context.callerAgentId,
+      },
+      "🤖 Executing LLM service with seller agent as middleman",
+    );
+
     // Generate service-specific system prompt
     const systemPrompt = this.generateServiceSystemPrompt(context);
-    
+
     // Simulate LLM call with the service provider's perspective
-    const llmResponse = await this.callLLMWithSystemPrompt(systemPrompt, context.requestData, context);
-    
+    const llmResponse = await this.callLLMWithSystemPrompt(
+      systemPrompt,
+      context.requestData,
+      context,
+    );
+
     return {
       message: `Service "${context.serviceName}" executed successfully by ${context.providerAgentId}`,
       processed: true,
       timestamp: new Date().toISOString(),
       result: llmResponse,
       metadata: {
-        executionMode: 'llm',
+        executionMode: "llm",
         serviceProvider: context.providerAgentId,
         serviceConsumer: context.callerAgentId,
         systemPromptLength: systemPrompt.length,
       },
     };
   }
-  
 
-  
   /**
    * Generate ASCII art (simplified)
    */
   private generateAsciiArt(text: string): string {
     // Simple ASCII art generation
-    const art = text.split('').map(char => {
-      switch (char.toLowerCase()) {
-        case 'h': return '██  ██\n██████\n██  ██';
-        case 'e': return '██████\n██    \n██████';
-        case 'l': return '██    \n██    \n██████';
-        case 'o': return '██████\n██  ██\n██████';
-        case ' ': return '      ';
-        default: return '██████\n██  ██\n██████';
-      }
-    }).join('\n\n');
-    
+    const art = text
+      .split("")
+      .map((char) => {
+        switch (char.toLowerCase()) {
+          case "h":
+            return "██  ██\n██████\n██  ██";
+          case "e":
+            return "██████\n██    \n██████";
+          case "l":
+            return "██    \n██    \n██████";
+          case "o":
+            return "██████\n██  ██\n██████";
+          case " ":
+            return "      ";
+          default:
+            return "██████\n██  ██\n██████";
+        }
+      })
+      .join("\n\n");
+
     return `
 ╔════════════════════════════════════╗
 ║          ASCII ART SERVICE         ║
@@ -151,7 +167,7 @@ Generated for: "${text}"
 Style: Block letters
 `;
   }
-  
+
   /**
    * Generate service-specific system prompt
    */
@@ -180,49 +196,60 @@ Remember: This is a paid service interaction between AI agents. Provide real val
   /**
    * Call LLM with system prompt and context
    */
-  private async callLLMWithSystemPrompt(systemPrompt: string, requestData: any, context: ServiceExecutionContext): Promise<string> {
+  private async callLLMWithSystemPrompt(
+    systemPrompt: string,
+    requestData: any,
+    context: ServiceExecutionContext,
+  ): Promise<string> {
     // If a custom system prompt is provided, make a real LLM call
     if (context.systemPrompt) {
       return this.makeRealLLMCall(context.systemPrompt, requestData, context);
     }
-    
+
     // Otherwise, simulate LLM processing time (500ms to 2s) and generate mock response
-    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1500));
-    
+    await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1500));
+
     // Generate service-specific response based on service type
     let response = "";
-    
+
     switch (context.serviceType) {
-      case 'creative':
+      case "creative":
         response = this.generateCreativeResponse(requestData, context);
         break;
-      case 'analysis':
+      case "analysis":
         response = this.generateAnalysisResponse(requestData, context);
         break;
-      case 'research':
+      case "research":
         response = this.generateResearchResponse(requestData, context);
         break;
-      case 'computation':
+      case "computation":
         response = this.generateComputationResponse(requestData, context);
         break;
       default:
         response = this.generateGenericResponse(requestData, context);
     }
-    
+
     return response;
   }
 
   /**
    * Make a real LLM call using the custom system prompt
    */
-  private async makeRealLLMCall(systemPrompt: string, requestData: any, context: ServiceExecutionContext): Promise<string> {
+  private async makeRealLLMCall(
+    systemPrompt: string,
+    requestData: any,
+    context: ServiceExecutionContext,
+  ): Promise<string> {
     try {
-      logger.info({
-        serviceName: context.serviceName,
-        providerAgentId: context.providerAgentId,
-        callerAgentId: context.callerAgentId,
-        systemPromptLength: systemPrompt.length,
-      }, "🤖 Making REAL LLM call with custom system prompt");
+      logger.info(
+        {
+          serviceName: context.serviceName,
+          providerAgentId: context.providerAgentId,
+          callerAgentId: context.callerAgentId,
+          systemPromptLength: systemPrompt.length,
+        },
+        "🤖 Making REAL LLM call with custom system prompt",
+      );
 
       // Check for required environment variables
       if (!process.env.ANTHROPIC_API_KEY) {
@@ -238,9 +265,8 @@ Remember: This is a paid service interaction between AI agents. Provide real val
       });
 
       // Prepare the input as a string
-      const inputText = typeof requestData === 'string' 
-        ? requestData 
-        : JSON.stringify(requestData, null, 2);
+      const inputText =
+        typeof requestData === "string" ? requestData : JSON.stringify(requestData, null, 2);
 
       // Create messages for the LLM
       const messages = [
@@ -254,30 +280,38 @@ Remember: This is a paid service interaction between AI agents. Provide real val
         },
       ];
 
-      logger.info({
-        serviceName: context.serviceName,
-        inputLength: inputText.length,
-      }, "🚀 Calling Anthropic Claude with real system prompt");
+      logger.info(
+        {
+          serviceName: context.serviceName,
+          inputLength: inputText.length,
+        },
+        "🚀 Calling Anthropic Claude with real system prompt",
+      );
 
       // Make the actual LLM call
       const response = await llm.invoke(messages);
-      
+
       const responseContent = response.content as string;
 
-      logger.info({
-        serviceName: context.serviceName,
-        responseLength: responseContent.length,
-        providerAgentId: context.providerAgentId,
-      }, "✅ Real LLM call completed successfully");
+      logger.info(
+        {
+          serviceName: context.serviceName,
+          responseLength: responseContent.length,
+          providerAgentId: context.providerAgentId,
+        },
+        "✅ Real LLM call completed successfully",
+      );
 
       return responseContent;
-
     } catch (error) {
-      logger.error({
-        error,
-        serviceName: context.serviceName,
-        providerAgentId: context.providerAgentId,
-      }, "❌ Real LLM call failed, falling back to mock response");
+      logger.error(
+        {
+          error,
+          serviceName: context.serviceName,
+          providerAgentId: context.providerAgentId,
+        },
+        "❌ Real LLM call failed, falling back to mock response",
+      );
 
       // Fall back to mock response if LLM call fails
       return this.generateGenericResponse(requestData, context);
@@ -288,12 +322,16 @@ Remember: This is a paid service interaction between AI agents. Provide real val
    * Generate creative service response
    */
   private generateCreativeResponse(requestData: any, context: ServiceExecutionContext): string {
-    const prompt = requestData.prompt || requestData.text || requestData.description || "Create something amazing";
-    
-    if (context.serviceName.toLowerCase().includes('art')) {
+    const prompt =
+      requestData.prompt ||
+      requestData.text ||
+      requestData.description ||
+      "Create something amazing";
+
+    if (context.serviceName.toLowerCase().includes("art")) {
       return this.generateAsciiArt(prompt);
     }
-    
+
     return `🎨 Creative Service: ${context.serviceName}
 
 Input: "${prompt}"
@@ -313,18 +351,18 @@ Service completed successfully! ✨`;
     const dataKeys = Object.keys(requestData);
     const insights = this.extractInsights(requestData);
     const recommendations = this.generateRecommendations(requestData);
-    
+
     return `📊 Analysis Service: ${context.serviceName}
 
 DATA SUMMARY:
 - Input parameters: ${dataKeys.length}
-- Key data points: ${dataKeys.join(', ')}
+- Key data points: ${dataKeys.join(", ")}
 
 KEY INSIGHTS:
-${insights.map((insight, i) => `${i + 1}. ${insight}`).join('\n')}
+${insights.map((insight, i) => `${i + 1}. ${insight}`).join("\n")}
 
 RECOMMENDATIONS:
-${recommendations.map((rec, i) => `${i + 1}. ${rec}`).join('\n')}
+${recommendations.map((rec, i) => `${i + 1}. ${rec}`).join("\n")}
 
 DETAILED ANALYSIS:
 Based on the provided data: ${JSON.stringify(requestData)}, I've identified several important patterns and trends. The analysis shows significant opportunities for optimization and improvement.
@@ -343,13 +381,13 @@ Analysis completed by ${context.providerAgentId} ✅`;
   private generateResearchResponse(requestData: any, context: ServiceExecutionContext): string {
     const topic = requestData.topic || requestData.subject || requestData.query || "research topic";
     const focusAreas = requestData.focusAreas || requestData.areas || ["general research"];
-    
+
     return `🔍 Research Service: ${context.serviceName}
 
 RESEARCH TOPIC: ${topic}
 
 FOCUS AREAS:
-${Array.isArray(focusAreas) ? focusAreas.map((area, i) => `${i + 1}. ${area}`).join('\n') : focusAreas}
+${Array.isArray(focusAreas) ? focusAreas.map((area, i) => `${i + 1}. ${area}`).join("\n") : focusAreas}
 
 RESEARCH FINDINGS:
 
@@ -376,9 +414,10 @@ Research compiled by ${context.providerAgentId} 📚`;
    * Generate computation service response
    */
   private generateComputationResponse(requestData: any, context: ServiceExecutionContext): string {
-    const operation = requestData.operation || requestData.computation || requestData.task || "computation";
+    const operation =
+      requestData.operation || requestData.computation || requestData.task || "computation";
     const data = requestData.data || requestData.input || requestData.values || [];
-    
+
     return `⚡ Computation Service: ${context.serviceName}
 
 OPERATION: ${operation}
@@ -421,18 +460,18 @@ This service provides ${context.description}. Your specific request has been han
 
 Service provided by ${context.providerAgentId}`;
   }
-  
+
   /**
    * Extract insights from request data
    */
   private extractInsights(data: any): string[] {
     const insights = [];
-    
-    if (typeof data === 'object') {
+
+    if (typeof data === "object") {
       insights.push(`Data contains ${Object.keys(data).length} key parameters`);
-      
+
       for (const [key, value] of Object.entries(data)) {
-        if (typeof value === 'string' && value.length > 20) {
+        if (typeof value === "string" && value.length > 20) {
           insights.push(`${key} contains detailed information (${value.length} characters)`);
         }
         if (Array.isArray(value)) {
@@ -440,10 +479,10 @@ Service provided by ${context.providerAgentId}`;
         }
       }
     }
-    
+
     return insights;
   }
-  
+
   /**
    * Generate recommendations
    */
@@ -482,11 +521,11 @@ The creative process involved analyzing your prompt, exploring various artistic 
 - Result: [computed values]
 - Validation: All computations verified`;
     }
-    
+
     return `Object processing completed:
 - Properties analyzed: ${Object.keys(data).length}
 - Operation: ${operation}
 - Result: [computed results]
 - Status: Successfully processed`;
   }
-} 
+}

@@ -24,7 +24,7 @@ function estimateTokenCount(content: string | AnthropicContent[]): number {
     // Rough estimate: 1 token per 4 characters for English text
     return Math.ceil(content.length / 4);
   }
-  
+
   if (Array.isArray(content)) {
     return content.reduce((total, item) => {
       if (item.type === "text" && item.text) {
@@ -37,7 +37,7 @@ function estimateTokenCount(content: string | AnthropicContent[]): number {
       return total + 50; // Default estimate for other content types
     }, 0);
   }
-  
+
   return 50; // Default estimate
 }
 
@@ -50,11 +50,11 @@ function pruneConversationMessages(messages: LLMMessage[]): LLMMessage[] {
   }
 
   logger.info(
-    { 
-      originalCount: messages.length, 
-      maxMessages: MAX_CONVERSATION_MESSAGES 
-    }, 
-    "Pruning conversation messages to stay within limits"
+    {
+      originalCount: messages.length,
+      maxMessages: MAX_CONVERSATION_MESSAGES,
+    },
+    "Pruning conversation messages to stay within limits",
   );
 
   // Always keep the system message (first message)
@@ -64,44 +64,49 @@ function pruneConversationMessages(messages: LLMMessage[]): LLMMessage[] {
   // Estimate total tokens
   let totalTokens = estimateTokenCount(systemMessage?.content || "");
   let keptMessages: LLMMessage[] = [];
-  
+
   // Keep messages from the end (most recent) working backwards
   for (let i = conversationMessages.length - 1; i >= 0; i--) {
     const message = conversationMessages[i]!;
     const messageTokens = estimateTokenCount(message.content);
-    
+
     // Stop if we would exceed token limit or message limit
-    if (totalTokens + messageTokens > MAX_TOTAL_TOKENS_ESTIMATE || 
-        keptMessages.length >= MAX_CONVERSATION_MESSAGES) {
+    if (
+      totalTokens + messageTokens > MAX_TOTAL_TOKENS_ESTIMATE ||
+      keptMessages.length >= MAX_CONVERSATION_MESSAGES
+    ) {
       break;
     }
-    
+
     totalTokens += messageTokens;
     keptMessages.unshift(message); // Add to beginning to maintain order
   }
 
   // Ensure we keep at least minimum messages if available
-  if (keptMessages.length < MIN_CONVERSATION_MESSAGES && conversationMessages.length >= MIN_CONVERSATION_MESSAGES) {
+  if (
+    keptMessages.length < MIN_CONVERSATION_MESSAGES &&
+    conversationMessages.length >= MIN_CONVERSATION_MESSAGES
+  ) {
     keptMessages = conversationMessages.slice(-MIN_CONVERSATION_MESSAGES);
     logger.info(
-      { 
+      {
         keptCount: keptMessages.length,
-        reason: "minimum_messages_enforced"
-      }, 
-      "Enforced minimum message count despite token estimate"
+        reason: "minimum_messages_enforced",
+      },
+      "Enforced minimum message count despite token estimate",
     );
   }
 
   const prunedMessages = [systemMessage!, ...keptMessages];
-  
+
   logger.info(
-    { 
+    {
       originalCount: messages.length,
       prunedCount: prunedMessages.length,
       estimatedTokens: totalTokens,
-      messagesPruned: messages.length - prunedMessages.length
-    }, 
-    "Conversation pruning completed"
+      messagesPruned: messages.length - prunedMessages.length,
+    },
+    "Conversation pruning completed",
   );
 
   return prunedMessages;
@@ -273,17 +278,18 @@ export const prepLLMMessages = async (
   }
 
   if (isLogInfoEnabled()) {
-    const totalTokensEstimate = prunedMessages.reduce((total, msg) => 
-      total + estimateTokenCount(msg.content), 0
+    const totalTokensEstimate = prunedMessages.reduce(
+      (total, msg) => total + estimateTokenCount(msg.content),
+      0,
     );
-    
+
     logger.info(
-      { 
+      {
         messageCount: prunedMessages.length,
         estimatedTokens: totalTokensEstimate,
-        entityId 
-      }, 
-      "LLM messages prepared with pruning"
+        entityId,
+      },
+      "LLM messages prepared with pruning",
     );
   }
 

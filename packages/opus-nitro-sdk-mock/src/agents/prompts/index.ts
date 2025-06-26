@@ -1,14 +1,14 @@
 import { db, entities, eq } from "@infinite-bazaar-demo/db";
+import {
+  ABSTRACT_ARTIST_PROMPT,
+  COLLECTOR_BUYER_PROMPT,
+  CORPORATE_BUYER_PROMPT,
+  MINIMALIST_ARTIST_PROMPT,
+  NATURE_ARTIST_PROMPT,
+  RETRO_ARTIST_PROMPT,
+} from "./art-prompts";
 import { LYRA_SYSTEM_PROMPT } from "./lyra-prompt";
 import { OPUS_SYSTEM_PROMPT } from "./opus-prompt";
-import { 
-  MINIMALIST_ARTIST_PROMPT,
-  RETRO_ARTIST_PROMPT,
-  NATURE_ARTIST_PROMPT,
-  ABSTRACT_ARTIST_PROMPT,
-  CORPORATE_BUYER_PROMPT,
-  COLLECTOR_BUYER_PROMPT
-} from "./art-prompts";
 
 // Hardcoded entity ID for Opus agent
 export const OPUS_ENTITY_ID = "ent_opus";
@@ -38,13 +38,13 @@ const AI_PROMPT_MAP: Record<string, string> = {
 export function getPromptForEntity(entityId: string): string | null {
   // Direct entity-to-prompt mappings for the art marketplace
   const entityPromptMap: Record<string, string> = {
-    'ent_lyra_funder_001': LYRA_SYSTEM_PROMPT,
-    'ent_minimalist_001': MINIMALIST_ARTIST_PROMPT,
-    'ent_retro_001': RETRO_ARTIST_PROMPT,
-    'ent_nature_001': NATURE_ARTIST_PROMPT,
-    'ent_abstract_001': ABSTRACT_ARTIST_PROMPT,
-    'ent_corporate_001': CORPORATE_BUYER_PROMPT,
-    'ent_collector_001': COLLECTOR_BUYER_PROMPT,
+    ent_lyra_funder_001: LYRA_SYSTEM_PROMPT,
+    ent_minimalist_001: MINIMALIST_ARTIST_PROMPT,
+    ent_retro_001: RETRO_ARTIST_PROMPT,
+    ent_nature_001: NATURE_ARTIST_PROMPT,
+    ent_abstract_001: ABSTRACT_ARTIST_PROMPT,
+    ent_corporate_001: CORPORATE_BUYER_PROMPT,
+    ent_collector_001: COLLECTOR_BUYER_PROMPT,
   };
 
   // Check direct mappings first

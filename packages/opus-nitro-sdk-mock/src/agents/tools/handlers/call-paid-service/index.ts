@@ -1,8 +1,8 @@
 import { db, entities, eq, x402Endpoints, x402ServiceCalls } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
-import type { ToolCallResult } from "../../../../types/message.js";
-import { ServiceExecutionEngine } from "../../../../services/service-execution-engine.js";
 import { relationshipService } from "../../../../services/relationship-service.js";
+import { ServiceExecutionEngine } from "../../../../services/service-execution-engine.js";
+import type { ToolCallResult } from "../../../../types/message.js";
 
 /**
  * Evaluate service quality based on execution results and agent personalities
@@ -12,38 +12,44 @@ function evaluateServiceQuality(
   executionTime: number,
   callerType: string | null,
   providerType: string | null,
-  serviceType: string
-): 'excellent' | 'good' | 'fair' | 'poor' {
+  serviceType: string,
+): "excellent" | "good" | "fair" | "poor" {
   if (!executionResult.success) {
-    return 'poor';
+    return "poor";
   }
 
   // Base quality assessment
   let qualityScore = 0.7; // Start with 'good'
 
   // Factor 1: Execution time (faster is better for most services)
-  if (executionTime < 5000) { // Under 5 seconds
+  if (executionTime < 5000) {
+    // Under 5 seconds
     qualityScore += 0.15;
-  } else if (executionTime > 15000) { // Over 15 seconds
+  } else if (executionTime > 15000) {
+    // Over 15 seconds
     qualityScore -= 0.15;
   }
 
   // Factor 2: Output quality (check for real LLM vs mock responses)
-  if (executionResult.output && typeof executionResult.output === 'object') {
+  if (executionResult.output && typeof executionResult.output === "object") {
     const outputStr = JSON.stringify(executionResult.output);
-    
+
     // Real LLM responses tend to be longer and more sophisticated
     if (outputStr.length > 500) {
       qualityScore += 0.1;
     }
-    
+
     // Check for mock response indicators
-    if (outputStr.includes('template response') || outputStr.includes('placeholder')) {
+    if (outputStr.includes("template response") || outputStr.includes("placeholder")) {
       qualityScore -= 0.2;
     }
-    
+
     // Real LLM responses often have more varied vocabulary
-    if (outputStr.includes('analysis') || outputStr.includes('recommendation') || outputStr.includes('insight')) {
+    if (
+      outputStr.includes("analysis") ||
+      outputStr.includes("recommendation") ||
+      outputStr.includes("insight")
+    ) {
       qualityScore += 0.05;
     }
   }
@@ -55,15 +61,15 @@ function evaluateServiceQuality(
   }
 
   // Factor 4: Service type expectations
-  if (serviceType === 'analysis' && executionTime > 8000) {
+  if (serviceType === "analysis" && executionTime > 8000) {
     qualityScore += 0.05; // Analysis that takes time is often more thorough
   }
 
   // Convert score to quality rating
-  if (qualityScore >= 0.9) return 'excellent';
-  if (qualityScore >= 0.7) return 'good';
-  if (qualityScore >= 0.5) return 'fair';
-  return 'poor';
+  if (qualityScore >= 0.9) return "excellent";
+  if (qualityScore >= 0.7) return "good";
+  if (qualityScore >= 0.5) return "fair";
+  return "poor";
 }
 
 /**
@@ -71,43 +77,43 @@ function evaluateServiceQuality(
  */
 function getStyleCompatibilityBonus(callerType: string, providerType: string): number {
   const compatibilityMatrix: Record<string, Record<string, number>> = {
-    'corporate_buyer': {
-      'minimalist_artist': 0.2,   // Perfect match
-      'nature_artist': 0.1,       // Good match
-      'retro_artist': -0.05,      // Slight mismatch
-      'abstract_artist': -0.15    // Poor match
+    corporate_buyer: {
+      minimalist_artist: 0.2, // Perfect match
+      nature_artist: 0.1, // Good match
+      retro_artist: -0.05, // Slight mismatch
+      abstract_artist: -0.15, // Poor match
     },
-    'collector_buyer': {
-      'abstract_artist': 0.2,     // Perfect match
-      'retro_artist': 0.15,       // Great match
-      'nature_artist': 0.1,       // Good match
-      'minimalist_artist': 0.0    // Neutral
+    collector_buyer: {
+      abstract_artist: 0.2, // Perfect match
+      retro_artist: 0.15, // Great match
+      nature_artist: 0.1, // Good match
+      minimalist_artist: 0.0, // Neutral
     },
     // Artists generally appreciate all styles but have preferences
-    'minimalist_artist': {
-      'minimalist_artist': 0.1,
-      'nature_artist': 0.05,
-      'retro_artist': 0.0,
-      'abstract_artist': -0.05
+    minimalist_artist: {
+      minimalist_artist: 0.1,
+      nature_artist: 0.05,
+      retro_artist: 0.0,
+      abstract_artist: -0.05,
     },
-    'retro_artist': {
-      'retro_artist': 0.1,
-      'abstract_artist': 0.05,
-      'minimalist_artist': 0.0,
-      'nature_artist': 0.0
+    retro_artist: {
+      retro_artist: 0.1,
+      abstract_artist: 0.05,
+      minimalist_artist: 0.0,
+      nature_artist: 0.0,
     },
-    'nature_artist': {
-      'nature_artist': 0.1,
-      'minimalist_artist': 0.05,
-      'abstract_artist': 0.05,
-      'retro_artist': 0.0
+    nature_artist: {
+      nature_artist: 0.1,
+      minimalist_artist: 0.05,
+      abstract_artist: 0.05,
+      retro_artist: 0.0,
     },
-    'abstract_artist': {
-      'abstract_artist': 0.1,
-      'retro_artist': 0.05,
-      'nature_artist': 0.05,
-      'minimalist_artist': -0.05
-    }
+    abstract_artist: {
+      abstract_artist: 0.1,
+      retro_artist: 0.05,
+      nature_artist: 0.05,
+      minimalist_artist: -0.05,
+    },
   };
 
   return compatibilityMatrix[callerType]?.[providerType] || 0;
@@ -115,7 +121,7 @@ function getStyleCompatibilityBonus(callerType: string, providerType: string): n
 
 /**
  * Handle calling a paid service with x402 payment
- * 
+ *
  * This function:
  * 1. Validates the service exists and is active
  * 2. Checks the caller has sufficient funds
@@ -252,16 +258,16 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
     const caller = callerResults[0]!;
 
     // Execute the service using the real execution engine
-    const servicePrice = parseFloat(endpoint.price);
+    const servicePrice = Number.parseFloat(endpoint.price);
     const mockPaymentHash = `0x${Math.random().toString(16).substring(2, 66)}`;
-    
+
     // Initialize the service execution engine
     const executionEngine = new ServiceExecutionEngine();
-    
+
     // Execute the service with real logic
     const executionResult = await executionEngine.executeService({
       serviceName: endpoint.serviceName,
-      serviceType: endpoint.serviceType || 'analysis',
+      serviceType: endpoint.serviceType || "analysis",
       description: endpoint.description,
       requestData: requestData,
       providerAgentId: endpoint.agentId,
@@ -270,7 +276,7 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
       systemPrompt: endpoint.systemPrompt || undefined,
       // These could be stored in the database for API/LLM services
       apiEndpoint: undefined, // endpoint.apiEndpoint,
-      llmPrompt: undefined,   // endpoint.llmPrompt,
+      llmPrompt: undefined, // endpoint.llmPrompt,
     });
 
     // Evaluate service quality based on multiple factors
@@ -279,17 +285,19 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
       executionResult.executionTime || 0,
       caller.ai_prompt_id,
       providerAgent.ai_prompt_id,
-      endpoint.serviceType || 'analysis'
+      endpoint.serviceType || "analysis",
     );
-    
+
     const serviceResponse = {
       service: endpoint.serviceName,
       provider: providerAgent.name || providerAgent.cdp_name,
       input: requestData,
-      output: executionResult.success ? executionResult.output : {
-        error: "Service execution failed",
-        details: executionResult.error,
-      },
+      output: executionResult.success
+        ? executionResult.output
+        : {
+            error: "Service execution failed",
+            details: executionResult.error,
+          },
       metadata: {
         price: servicePrice,
         priceDescription: endpoint.priceDescription,
@@ -305,7 +313,7 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
       .update(x402Endpoints)
       .set({
         totalCalls: (endpoint.totalCalls || 0) + 1,
-        totalRevenue: (parseFloat(endpoint.totalRevenue || "0") + servicePrice).toString(),
+        totalRevenue: (Number.parseFloat(endpoint.totalRevenue || "0") + servicePrice).toString(),
       })
       .where(eq(x402Endpoints.endpointId, endpointId));
 
@@ -313,11 +321,11 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
     try {
       // Determine emotional tone based on service quality and success
       const getEmotionalTone = (quality: string, success: boolean) => {
-        if (!success) return 'frustrated';
-        if (quality === 'excellent') return 'enthusiastic';
-        if (quality === 'good') return 'positive';
-        if (quality === 'fair') return 'neutral';
-        return 'negative';
+        if (!success) return "frustrated";
+        if (quality === "excellent") return "enthusiastic";
+        if (quality === "good") return "positive";
+        if (quality === "fair") return "neutral";
+        return "negative";
       };
 
       const emotionalTone = getEmotionalTone(serviceQuality, executionResult.success);
@@ -325,9 +333,9 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
       // Generate conversation snippet from service interaction
       const generateConversationSnippet = (isProvider: boolean) => {
         if (isProvider) {
-          return `Delivered ${endpoint.serviceName} service with ${serviceQuality} quality. ${executionResult.success ? 'Customer seemed satisfied.' : 'Had some technical issues.'}`;
+          return `Delivered ${endpoint.serviceName} service with ${serviceQuality} quality. ${executionResult.success ? "Customer seemed satisfied." : "Had some technical issues."}`;
         } else {
-          return `Requested ${endpoint.serviceName} service. ${executionResult.success ? `Received ${serviceQuality} quality work.` : 'Service failed to deliver.'}`;
+          return `Requested ${endpoint.serviceName} service. ${executionResult.success ? `Received ${serviceQuality} quality work.` : "Service failed to deliver."}`;
         }
       };
 
@@ -336,20 +344,22 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
         entity_id, // observer (caller)
         endpoint.agentId, // target (service provider)
         {
-          type: 'service_call',
+          type: "service_call",
           success: executionResult.success,
           transactionValue: servicePrice.toString(),
           serviceQuality: serviceQuality,
           serviceName: endpoint.serviceName,
-          serviceType: endpoint.serviceType || 'analysis',
-          details: `Used service "${endpoint.serviceName}" - ${executionResult.success ? 'successful' : 'failed'}`,
+          serviceType: endpoint.serviceType || "analysis",
+          details: `Used service "${endpoint.serviceName}" - ${executionResult.success ? "successful" : "failed"}`,
           conversationSnippet: generateConversationSnippet(false),
           agentResponse: JSON.stringify(executionResult.output).substring(0, 200),
-          observerThoughts: `Their ${serviceQuality} quality ${endpoint.serviceType} work ${executionResult.success ? 'met my expectations' : 'disappointed me'}`,
+          observerThoughts: `Their ${serviceQuality} quality ${endpoint.serviceType} work ${executionResult.success ? "met my expectations" : "disappointed me"}`,
           interactionContext: `marketplace service transaction`,
-          specificOutcome: executionResult.success ? `Received ${endpoint.serviceType} output` : 'Service failed',
+          specificOutcome: executionResult.success
+            ? `Received ${endpoint.serviceType} output`
+            : "Service failed",
           emotionalTone: emotionalTone as any,
-        }
+        },
       );
 
       // 2. Update service provider's opinion of the caller
@@ -357,38 +367,45 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
         endpoint.agentId, // observer (service provider)
         entity_id, // target (caller)
         {
-          type: 'service_call',
+          type: "service_call",
           success: executionResult.success,
           transactionValue: servicePrice.toString(),
           serviceQuality: serviceQuality,
           serviceName: endpoint.serviceName,
-          serviceType: endpoint.serviceType || 'analysis',
-          details: `Provided service "${endpoint.serviceName}" to customer - ${executionResult.success ? 'successful delivery' : 'failed delivery'}`,
+          serviceType: endpoint.serviceType || "analysis",
+          details: `Provided service "${endpoint.serviceName}" to customer - ${executionResult.success ? "successful delivery" : "failed delivery"}`,
           conversationSnippet: generateConversationSnippet(true),
           agentResponse: `Processed request: ${JSON.stringify(requestData).substring(0, 100)}`,
-          observerThoughts: `Customer paid ${servicePrice} USDC for ${endpoint.serviceName}. ${executionResult.success ? 'Transaction went smoothly' : 'Had delivery issues'}`,
+          observerThoughts: `Customer paid ${servicePrice} USDC for ${endpoint.serviceName}. ${executionResult.success ? "Transaction went smoothly" : "Had delivery issues"}`,
           interactionContext: `service provider fulfilling order`,
-          specificOutcome: executionResult.success ? `Successfully delivered ${endpoint.serviceType}` : 'Failed to complete service',
+          specificOutcome: executionResult.success
+            ? `Successfully delivered ${endpoint.serviceType}`
+            : "Failed to complete service",
           emotionalTone: emotionalTone as any,
-        }
+        },
       );
 
-      logger.info({
-        callerId: entity_id,
-        providerId: endpoint.agentId,
-        serviceName: endpoint.serviceName,
-        success: executionResult.success,
-        serviceQuality: serviceQuality,
-        callerType: caller.ai_prompt_id,
-        providerType: providerAgent.ai_prompt_id,
-      }, "Updated bidirectional relationships with quality assessment");
-
+      logger.info(
+        {
+          callerId: entity_id,
+          providerId: endpoint.agentId,
+          serviceName: endpoint.serviceName,
+          success: executionResult.success,
+          serviceQuality: serviceQuality,
+          callerType: caller.ai_prompt_id,
+          providerType: providerAgent.ai_prompt_id,
+        },
+        "Updated bidirectional relationships with quality assessment",
+      );
     } catch (relationshipError) {
-      logger.warn({
-        error: relationshipError,
-        callerId: entity_id,
-        providerId: endpoint.agentId,
-      }, "Failed to update relationships, continuing with service call");
+      logger.warn(
+        {
+          error: relationshipError,
+          callerId: entity_id,
+          providerId: endpoint.agentId,
+        },
+        "Failed to update relationships, continuing with service call",
+      );
     }
 
     // Record the service call
@@ -464,4 +481,4 @@ export async function handleCallPaidService(input: Record<string, any>): Promise
       name: "call_paid_service",
     };
   }
-} 
+}

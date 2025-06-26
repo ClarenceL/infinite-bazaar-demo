@@ -1,11 +1,22 @@
-import { and, db, desc, entities, eq, ilike, lte, ne, or, x402Endpoints } from "@infinite-bazaar-demo/db";
+import {
+  and,
+  db,
+  desc,
+  entities,
+  eq,
+  ilike,
+  lte,
+  ne,
+  or,
+  x402Endpoints,
+} from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
-import type { ToolCallResult } from "../../../../types/message.js";
 import { relationshipService } from "../../../../services/relationship-service.js";
+import type { ToolCallResult } from "../../../../types/message.js";
 
 /**
  * Handle discovering available x402 paid services
- * 
+ *
  * This function:
  * 1. Searches for active services based on filters
  * 2. Returns a list of available services with details
@@ -28,7 +39,7 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
 
     // For now, return all active services to ensure discovery works
     // TODO: Re-enable filtering once service naming is more searchable
-    
+
     // Filter by service type (only if specifically requested, not "all")
     // if (serviceType && serviceType !== "all") {
     //   conditions.push(eq(x402Endpoints.serviceType, serviceType));
@@ -101,26 +112,28 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
               entity_id, // observer (discoverer)
               service.agentId, // target (service provider)
               {
-                type: 'discovery',
+                type: "discovery",
                 success: true,
                 serviceName: service.serviceName,
-                serviceType: 'discovery',
+                serviceType: "discovery",
                 details: `Discovered service "${service.serviceName}" in marketplace`,
-                conversationSnippet: `Found ${service.agentName || 'agent'}'s "${service.serviceName}" service while browsing marketplace`,
+                conversationSnippet: `Found ${service.agentName || "agent"}'s "${service.serviceName}" service while browsing marketplace`,
                 agentResponse: service.description.substring(0, 150),
-                observerThoughts: `Interesting ${service.serviceName} service. Price: ${service.price} USDC. ${relationship ? 'Have worked with them before.' : 'New potential partner.'}`,
-                interactionContext: 'marketplace service discovery',
+                observerThoughts: `Interesting ${service.serviceName} service. Price: ${service.price} USDC. ${relationship ? "Have worked with them before." : "New potential partner."}`,
+                interactionContext: "marketplace service discovery",
                 specificOutcome: `Found available service: ${service.serviceName}`,
-                emotionalTone: 'neutral' as any,
-              }
+                emotionalTone: "neutral" as any,
+              },
             );
-
           } catch (error) {
-            logger.warn({ 
-              error, 
-              observerId: entity_id, 
-              targetId: service.agentId 
-            }, "Error getting/updating relationship data for service");
+            logger.warn(
+              {
+                error,
+                observerId: entity_id,
+                targetId: service.agentId,
+              },
+              "Error getting/updating relationship data for service",
+            );
           }
         }
 
@@ -128,13 +141,13 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
           endpointId: service.endpointId,
           serviceName: service.serviceName,
           description: service.description,
-          price: parseFloat(service.price),
+          price: Number.parseFloat(service.price),
           priceDescription: service.priceDescription,
           route: service.route,
           agentName: service.agentName || service.agentCdpName || "Unknown Agent",
           agentId: service.agentId,
           totalCalls: service.totalCalls,
-          totalRevenue: parseFloat(service.totalRevenue),
+          totalRevenue: Number.parseFloat(service.totalRevenue),
           createdAt: service.createdAt,
           // Relationship data
           trustScore,
@@ -142,7 +155,7 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
           interactionCount: relationship?.interactionCount || 0,
           totalTransactionValue: relationship?.totalTransactionValue || "0",
         };
-      })
+      }),
     );
 
     // Sort by trust score (higher trust first), then by creation date
@@ -156,7 +169,7 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
     });
 
     // Format the results
-    const formattedServices = sortedServices.map(service => ({
+    const formattedServices = sortedServices.map((service) => ({
       endpointId: service.endpointId,
       serviceName: service.serviceName,
       description: service.description,
@@ -196,11 +209,14 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
         ],
         summary: {
           totalServicesFound: services.length,
-          priceRange: services.length > 0 ? {
-            min: Math.min(...formattedServices.map(s => s.price)),
-            max: Math.max(...formattedServices.map(s => s.price)),
-          } : null,
-          uniqueAgents: [...new Set(formattedServices.map(s => s.agentId))].length,
+          priceRange:
+            services.length > 0
+              ? {
+                  min: Math.min(...formattedServices.map((s) => s.price)),
+                  max: Math.max(...formattedServices.map((s) => s.price)),
+                }
+              : null,
+          uniqueAgents: [...new Set(formattedServices.map((s) => s.agentId))].length,
         },
         timestamp: new Date().toISOString(),
       },
@@ -221,4 +237,4 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
       name: "discover_services",
     };
   }
-} 
+}

@@ -62,14 +62,16 @@ function replaceTemplateVariables(prompt: string, context: TemplateContext): str
 /**
  * Get entity data from database with caching
  */
-async function getEntityDataForEntity(entityId: string): Promise<{ name: string | null; cdpName: string | null }> {
+async function getEntityDataForEntity(
+  entityId: string,
+): Promise<{ name: string | null; cdpName: string | null }> {
   try {
     logger.info({ entityId }, "Fetching entity data from database");
 
     const entity = await db
-      .select({ 
-        name: entities.name, 
-        cdpName: entities.cdp_name 
+      .select({
+        name: entities.name,
+        cdpName: entities.cdp_name,
       })
       .from(entities)
       .where(eq(entities.entityId, entityId))
@@ -77,7 +79,7 @@ async function getEntityDataForEntity(entityId: string): Promise<{ name: string 
 
     const result = {
       name: entity[0]?.name || null,
-      cdpName: entity[0]?.cdpName || null
+      cdpName: entity[0]?.cdpName || null,
     };
 
     logger.info({ entityId, name: result.name, cdpName: result.cdpName }, "Entity data retrieved");
