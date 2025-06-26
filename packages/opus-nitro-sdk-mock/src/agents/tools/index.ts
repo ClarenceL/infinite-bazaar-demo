@@ -19,6 +19,21 @@ export const mcpTools = [
   },
 
   {
+    name: "create_identity",
+    description: "Create a unique identity with DID, claims, and secure enclave setup",
+    input_schema: {
+      type: "object",
+      properties: {
+        entity_id: {
+          type: "string",
+          description: "The unique entity ID for the agent",
+        },
+      },
+      required: ["entity_id"],
+    },
+  },
+
+  {
     name: "transfer_usdc",
     description: "Transfer USDC tokens to another wallet address",
     input_schema: {
