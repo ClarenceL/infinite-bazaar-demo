@@ -172,7 +172,15 @@ export class NitroDIDService {
       } else {
         // Create new identity if none provided
         logger.info({ agentId }, "Creating new identity for generic claim");
-        const seed = this.createDeterministicSeed(agentId);
+
+        // SECURITY: Use random seed for proper security (not deterministic)
+        const seed = new Uint8Array(32);
+        crypto.getRandomValues(seed);
+
+        logger.warn(
+          { agentId },
+          "MOCK IMPLEMENTATION: Using random seed for identity creation. In production, this would be handled by AWS Nitro Enclaves with proper key management."
+        );
 
         const identityResult = await this.identityWallet.createIdentity({
           method: "iden3",
@@ -284,13 +292,16 @@ export class NitroDIDService {
   }
 
   /**
-   * Create a deterministic seed based on the Nitro private key and agent ID
+   * REMOVED: createDeterministicSeed() method was insecure
+   * 
+   * SECURITY NOTE: The previous deterministic seed approach was vulnerable because:
+   * - Anyone with MOCK_AWS_NITRO_PRIV_KEY + agentId could recreate seeds
+   * - Environment variables are often exposed in logs/configs
+   * - This would allow complete identity impersonation
+   * 
+   * Now using crypto.getRandomValues() for proper security.
+   * In production, AWS Nitro Enclaves would handle key generation securely.
    */
-  private createDeterministicSeed(agentId: string): Uint8Array {
-    const seedInput = `${this.mockNitroPrivateKey}-${agentId}`;
-    const hash = createHash("sha256").update(seedInput).digest();
-    return new Uint8Array(hash);
-  }
 
   /**
    * Create a comprehensive hash of all claim data

@@ -490,6 +490,13 @@ async function testCreateIdentity() {
     console.log("  - Key ID:", identityResult.keyId);
     console.log("  - File Path:", identityResult.filePath);
 
+    // 🔐 SECURITY LOG: Seed phrase (FOR TESTING ONLY - NEVER LOG IN PRODUCTION)
+    console.log("\n🔐 SEED PHRASE LOGGING (TESTING ONLY):");
+    console.log("  - Seed (hex):", Buffer.from(identityResult.seed).toString("hex"));
+    console.log("  - Seed (base64):", Buffer.from(identityResult.seed).toString("base64"));
+    console.log("  - Seed length:", identityResult.seed.length, "bytes");
+    console.log("⚠️  WARNING: In production, seeds should NEVER be logged or exposed!");
+
     // Test 2: Create AuthClaim using the identity
     console.log("\n🧪 Test 2: Create AuthClaim using Iden3AuthClaimService");
 
@@ -545,6 +552,37 @@ async function testCreateIdentity() {
       genericClaimResult.claimData.weightsRevision.hash.substring(0, 16) + "...",
     );
 
+    // 🔍 Test 3.1: Verify signature and key pairing
+    console.log("\n🔍 Test 3.1: Verifying signature and key pairing");
+
+    try {
+      // Verify the claim signature using the NitroDIDService
+      const isSignatureValid = await nitroDIDService.verifyClaim(
+        genericClaimResult.claimHash,
+        genericClaimResult.signature,
+        testAgentId
+      );
+
+      console.log("✅ Signature verification:", isSignatureValid ? "VALID" : "INVALID");
+
+      if (!isSignatureValid) {
+        console.log("❌ WARNING: Signature verification failed!");
+      }
+
+      // Get public key from the AuthClaim result for comparison
+      console.log("🔑 Key Pairing Verification:");
+      console.log("  - AuthClaim Public Key X:", authClaimResult.authClaimResult.publicKeyX);
+      console.log("  - AuthClaim Public Key Y:", authClaimResult.authClaimResult.publicKeyY);
+      console.log("  - Identity Private Key:", identityResult.privateKey);
+
+      // Note: The current implementation uses mock signatures, so this is demonstrating the verification flow
+      console.log("📝 NOTE: Current implementation uses mock signatures for demonstration.");
+      console.log("   In production, this would use proper cryptographic key pairing verification.");
+
+    } catch (error) {
+      console.log("❌ Signature verification failed:", error instanceof Error ? error.message : String(error));
+    }
+
     // Test 4: Submit generic claim to opus-genesis-id service
     console.log("\n🧪 Test 4: Submit generic claim to opus-genesis-id service");
 
@@ -566,7 +604,16 @@ async function testCreateIdentity() {
     const comprehensiveResult = {
       testName: "Complete Identity + AuthClaim + Generic Claim + Opus Genesis Submission Flow",
       timestamp: new Date().toISOString(),
-      identityKey: identityResult,
+      securityNote: "MOCK IMPLEMENTATION: This includes seed data for testing only. In production, seeds should never be logged or stored.",
+      identityKey: {
+        ...identityResult,
+        // Include seed information for testing verification
+        seedInfo: {
+          hex: Buffer.from(identityResult.seed).toString("hex"),
+          base64: Buffer.from(identityResult.seed).toString("base64"),
+          length: identityResult.seed.length,
+        },
+      },
       authClaim: {
         identityState: authClaimResult.identityState,
         claimsTreeRoot: authClaimResult.authClaimResult.claimsTreeRoot,
@@ -585,12 +632,25 @@ async function testCreateIdentity() {
     const filename = `complete-identity-with-opus-genesis-flow-${timestamp}.json`;
     const filepath = path.join(identitiesDir, filename);
 
-    // Custom JSON stringify to handle BigInt values
+    // Custom JSON stringify to handle BigInt values and Uint8Array
     fs.writeFileSync(
       filepath,
       JSON.stringify(
         comprehensiveResult,
-        (key, value) => (typeof value === "bigint" ? value.toString() : value),
+        (key, value) => {
+          if (typeof value === "bigint") {
+            return value.toString();
+          }
+          if (value instanceof Uint8Array) {
+            return {
+              type: "Uint8Array",
+              hex: Buffer.from(value).toString("hex"),
+              base64: Buffer.from(value).toString("base64"),
+              length: value.length,
+            };
+          }
+          return value;
+        },
         2,
       ),
     );

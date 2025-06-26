@@ -318,14 +318,16 @@ export class Iden3AuthClaimService {
   }
 
   /**
-   * Create a deterministic seed for identity creation
+   * REMOVED: createDeterministicSeed() method was insecure
+   * 
+   * SECURITY NOTE: The previous deterministic seed approach was vulnerable because:
+   * - Anyone with MOCK_AWS_NITRO_PRIV_KEY + agentId could recreate seeds
+   * - Environment variables are often exposed in logs/configs
+   * - This would allow complete identity impersonation
+   * 
+   * Now using crypto.getRandomValues() for proper security.
+   * In production, AWS Nitro Enclaves would handle key generation securely.
    */
-  private createDeterministicSeed(agentId: string): Uint8Array {
-    const mockNitroPrivateKey = process.env.MOCK_AWS_NITRO_PRIV_KEY || "default-mock-key";
-    const seedString = `${mockNitroPrivateKey}-${agentId}-seed`;
-    const hash = createHash("sha256").update(seedString).digest();
-    return new Uint8Array(hash);
-  }
 
   /**
    * Verify the AuthClaim and tree structure

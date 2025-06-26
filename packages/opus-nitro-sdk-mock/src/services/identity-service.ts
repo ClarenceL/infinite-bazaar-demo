@@ -53,6 +53,7 @@ export interface IdentityCreationResult {
   keyId: string;
   filePath: string;
   timestamp: string;
+  seed: Uint8Array; // Added for testing/verification purposes
 }
 
 export class IdentityService {
@@ -175,6 +176,7 @@ export class IdentityService {
         keyId: keyId.id,
         filePath,
         timestamp: identityData.createdAt,
+        seed: seedPhrase, // Include seed for testing/verification
       };
     } catch (error) {
       logger.error({ error, network: NETWORK_ENV }, "Failed to create identity");
