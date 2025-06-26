@@ -1,8 +1,8 @@
-import { Coinbase } from "@coinbase/coinbase-sdk";
 import { logger } from "@infinite-bazaar-demo/logs";
 import { http, createPublicClient, formatUnits, parseAbi } from "viem";
 import { baseSepolia } from "viem/chains";
 import { z } from "zod";
+import { createCdpClient } from "./mock-cdp-service.js";
 // For now, I'll implement a simplified x402 integration
 // The x402 package has module resolution issues with the current setup
 // TODO: Fix module resolution to use proper x402 imports
@@ -101,8 +101,8 @@ export class ClaimService {
         "Simulating blockchain transaction with Coinbase CDP",
       );
 
-      // Initialize Coinbase CDP client
-      const coinbase = Coinbase.configure({
+      // Initialize CDP client (mock or real depending on environment)
+      const coinbase = createCdpClient({
         apiKeyName: process.env.CDP_API_KEY_NAME || "default-key",
         privateKey: process.env.CDP_PRIVATE_KEY || "default-private-key",
       });

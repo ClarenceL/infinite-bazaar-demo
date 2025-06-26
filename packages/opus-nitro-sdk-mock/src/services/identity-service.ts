@@ -120,7 +120,7 @@ export class IdentityService {
     return new IdentityWallet(kms, dataStorage, credentialWallet);
   }
 
-  async createIdentity(): Promise<IdentityCreationResult> {
+  async createIdentityKey(): Promise<IdentityCreationResult> {
     try {
       const currentConfig = NETWORK_CONFIG[NETWORK_ENV];
 

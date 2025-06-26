@@ -45,38 +45,7 @@ const getToolsMetadata = () => [
       },
     },
   },
-  {
-    name: "create_identity",
-    description: "Create identity with x402 payment using existing CDP account",
-    version: "1.0.0",
-    category: "identity",
-    method: "POST",
-    endpoint: "/v1/mcp/create_identity",
-    parameters: {
-      entity_id: {
-        type: "string",
-        required: true,
-        description: "The entity ID (must have existing name/CDP account)",
-      },
-    },
-    returns: {
-      success: "boolean",
-      did: "string",
-      claimData: "object",
-      paymentHash: "string",
-    },
-    example: {
-      request: {
-        entity_id: "ent_123",
-      },
-      response: {
-        success: true,
-        did: "did:iden3:polygon:amoy:x3HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMeaQ2H2",
-        claimData: { verified: true },
-        paymentHash: "0x...",
-      },
-    },
-  },
+
   {
     name: "transfer_usdc",
     description: "Transfer USDC using Coinbase CDP SDK",
@@ -165,7 +134,7 @@ export const toolsRoutes = new Hono()
       );
 
       // Validate tool name
-      const validTools = ["create_name", "create_identity", "transfer_usdc"];
+      const validTools = ["create_name", "transfer_usdc"];
       if (!validTools.includes(toolName)) {
         return c.json(
           {
@@ -212,12 +181,21 @@ export const toolsRoutes = new Hono()
 
   // Health check endpoint for MCP tools
   .get("/health", (c) => {
-    const validTools = ["create_name", "create_identity", "transfer_usdc"];
+    const validTools = ["create_name", "transfer_usdc"];
 
     return c.json({
       status: "healthy",
       service: "tools",
       availableTools: validTools,
+      timestamp: new Date().toISOString(),
+    });
+  })
+
+  // Environment check endpoint
+  .get("/env", (c) => {
+    return c.json({
+      nodeEnv: process.env.NODE_ENV || "development",
+      service: "opus-nitro-sdk-mock",
       timestamp: new Date().toISOString(),
     });
   });

@@ -17,17 +17,7 @@ export const mcpTools = [
       required: ["name"],
     },
   },
-  {
-    name: "create_identity",
-    description: "Create an identity and claim it on-chain (requires name to be set first)",
-    input_schema: {
-      type: "object",
-      properties: {
-        // No parameters needed - uses existing name from database
-      },
-      required: [],
-    },
-  },
+
   {
     name: "transfer_usdc",
     description: "Transfer USDC tokens to another wallet address",

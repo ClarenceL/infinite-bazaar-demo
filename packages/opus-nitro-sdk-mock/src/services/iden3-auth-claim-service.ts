@@ -160,7 +160,7 @@ export class Iden3AuthClaimService {
       );
 
       // Step 3: Create the three identity trees using @iden3/js-merkletree
-      const { Merkletree, InMemoryDB, newHashFromString, str2Bytes } = await import(
+      const { Merkletree, InMemoryDB, newHashFromHex, str2Bytes } = await import(
         "@iden3/js-merkletree"
       );
 
@@ -199,11 +199,19 @@ export class Iden3AuthClaimService {
       logger.info({ agentId }, "Created AuthClaim with public key coordinates");
 
       // Step 5: Generate hIndex and hValue from the claim data
-      const hIndexData = `${authClaimData.schemaHash}-${authClaimData.indexData[0]?.toString() || "0"}`;
-      const hValueData = `${authClaimData.schemaHash}-${authClaimData.indexData[1]?.toString() || "0"}`;
+      // Use simpler approach with smaller values to avoid field overflow
+      const hIndexBigInt = BigInt(
+        `0x${authClaimData.indexData[0]?.toString(16).slice(0, 16) || "1"}`,
+      );
+      const hValueBigInt = BigInt(
+        `0x${authClaimData.indexData[1]?.toString(16).slice(0, 16) || "2"}`,
+      );
 
-      const hIndex = newHashFromString(hIndexData);
-      const hValue = newHashFromString(hValueData);
+      // Import the necessary functions to create hashes from BigInt
+      const { newHashFromBigInt } = await import("@iden3/js-merkletree");
+
+      const hIndex = newHashFromBigInt(hIndexBigInt);
+      const hValue = newHashFromBigInt(hValueBigInt);
 
       logger.info(
         {

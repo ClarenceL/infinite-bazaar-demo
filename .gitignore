@@ -17,7 +17,8 @@ deploy-secrets.env
 .env.production
 .env.production.local
 .env.staging
-.env.staging.local  
+.env.staging.local
+.env.test
 *.secret
 .dev.vars
 

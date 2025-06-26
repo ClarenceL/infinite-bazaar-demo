@@ -4,7 +4,6 @@
 // import { mcpTools } from "..";
 import type { ToolCallResult } from "../../../types/message.js";
 
-import { handleCreateIdentity } from "./create-identity/index.js";
 // import { handleClaim } from "./claim/index.js";
 import { handleCreateName } from "./create-name/index.js";
 import { handleTransferUsdc } from "./transfer-usdc/index.js";
@@ -33,9 +32,6 @@ export async function processToolCall(
   switch (toolName) {
     case "create_name":
       return handleCreateName(normalizedInput);
-
-    case "create_identity":
-      return handleCreateIdentity(normalizedInput);
 
     case "transfer_usdc":
       return handleTransferUsdc(normalizedInput);

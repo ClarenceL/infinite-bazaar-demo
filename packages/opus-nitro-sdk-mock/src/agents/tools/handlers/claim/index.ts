@@ -1,156 +1,142 @@
 import { logger } from "@infinite-bazaar-demo/logs";
-import type { Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-// @ts-ignore
-import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
+import { CDPClaimService } from "../../../../services/cdp-claim-service.js";
+import { type AgentClaimData, NitroDIDService } from "../../../../services/nitro-did-service.js";
 import type { ToolCallResult } from "../../../../types/message";
-import { processApiResponse } from "../utils";
 
 /**
- * Sample DID and claim data for testing
- */
-const SAMPLE_DID = "did:iden3:polygon:amoy:x3HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMeaQ2H2";
-const SAMPLE_ISSUER_DID = "did:iden3:polygon:amoy:x1HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMeaQ1H1";
-
-/**
- * Handle claim submission with x402 payment
+ * Handle claim submission with x402 payment using CDP wallet
  * This function:
- * 1. Gets service info from opus-genesis-id
- * 2. Creates x402-enabled fetch client
- * 3. Submits claim with automatic payment
- * 4. Returns the result
+ * 1. Creates a test DID and claim using NitroDIDService
+ * 2. Uses CDPClaimService to submit with x402 payment via CDP wallet
+ * 3. Returns the result
  */
 export async function handleClaim(): Promise<ToolCallResult> {
-  const OPUS_GENESIS_ID_URL = process.env.OPUS_GENESIS_ID_URL || "http://localhost:3106";
-  const PRIVATE_KEY = process.env.X402_PRIVATE_KEY as Hex;
-
   try {
-    logger.info("Starting claim submission process with x402 payment");
+    logger.info("Starting claim submission process with CDP wallet x402 payment");
 
-    // Validate required environment variables
-    if (!PRIVATE_KEY) {
-      logger.error("X402_PRIVATE_KEY environment variable is required");
+    // Step 1: Initialize services
+    let nitroDIDService: NitroDIDService;
+    let cdpClaimService: CDPClaimService;
+
+    try {
+      nitroDIDService = new NitroDIDService();
+      cdpClaimService = new CDPClaimService();
+    } catch (error) {
+      logger.error({ error }, "Failed to initialize services");
       return {
         type: "tool_result",
         tool_use_id: "",
         data: {
           success: false,
-          error: "X402_PRIVATE_KEY environment variable is required for payment",
+          error: "Failed to initialize services. Check CDP environment variables.",
+          details: error instanceof Error ? error.message : "Unknown error",
         },
         name: "claim",
       };
     }
 
-    // Step 1: Get service information and pricing (no payment required)
-    logger.info("Fetching service information from opus-genesis-id");
-    const serviceInfoResponse = await fetch(`${OPUS_GENESIS_ID_URL}/genesis/info`);
-    const serviceInfoResult = await processApiResponse(serviceInfoResponse);
+    // Step 2: Create a test entity ID for this claim test
+    const testEntityId = "test-claim-entity-" + Date.now();
+    logger.info({ testEntityId }, "Created test entity ID for claim test");
 
-    if (!serviceInfoResult.isSuccess) {
-      logger.error({ error: serviceInfoResult.error }, "Failed to get service information");
+    // Step 3: Prepare agent claim data for the test
+    const agentClaimData: AgentClaimData = NitroDIDService.createAgentClaimData(
+      "claude-3-5-sonnet-20241022", // LLM model
+      "test-claim-weights-hash-" + Date.now(), // Weights hash (test)
+      "You are a test AI agent for claim submission...", // System prompt (test)
+      JSON.stringify({ type: "object", properties: { test: { type: "string" } } }), // Zod schema (test)
+      {
+        nodes: [
+          { id: "test-agent", type: "ai_agent" },
+          { id: "test-human", type: "human" },
+        ],
+        edges: [{ from: "test-agent", to: "test-human", relationship: "test-assists" }],
+      }, // Relationship graph (test)
+    );
+
+    logger.info({ agentClaimData }, "Prepared test agent claim data");
+
+    // Step 4: Create DID and sign claims using Nitro DID service
+    logger.info({ testEntityId }, "Creating test DID and signing claims with Nitro DID service");
+
+    let nitroDIDResult: Awaited<ReturnType<NitroDIDService["createGenericClaim"]>>;
+    try {
+      nitroDIDResult = await nitroDIDService.createGenericClaim(testEntityId, agentClaimData);
+    } catch (error) {
+      logger.error({ error, testEntityId }, "Failed to create test DID and claims");
       return {
         type: "tool_result",
         tool_use_id: "",
         data: {
           success: false,
-          error: "Failed to get service information from opus-genesis-id",
-          details: serviceInfoResult.error,
+          error: "Failed to create test DID and claims",
+          details: error instanceof Error ? error.message : "Unknown error",
         },
         name: "claim",
       };
     }
-
-    const serviceInfo = serviceInfoResult.data;
-    logger.info({ serviceInfo }, "Retrieved service information");
-
-    // Step 2: Create x402-enabled fetch client
-    const account = privateKeyToAccount(PRIVATE_KEY);
-    const fetchWithPayment = wrapFetchWithPayment(fetch, account);
 
     logger.info(
       {
-        accountAddress: account.address,
-        x402Enabled: serviceInfo.x402Enabled,
+        did: nitroDIDResult.did,
+        agentId: nitroDIDResult.agentId,
+        claimHash: nitroDIDResult.claimHash,
       },
-      "Created x402-enabled fetch client",
+      "Successfully created test DID and signed claims",
     );
 
-    // Step 3: Prepare claim data
-    const claimData = {
-      did: SAMPLE_DID,
-      claimType: "identity_verification",
-      claimData: {
-        verified: true,
-        verificationMethod: "enclave_attestation",
-        timestamp: new Date().toISOString(),
-        source: "opus-nitro-sdk-mock",
-      },
-      issuer: SAMPLE_ISSUER_DID,
-      subject: SAMPLE_DID,
-    };
+    // Step 5: Submit claim with CDP payment
+    // Note: This will fail because we don't have a CDP account for the test entity
+    // But it will test the x402 payment flow and return a proper error
+    logger.info(
+      { testEntityId },
+      "Attempting to submit claim with CDP payment (expected to fail gracefully)",
+    );
 
-    logger.info({ claimData }, "Prepared claim data");
+    const cdpResult = await cdpClaimService.submitClaimWithPayment(testEntityId, nitroDIDResult);
 
-    // Step 4: Submit claim with automatic x402 payment
-    logger.info("Submitting claim with x402 payment to opus-genesis-id");
+    // Step 6: Return result (success or expected failure)
+    if (cdpResult.success) {
+      logger.info(
+        { testEntityId, did: nitroDIDResult.did },
+        "Claim submission completed successfully",
+      );
 
-    const claimResponse = await fetchWithPayment(`${OPUS_GENESIS_ID_URL}/genesis/claim/submit`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(claimData),
-    });
+      return {
+        type: "tool_result",
+        tool_use_id: "",
+        data: {
+          success: true,
+          message: "Claim submitted successfully with CDP wallet x402 payment",
+          claimSubmission: cdpResult.claimSubmission,
+          paymentDetails: cdpResult.paymentDetails,
+          accountAddress: cdpResult.cdpAccount?.address,
+          timestamp: new Date().toISOString(),
+        },
+        name: "claim",
+      };
+    } else {
+      // Expected failure - test entity doesn't have CDP account
+      logger.info(
+        { error: cdpResult.error },
+        "Claim submission failed as expected (test entity has no CDP account)",
+      );
 
-    const claimResult = await processApiResponse(claimResponse);
-
-    if (!claimResult.isSuccess) {
-      logger.error({ error: claimResult.error }, "Failed to submit claim");
       return {
         type: "tool_result",
         tool_use_id: "",
         data: {
           success: false,
-          error: "Failed to submit claim to opus-genesis-id",
-          details: claimResult.error,
-          statusCode: claimResult.statusCode,
+          error: "Test claim submission failed (expected - no CDP account for test entity)",
+          details: cdpResult.error,
+          statusCode: cdpResult.statusCode,
+          testNote:
+            "This is expected behavior - the test creates a temporary entity without a CDP account",
+          timestamp: new Date().toISOString(),
         },
         name: "claim",
       };
     }
-
-    // Step 5: Extract payment response details
-    let paymentDetails = null;
-    const paymentResponseHeader = claimResponse.headers.get("x-payment-response");
-    if (paymentResponseHeader) {
-      try {
-        paymentDetails = decodeXPaymentResponse(paymentResponseHeader);
-        logger.info({ paymentDetails }, "Extracted x402 payment response");
-      } catch (error) {
-        logger.warn({ error }, "Failed to decode x-payment-response header");
-      }
-    }
-
-    logger.info({ claimResult: claimResult.data }, "Successfully submitted claim");
-
-    // Step 6: Return success result
-    return {
-      type: "tool_result",
-      tool_use_id: "",
-      data: {
-        success: true,
-        message: "Claim submitted successfully with x402 payment",
-        serviceInfo: serviceInfo,
-        claimSubmission: claimResult.data,
-        paymentDetails: paymentDetails || {
-          method: "x402",
-          status: "processed",
-        },
-        accountAddress: account.address,
-        timestamp: new Date().toISOString(),
-      },
-      name: "claim",
-    };
   } catch (error) {
     logger.error({ error }, "Error in handleClaim function");
 

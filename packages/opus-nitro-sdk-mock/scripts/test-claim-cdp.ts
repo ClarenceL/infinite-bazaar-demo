@@ -9,6 +9,7 @@
 
 import { logger } from "@infinite-bazaar-demo/logs";
 import { handleCreateIdentity } from "../src/agents/tools/handlers/create-identity/index";
+import { handleCreateName } from "../src/agents/tools/handlers/create-name/index";
 
 interface TestResult {
   success: boolean;

@@ -9,7 +9,6 @@
     "build": "bun build src/index.ts --outdir dist --target bun --sourcemap",
     "test": "NODE_ENV=test bun src/tests/run-tests.ts",
     "test:e2e": "bun run scripts/test-e2e-claim-flow.ts",
-    "test:claim": "bun run scripts/test-claim-handler.ts",
     "test:claim-cdp": "bun run scripts/test-claim-cdp.ts",
     "create-cdp-wallet": "bun run scripts/create-cdp-wallet.ts",
     "format": "biome format --write .",
@@ -20,7 +19,7 @@
     "lint:fix-unsafe": "biome check --fix --unsafe .",
     "create-identity": "bun run scripts/create-identity.ts",
     "test:opus-chat": "NODE_ENV=test tsx scripts/test-opus-chat.ts",
-    "test:polygon-sdk": "NODE_ENV=test bun run scripts/test-polygon-sdk.ts",
+    "test:polygon-sdk": "bun run scripts/test-polygon-sdk.ts",
     "seed:default-data": "tsx scripts/seed-default-data.ts"
   },
   "keywords": ["nitro", "enclave", "mock", "aws", "infinite-bazaar"],

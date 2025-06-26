@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { logger } from "@infinite-bazaar-demo/logs";
 import { CDPClaimService } from "../../../../services/cdp-claim-service.js";
 import {
@@ -120,9 +121,13 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
 
     // Step 3: Prepare agent claim data for additional claims
     // TODO: These should come from the agent's actual configuration
+    // Create a proper hex hash for weights using timestamp
+    const weightsHashInput = "mock-weights-hash-" + Date.now();
+    const weightsHash = "0x" + createHash("sha256").update(weightsHashInput).digest("hex");
+
     const agentClaimData: AgentClaimData = NitroDIDService.createAgentClaimData(
       "claude-3-5-sonnet-20241022", // LLM model
-      "mock-weights-hash-" + Date.now(), // Weights hash (mock)
+      weightsHash, // Weights hash (proper hex format)
       "You are an AI agent with a unique identity...", // System prompt (mock)
       JSON.stringify({ type: "object", properties: {} }), // Zod schema (mock)
       {
@@ -139,9 +144,9 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
     // Step 4: Create DID and sign additional claims using Nitro DID service
     logger.info({ entity_id }, "Creating DID and signing additional claims with Nitro DID service");
 
-    let nitroDIDResult: Awaited<ReturnType<NitroDIDService["createIdentityWithClaims"]>>;
+    let nitroDIDResult: Awaited<ReturnType<NitroDIDService["createGenericClaim"]>>;
     try {
-      nitroDIDResult = await nitroDIDService.createIdentityWithClaims(entity_id, agentClaimData);
+      nitroDIDResult = await nitroDIDService.createGenericClaim(entity_id, agentClaimData);
     } catch (error) {
       logger.error({ error, entity_id }, "Failed to create DID and additional claims");
       return {

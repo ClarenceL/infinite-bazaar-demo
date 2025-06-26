@@ -14,7 +14,30 @@
  * 8. Return complete success result
  */
 
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { logger } from "@infinite-bazaar-demo/logs";
+import { config } from "dotenv";
+
+// Get the directory name using import.meta.url
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Determine environment and load appropriate .env file
+const env = process.env.NODE_ENV || "test";
+console.log(`Using environment: ${env}`);
+
+// Load the appropriate .env file
+const envFile = `.env${env !== "development" ? `.${env}` : ""}`;
+const envPath = path.resolve(process.cwd(), envFile);
+const result = config({ path: envPath });
+
+if (result.error) {
+  console.error(`Error loading ${envFile}:`, result.error);
+  process.exit(1);
+}
+
+console.log(`Loaded environment from ${envFile}`);
 
 interface ServiceStatus {
   name: string;
@@ -140,8 +163,16 @@ class E2ETestRunner {
 
   private async checkServiceHealth(): Promise<ServiceStatus[]> {
     const services = [
-      { name: "opus-nitro-sdk-mock", url: `${this.OPUS_NITRO_URL}/enclave/health` },
-      { name: "opus-genesis-id", url: `${this.OPUS_GENESIS_URL}/genesis/health` },
+      {
+        name: "opus-nitro-sdk-mock",
+        url: `${this.OPUS_NITRO_URL}/enclave/health`,
+        requiresAuth: true,
+      },
+      {
+        name: "opus-genesis-id",
+        url: `${this.OPUS_GENESIS_URL}/genesis/health`,
+        requiresAuth: false,
+      },
     ];
 
     const results: ServiceStatus[] = [];
@@ -149,8 +180,16 @@ class E2ETestRunner {
     for (const service of services) {
       try {
         logger.info(`Checking health of ${service.name}...`);
+
+        // Prepare headers - add auth for services that require it
+        const headers: Record<string, string> = {};
+        if (service.requiresAuth) {
+          headers["X-Auth-Key"] = this.AUTH_KEY;
+        }
+
         const response = await fetch(service.url, {
           method: "GET",
+          headers,
           signal: AbortSignal.timeout(5000),
         });
 
@@ -252,12 +291,20 @@ class E2ETestRunner {
     try {
       logger.info("Calling opus-nitro-sdk-mock test-claim-cdp endpoint...");
 
+      // Create test data for CDP claim submission
+      const testEntityId = "test-e2e-cdp-entity-" + Date.now();
+      const testName = "Test E2E CDP Agent " + Date.now();
+
       const response = await fetch(`${this.OPUS_NITRO_URL}/enclave/test-claim-cdp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Auth-Key": this.AUTH_KEY,
         },
+        body: JSON.stringify({
+          name: testName,
+          entity_id: testEntityId,
+        }),
         signal: AbortSignal.timeout(this.TEST_TIMEOUT),
       });
 

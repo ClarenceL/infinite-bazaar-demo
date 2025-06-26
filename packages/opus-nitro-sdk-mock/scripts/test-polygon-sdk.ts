@@ -48,6 +48,12 @@ if (result.error) {
 
 console.log(`Loaded environment from ${envFile}`);
 
+// Set required environment variables for testing if not present
+if (!process.env.MOCK_AWS_NITRO_PRIV_KEY) {
+  process.env.MOCK_AWS_NITRO_PRIV_KEY = "test-mock-nitro-private-key-for-development";
+  console.log("Set MOCK_AWS_NITRO_PRIV_KEY for testing");
+}
+
 // Ensure logs directory exists
 const logsDir = path.join(__dirname, "..", "logs");
 const identitiesDir = path.join(logsDir, "identities");
@@ -78,10 +84,10 @@ function saveIdentityToLogs(testName: string, identity: any, seed?: Uint8Array) 
     },
     seed: seed
       ? {
-          hex: Buffer.from(seed).toString("hex"),
-          base64: Buffer.from(seed).toString("base64"),
-          length: seed.length,
-        }
+        hex: Buffer.from(seed).toString("hex"),
+        base64: Buffer.from(seed).toString("base64"),
+        length: seed.length,
+      }
       : null,
   };
 
@@ -147,44 +153,364 @@ function initIdentityWallet(
   return new IdentityWallet(kms, dataStorage, credentialWallet);
 }
 
-async function testCreateIdentity() {
+/**
+ * Submit a generic claim to the opus-genesis-id service with x402 payment
+ */
+async function submitClaimToOpusGenesis(
+  genericClaimResult: any,
+  agentId: string,
+): Promise<{
+  success: boolean;
+  response?: any;
+  claimId?: string;
+  transactionHash?: string;
+  error?: string;
+  status?: number;
+  details?: string;
+  paymentDetails?: any;
+}> {
   try {
-    console.log("🔧 Setting up PolygonID SDK components...");
+    const opusGenesisUrl = "http://localhost:3106";
 
-    // Initialize components
-    const dataStorage = initDataStorage();
-    const credentialWallet = initCredentialWallet(dataStorage);
-    const identityWallet = initIdentityWallet(dataStorage, credentialWallet);
-
-    console.log("✅ SDK components initialized successfully");
-
-    // Test 1: Identity creation with custom seed
-    console.log("\n🧪 Test 1: Identity creation with custom seed");
-
-    const customSeed = new Uint8Array(32);
-    crypto.getRandomValues(customSeed);
-
-    const seededOptions: IdentityCreationOptions = {
-      method: "iden3",
-      blockchain: "polygon",
-      networkId: NETWORK_CONFIG.networkId,
-      seed: customSeed,
-      revocationOpts: {
-        type: CredentialStatusType.SparseMerkleTreeProof,
-        id: `urn:uuid:${crypto.randomUUID()}`,
+    // Prepare the claim data for submission
+    const claimData = {
+      did: genericClaimResult.did,
+      claimType: "genesis-identity",
+      claimData: {
+        agentId,
+        llmModel: genericClaimResult.claimData.llmModel.name,
+        weightsHash: genericClaimResult.claimData.weightsRevision.hash,
+        promptHash: genericClaimResult.claimData.systemPrompt.hash,
+        relationshipHash: genericClaimResult.claimData.relationshipGraph.hash,
+        claimHash: genericClaimResult.claimHash,
+        signature: genericClaimResult.signature,
+        timestamp: new Date().toISOString(),
       },
+      issuer: "did:iden3:polygon:amoy:nitro-enclave-issuer",
+      subject: genericClaimResult.did,
     };
 
-    console.log("📋 Creating identity with custom seed...");
+    console.log("📡 Submitting claim to opus-genesis-id service...");
+    console.log("  - Endpoint:", `${opusGenesisUrl}/genesis/claim/submit`);
+    console.log("  - DID:", claimData.did);
+    console.log("  - Agent ID:", agentId);
 
-    const seededResult = await identityWallet.createIdentity(seededOptions);
+    // Step 1: First attempt without payment to get payment requirements
+    console.log("\n🔍 Step 1: Getting payment requirements...");
+    const initialResponse = await fetch(`${opusGenesisUrl}/genesis/claim/submit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(claimData),
+    });
 
-    console.log("✅ Seeded identity created successfully:");
-    console.log("  - DID:", seededResult.did.string());
-    console.log("  - Credential ID:", seededResult.credential.id);
+    const initialResponseData = await initialResponse.json();
 
-    // Save to logs
-    saveIdentityToLogs("Custom Seed Identity Creation", seededResult, customSeed);
+    if (initialResponse.status !== 402) {
+      // If it's not a payment required response, handle normally
+      if (initialResponse.ok) {
+        return {
+          success: true,
+          response: {
+            status: initialResponse.status,
+            statusText: initialResponse.statusText,
+          },
+          claimId: initialResponseData.claimId,
+          transactionHash: initialResponseData.transactionHash,
+        };
+      } else {
+        return {
+          success: false,
+          error: initialResponseData.error || `HTTP ${initialResponse.status}`,
+          status: initialResponse.status,
+          details: "Non-payment error",
+          response: initialResponseData,
+        };
+      }
+    }
+
+    // Step 2: Extract payment requirements
+    console.log("💰 Payment required! Processing x402 payment...");
+    const paymentRequirements = initialResponseData.accepts?.[0];
+
+    if (!paymentRequirements) {
+      return {
+        success: false,
+        error: "No payment requirements found in 402 response",
+        status: 402,
+        details: "Invalid payment requirements",
+      };
+    }
+
+    console.log("  - Payment required for:", paymentRequirements.resource);
+    console.log("  - Amount:", paymentRequirements.maxAmountRequired, "wei");
+    console.log("  - Asset:", paymentRequirements.asset);
+    console.log("  - Network:", paymentRequirements.network);
+
+    // Step 3: Create a wallet for payment
+    console.log("\n🔑 Step 2: Creating payment wallet...");
+    console.log("  - NODE_ENV:", process.env.NODE_ENV || "undefined");
+    console.log(
+      "  - Environment detection:",
+      process.env.NODE_ENV === "test" ? "USING MOCK CLIENT" : "USING REAL CLIENT",
+    );
+
+    let viemAccount: any;
+
+    if (process.env.NODE_ENV === "test") {
+      // Use mock for test environment
+      const { createCdpClient, createMockViemAccount } = await import(
+        "../src/agents/tools/handlers/utils.js"
+      );
+
+      const mockCdpClient = createCdpClient({
+        apiKeyId: "test-api-key",
+        apiKeySecret: "test-api-secret",
+        walletSecret: "test-wallet-secret",
+      });
+
+      const cdpAccount = await mockCdpClient.evm.getOrCreateAccount({ name: `payment-${agentId}` });
+      viemAccount = createMockViemAccount(cdpAccount as any);
+    } else {
+      // Use real CDP client for production/development
+      const { CdpClient } = await import("@coinbase/cdp-sdk");
+      const { privateKeyToAccount } = await import("viem/accounts");
+
+      // Check for required CDP environment variables
+      const cdpApiKeyId = process.env.CDP_API_KEY_ID;
+      const cdpApiKeySecret = process.env.CDP_API_KEY_SECRET;
+      const cdpWalletSecret = process.env.CDP_WALLET_SECRET;
+
+      if (!cdpApiKeyId || !cdpApiKeySecret || !cdpWalletSecret) {
+        console.log(
+          "⚠️  CDP environment variables not set, using generated private key for payment...",
+        );
+
+        // Generate a deterministic private key for testing
+        const crypto = await import("node:crypto");
+        const hash = crypto.createHash("sha256").update(`payment-${agentId}`).digest("hex");
+        const privateKey = `0x${hash}` as `0x${string}`;
+
+        viemAccount = privateKeyToAccount(privateKey);
+        console.log("  - Using generated private key account");
+      } else {
+        console.log("  - Using real CDP client for payment wallet");
+
+        const cdpClient = new CdpClient({
+          apiKeyId: cdpApiKeyId,
+          apiKeySecret: cdpApiKeySecret,
+          walletSecret: cdpWalletSecret,
+        });
+
+        // Use the TEST_CDP_PAY_FROM_ADDRESS_NAME if available (e.g., "opus-demo" which has funds)
+        const walletName = process.env.TEST_CDP_PAY_FROM_ADDRESS_NAME || `payment-${agentId}`;
+        console.log("  - Using CDP wallet name:", walletName);
+
+        const cdpAccount = await cdpClient.evm.getOrCreateAccount({ name: walletName });
+
+        // Convert CDP account to viem account using the real toAccount function
+        const { toAccount } = await import("viem/accounts");
+        viemAccount = toAccount(cdpAccount as any);
+      }
+    }
+
+    console.log("  - Payment wallet address:", viemAccount.address);
+
+    // Step 4: Create x402 payment header
+    console.log("\n💳 Step 3: Creating x402 payment header...");
+    const { createPaymentHeader, x402Version } = await import("@infinite-bazaar-demo/x402");
+
+    const paymentHeader = await createPaymentHeader(viemAccount, x402Version, paymentRequirements);
+
+    console.log("  - Payment header created (length:", paymentHeader.length, "chars)");
+    console.log("  - Payment header preview:", paymentHeader.substring(0, 50) + "...");
+
+    // Step 5: Submit claim with payment header
+    console.log("\n🚀 Step 4: Submitting claim with payment...");
+    const paidResponse = await fetch(`${opusGenesisUrl}/genesis/claim/submit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-PAYMENT": paymentHeader,
+      },
+      body: JSON.stringify(claimData),
+    });
+
+    const paidResponseData = await paidResponse.json();
+
+    if (paidResponse.ok) {
+      console.log("✅ Payment accepted and claim processed!");
+      console.log("  - Claim ID:", paidResponseData.claimId);
+      console.log("  - Transaction Hash:", paidResponseData.transactionHash);
+      console.log("  - Payment Method:", paidResponseData.paymentMethod);
+
+      return {
+        success: true,
+        response: {
+          status: paidResponse.status,
+          statusText: paidResponse.statusText,
+        },
+        claimId: paidResponseData.claimId,
+        transactionHash: paidResponseData.transactionHash,
+        paymentDetails: {
+          paymentHeader: paymentHeader.substring(0, 50) + "...",
+          paymentRequirements,
+          walletAddress: viemAccount.address,
+          paymentVerified: paidResponseData.paymentVerified,
+          paymentSettlement: paidResponseData.paymentSettlement,
+        },
+      };
+    } else {
+      console.log("❌ Payment failed or claim rejected:");
+      console.log("  - Status:", paidResponse.status);
+      console.log("  - Error:", paidResponseData.error);
+
+      return {
+        success: false,
+        error: paidResponseData.error || `HTTP ${paidResponse.status}`,
+        status: paidResponse.status,
+        details: "Payment submission failed",
+        response: paidResponseData,
+        paymentDetails: {
+          paymentHeader: paymentHeader.substring(0, 50) + "...",
+          paymentRequirements,
+          walletAddress: viemAccount.address,
+        },
+      };
+    }
+  } catch (error) {
+    console.error("❌ Error in x402 payment flow:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+      details: "x402 payment flow error",
+    };
+  }
+}
+
+async function testCreateIdentity() {
+  try {
+    console.log("🔧 Testing Identity and AuthClaim creation flow...");
+
+    // Test 1: Create identity key (internal service)
+    console.log("\n🧪 Test 1: Create identity key using IdentityService");
+
+    const { IdentityService } = await import("../src/services/identity-service.js");
+    const identityService = new IdentityService();
+
+    const identityResult = await identityService.createIdentityKey();
+
+    console.log("✅ Identity key created successfully:");
+    console.log("  - DID:", identityResult.did);
+    console.log("  - Key ID:", identityResult.keyId);
+    console.log("  - File Path:", identityResult.filePath);
+
+    // Test 2: Create AuthClaim using the identity
+    console.log("\n🧪 Test 2: Create AuthClaim using Iden3AuthClaimService");
+
+    const { Iden3AuthClaimService } = await import("../src/services/iden3-auth-claim-service.js");
+    const authClaimService = new Iden3AuthClaimService();
+
+    const testAgentId = "test-agent-" + Date.now();
+    const authClaimResult = await authClaimService.createAuthClaimWithTrees(testAgentId);
+
+    console.log("✅ AuthClaim created successfully:");
+    console.log("  - Identity State:", authClaimResult.identityState);
+    console.log("  - Claims Tree Root:", authClaimResult.authClaimResult.claimsTreeRoot);
+    console.log("  - hIndex:", authClaimResult.authClaimResult.hIndex.substring(0, 16) + "...");
+    console.log("  - hValue:", authClaimResult.authClaimResult.hValue.substring(0, 16) + "...");
+
+    // Test 3: Create Generic Claim using NitroDIDService
+    console.log("\n🧪 Test 3: Create Generic Claim using NitroDIDService");
+
+    const { NitroDIDService } = await import("../src/services/nitro-did-service.js");
+    const nitroDIDService = new NitroDIDService();
+
+    // Create mock agent claim data
+    const agentClaimData = NitroDIDService.createAgentClaimData(
+      "claude-3-5-sonnet-20241022",
+      "0x1234567890abcdef1234567890abcdef12345678",
+      "You are a helpful AI assistant specialized in blockchain technology.",
+      "z.object({ query: z.string() })",
+      {
+        nodes: [{ id: "agent1" }, { id: "human1" }],
+        edges: [{ from: "agent1", to: "human1", type: "assists" }],
+      },
+    );
+
+    // Use the existing identity for the generic claim
+    const existingIdentity = {
+      did: identityResult.did,
+      credential: identityResult.credential,
+    };
+
+    const genericClaimResult = await nitroDIDService.createGenericClaim(
+      testAgentId,
+      agentClaimData,
+      existingIdentity,
+    );
+
+    console.log("✅ Generic claim created successfully:");
+    console.log("  - DID:", genericClaimResult.did);
+    console.log("  - Claim Hash:", genericClaimResult.claimHash);
+    console.log("  - Signature:", genericClaimResult.signature.substring(0, 16) + "...");
+    console.log("  - LLM Model:", genericClaimResult.claimData.llmModel.name);
+    console.log(
+      "  - Weights Hash:",
+      genericClaimResult.claimData.weightsRevision.hash.substring(0, 16) + "...",
+    );
+
+    // Test 4: Submit generic claim to opus-genesis-id service
+    console.log("\n🧪 Test 4: Submit generic claim to opus-genesis-id service");
+
+    const opusGenesisResult = await submitClaimToOpusGenesis(genericClaimResult, testAgentId);
+
+    if (opusGenesisResult.success) {
+      console.log("✅ Generic claim submitted to opus-genesis-id successfully:");
+      console.log("  - Service Response:", opusGenesisResult.response?.status || "unknown");
+      console.log("  - Claim ID:", opusGenesisResult.claimId || "not provided");
+      console.log("  - Transaction Hash:", opusGenesisResult.transactionHash || "not provided");
+    } else {
+      console.log("⚠️  Generic claim submission to opus-genesis-id failed:");
+      console.log("  - Error:", opusGenesisResult.error);
+      console.log("  - Status:", opusGenesisResult.status);
+      console.log("  - Details:", opusGenesisResult.details);
+    }
+
+    // Save comprehensive results to logs
+    const comprehensiveResult = {
+      testName: "Complete Identity + AuthClaim + Generic Claim + Opus Genesis Submission Flow",
+      timestamp: new Date().toISOString(),
+      identityKey: identityResult,
+      authClaim: {
+        identityState: authClaimResult.identityState,
+        claimsTreeRoot: authClaimResult.authClaimResult.claimsTreeRoot,
+        revocationTreeRoot: authClaimResult.authClaimResult.revocationTreeRoot,
+        rootsTreeRoot: authClaimResult.authClaimResult.rootsTreeRoot,
+        hIndex: authClaimResult.authClaimResult.hIndex,
+        hValue: authClaimResult.authClaimResult.hValue,
+        publicKeyX: authClaimResult.authClaimResult.publicKeyX,
+        publicKeyY: authClaimResult.authClaimResult.publicKeyY,
+      },
+      genericClaim: genericClaimResult,
+      opusGenesisSubmission: opusGenesisResult,
+    };
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `complete-identity-with-opus-genesis-flow-${timestamp}.json`;
+    const filepath = path.join(identitiesDir, filename);
+
+    // Custom JSON stringify to handle BigInt values
+    fs.writeFileSync(
+      filepath,
+      JSON.stringify(
+        comprehensiveResult,
+        (key, value) => (typeof value === "bigint" ? value.toString() : value),
+        2,
+      ),
+    );
+    console.log(`💾 Complete flow data saved to: ${filename}`);
 
     // Test 2: Deterministic identity creation (same seed should produce same DID)
     // console.log("\n🧪 Test 2: Deterministic identity creation");
@@ -277,7 +603,7 @@ async function testCreateIdentity() {
 
 async function testAPIEndpoints() {
   try {
-    console.log("\n🌐 Testing API endpoints against running process...");
+    console.log("🌐 Testing API endpoints against running process...");
 
     const baseUrl = "http://localhost:3105";
     const authKey = process.env.OPUS_NITRO_AUTH_KEY || "test-key-123";
@@ -321,93 +647,51 @@ async function testAPIEndpoints() {
       );
     }
 
-    // Test 3: Create name tool (should work)
-    console.log("\n🧪 Test 3: Create name tool");
-    try {
-      const createNameResponse = await fetch(`${baseUrl}/v1/mcp/create_name`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Auth-Key": authKey,
-        },
-        body: JSON.stringify({
-          name: "Test Agent API " + Date.now(),
-          entity_id: "test-api-" + Date.now(),
-        }),
-      });
-      const createNameData = await createNameResponse.json();
-
-      console.log("✅ Create name response:", {
-        status: createNameResponse.status,
-        success: createNameData.success,
-        error: createNameData.data?.error || null,
-      });
-    } catch (error) {
-      console.log("❌ Create name failed:", error instanceof Error ? error.message : String(error));
-    }
-
-    // Test 4: Create identity tool (this is where the PolygonID SDK error might occur)
+    // Test 4: Create identity tool (using existing god_lyra entity)
     console.log("\n🧪 Test 4: Create identity tool (PolygonID SDK test)");
     try {
-      const testEntityId = "test-identity-api-" + Date.now();
+      const testEntityId = "god_lyra"; // Use existing entity from database
 
-      // First create a name for the entity
-      const createNameResponse = await fetch(`${baseUrl}/v1/mcp/create_name`, {
+      console.log("📋 Using existing entity god_lyra, testing identity creation...");
+
+      // Try to create identity for existing entity
+      const createIdentityResponse = await fetch(`${baseUrl}/v1/mcp/create_identity`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Auth-Key": authKey,
         },
         body: JSON.stringify({
-          name: "Test Identity Agent " + Date.now(),
           entity_id: testEntityId,
         }),
       });
 
-      if (createNameResponse.ok) {
-        console.log("📋 Name created successfully, now testing identity creation...");
+      const createIdentityData = await createIdentityResponse.json();
 
-        // Now try to create identity
-        const createIdentityResponse = await fetch(`${baseUrl}/v1/mcp/create_identity`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Auth-Key": authKey,
-          },
-          body: JSON.stringify({
-            entity_id: testEntityId,
-          }),
-        });
+      console.log("✅ Create identity response:", {
+        status: createIdentityResponse.status,
+        success: createIdentityData.success,
+        hasDID: !!createIdentityData.data?.identity?.did,
+        error: createIdentityData.data?.error || null,
+      });
 
-        const createIdentityData = await createIdentityResponse.json();
+      if (createIdentityData.data?.identity?.did) {
+        console.log("🎉 DID created successfully:", createIdentityData.data.identity.did);
 
-        console.log("✅ Create identity response:", {
-          status: createIdentityResponse.status,
-          success: createIdentityData.success,
-          hasDID: !!createIdentityData.data?.identity?.did,
-          error: createIdentityData.data?.error || null,
-        });
+        // Save API identity creation to logs
+        const apiLogData = {
+          testName: "API Identity Creation",
+          timestamp: new Date().toISOString(),
+          entityId: testEntityId,
+          response: createIdentityData,
+        };
 
-        if (createIdentityData.data?.identity?.did) {
-          console.log("🎉 DID created successfully:", createIdentityData.data.identity.did);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const filename = `api-identity-creation-${timestamp}.json`;
+        const filepath = path.join(identitiesDir, filename);
 
-          // Save API identity creation to logs
-          const apiLogData = {
-            testName: "API Identity Creation",
-            timestamp: new Date().toISOString(),
-            entityId: testEntityId,
-            response: createIdentityData,
-          };
-
-          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-          const filename = `api-identity-creation-${timestamp}.json`;
-          const filepath = path.join(identitiesDir, filename);
-
-          fs.writeFileSync(filepath, JSON.stringify(apiLogData, null, 2));
-          console.log(`💾 API identity data saved to: ${filename}`);
-        }
-      } else {
-        console.log("❌ Failed to create name first, skipping identity test");
+        fs.writeFileSync(filepath, JSON.stringify(apiLogData, null, 2));
+        console.log(`💾 API identity data saved to: ${filename}`);
       }
     } catch (error) {
       console.log(
@@ -451,14 +735,69 @@ async function testAPIEndpoints() {
   }
 }
 
+// Environment check function - must pass before any tests run
+async function checkServiceEnvironment() {
+  console.log("🔍 Checking service environment (critical pre-check)...");
+
+  const baseUrl = "http://localhost:3105";
+  const authKey = process.env.OPUS_NITRO_AUTH_KEY || "test-key-123";
+
+  try {
+    const envResponse = await fetch(`${baseUrl}/v1/mcp/env`, {
+      headers: {
+        "X-Auth-Key": authKey,
+      },
+    });
+
+    if (!envResponse.ok) {
+      if (envResponse.status === 401) {
+        throw new Error(
+          `HTTP ${envResponse.status}: Unauthorized - check OPUS_NITRO_AUTH_KEY environment variable`,
+        );
+      } else {
+        throw new Error(`HTTP ${envResponse.status}: Service error`);
+      }
+    }
+
+    const envData = await envResponse.json();
+    const serviceNodeEnv = envData.nodeEnv;
+
+    console.log("✅ Service is running with NODE_ENV:", serviceNodeEnv);
+
+    // Warning if NODE_ENV is not "test"
+    if (serviceNodeEnv !== "test") {
+      console.warn("⚠️  WARNING: Service NODE_ENV is not 'test' for testing");
+      console.warn(`Current service NODE_ENV: ${serviceNodeEnv}`);
+      console.warn("Note: For full test isolation, consider running with NODE_ENV=test");
+      console.warn("Continuing with current environment...");
+    } else {
+      console.log("✅ Environment check passed - service running with NODE_ENV=test");
+    }
+    console.log(""); // Add spacing
+  } catch (error) {
+    console.error("❌ CRITICAL ERROR: Service environment check failed");
+    console.error("Error:", error instanceof Error ? error.message : String(error));
+
+    if (error instanceof Error && error.message.includes("Unauthorized")) {
+      console.error("Please check that OPUS_NITRO_AUTH_KEY environment variable is set correctly");
+    } else if (error instanceof Error && error.message.includes("fetch")) {
+      console.error("Please ensure the service is running with: NODE_ENV=test pnpm dev");
+    }
+
+    process.exit(1);
+  }
+}
+
 // Run the tests
 async function runAllTests() {
+  // CRITICAL: Check service environment first - exit if not correct
+  await checkServiceEnvironment();
+
   console.log("🚀 Starting PolygonID SDK test...");
   await testCreateIdentity();
 
   console.log("\n" + "=".repeat(60));
   console.log("🚀 Starting API endpoint tests...");
-  console.log("📝 Note: Make sure the service is running with 'pnpm dev' in another terminal");
   await testAPIEndpoints();
 }
 

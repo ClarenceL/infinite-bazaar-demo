@@ -87,11 +87,11 @@ export class EnclaveService {
   }
 
   /**
-   * Create a real Privado ID identity
+   * Create a real Privado ID identity key (internal only)
    */
   async createIdentity(): Promise<IdentityCreationResult> {
-    logger.info("Creating Privado ID identity via enclave service");
-    return await this.identityService.createIdentity();
+    logger.info("Creating Privado ID identity key via enclave service");
+    return await this.identityService.createIdentityKey();
   }
 
   /**
