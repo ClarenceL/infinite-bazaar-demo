@@ -1,38 +1,24 @@
-import { db, entities, eq } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
-import type { LocalAccount } from "viem";
-// @ts-ignore
-import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
+import { CDPClaimService } from "../../../../services/cdp-claim-service.js";
+import { type AgentClaimData, NitroDIDService } from "../../../../services/nitro-did-service.js";
+import { Iden3AuthClaimService, type IdentityWithTrees } from "../../../../services/iden3-auth-claim-service.js";
 import type { ToolCallResult } from "../../../../types/message.js";
-import { createCdpClient, createMockViemAccount, processApiResponse } from "../utils.js";
-
-/**
- * Sample DID and claim data for testing
- */
-const SAMPLE_DID = "did:iden3:polygon:amoy:x3HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMeaQ2H2";
-const SAMPLE_ISSUER_DID = "did:iden3:polygon:amoy:x1HstHLj2rTp6HHXk2WczYP7w3rpCsRbwCMeaQ1H1";
 
 /**
  * Handle create identity with x402 payment using existing CDP account
  *
- * - The identity is created silently in the opus-genesis-id package using Privado SDK
+ * - The identity is created using the NitroDIDService with Privado SDK
+ * - Claims are signed for: LLM model, weights revision, system prompt, relationship graph
  * - Requires that create_name has been called first to set up the CDP account
  *
  * This function:
- * 1. Retrieves existing CDP account from database
- * 2. Gets service info from opus-genesis-id
- * 3. Creates x402-enabled fetch client using CDP account
- * 4. Submits claim with automatic payment
- * 5. Returns the result
+ * 1. Creates DID and signs claims using NitroDIDService
+ * 2. Submits claim with x402 payment using CDPClaimService
+ * 3. Returns the result
  */
 export async function handleCreateIdentity(input: Record<string, any>): Promise<ToolCallResult> {
-  const OPUS_GENESIS_ID_URL = process.env.OPUS_GENESIS_ID_URL || "http://localhost:3106";
-  const CDP_API_KEY_ID = process.env.CDP_API_KEY_ID;
-  const CDP_API_KEY_SECRET = process.env.CDP_API_KEY_SECRET;
-  const CDP_WALLET_SECRET = process.env.CDP_WALLET_SECRET;
-
   try {
-    logger.info({ input }, "Starting identity creation process with x402 payment");
+    logger.info({ input }, "Starting identity creation process with Nitro DID and x402 payment");
 
     // Extract entity_id from input
     const { entity_id } = input;
@@ -49,240 +35,169 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       };
     }
 
-    // Validate required environment variables
-    if (!CDP_API_KEY_ID || !CDP_API_KEY_SECRET || !CDP_WALLET_SECRET) {
-      logger.error("CDP environment variables are required");
+    // Step 1: Initialize services
+    let nitroDIDService: NitroDIDService;
+    let cdpClaimService: CDPClaimService;
+    let iden3AuthClaimService: Iden3AuthClaimService;
+
+    try {
+      nitroDIDService = new NitroDIDService();
+      cdpClaimService = new CDPClaimService();
+      iden3AuthClaimService = new Iden3AuthClaimService();
+    } catch (error) {
+      logger.error({ error }, "Failed to initialize services");
       return {
         type: "tool_result",
         tool_use_id: "",
         data: {
           success: false,
-          error:
-            "CDP_API_KEY_ID, CDP_API_KEY_SECRET, and CDP_WALLET_SECRET environment variables are required",
+          error: "Failed to initialize services. Check environment variables.",
+          details: error instanceof Error ? error.message : "Unknown error",
         },
         name: "create_identity",
       };
     }
 
-    // Step 1: Get existing CDP account info from database
-    logger.info({ entity_id }, "Retrieving existing CDP account info from database");
+    // Step 2: Create proper AuthClaim with Iden3 tree structure
+    logger.info({ entity_id }, "Creating proper AuthClaim with Iden3 tree structure");
 
-    const entityResults = await db
-      .select()
-      .from(entities)
-      .where(eq(entities.entityId, entity_id))
-      .limit(1);
-
-    if (entityResults.length === 0) {
-      logger.error({ entity_id }, "Entity not found in database");
+    let identityWithTrees: IdentityWithTrees;
+    try {
+      identityWithTrees = await iden3AuthClaimService.createAuthClaimWithTrees(entity_id);
+    } catch (error) {
+      logger.error({ error, entity_id }, "Failed to create AuthClaim with trees");
       return {
         type: "tool_result",
         tool_use_id: "",
         data: {
           success: false,
-          error: "Entity not found. Please create a name first using create_name.",
+          error: "Failed to create proper AuthClaim with Iden3 trees",
+          details: error instanceof Error ? error.message : "Unknown error",
         },
         name: "create_identity",
       };
     }
 
-    const entity = entityResults[0]!; // We know it exists because we checked length above
-    if (!entity.cdp_name || !entity.name) {
-      logger.error({ entity_id }, "Entity does not have a name or CDP account");
+    logger.info(
+      {
+        identityState: identityWithTrees.identityState,
+        claimsTreeRoot: identityWithTrees.authClaimResult.claimsTreeRoot,
+        authClaimCreated: true,
+        entity_id,
+      },
+      "Successfully created proper AuthClaim with Iden3 tree structure",
+    );
+
+    // Step 3: Prepare agent claim data for additional claims
+    // TODO: These should come from the agent's actual configuration
+    const agentClaimData: AgentClaimData = NitroDIDService.createAgentClaimData(
+      "claude-3-5-sonnet-20241022", // LLM model
+      "mock-weights-hash-" + Date.now(), // Weights hash (mock)
+      "You are an AI agent with a unique identity...", // System prompt (mock)
+      JSON.stringify({ type: "object", properties: {} }), // Zod schema (mock)
+      {
+        nodes: [
+          { id: "agent1", type: "ai_agent" },
+          { id: "human1", type: "human" },
+        ],
+        edges: [{ from: "agent1", to: "human1", relationship: "assists" }],
+      }, // Relationship graph (mock)
+    );
+
+    logger.info({ agentClaimData }, "Prepared agent claim data");
+
+    // Step 4: Create DID and sign additional claims using Nitro DID service
+    logger.info({ entity_id }, "Creating DID and signing additional claims with Nitro DID service");
+
+    let nitroDIDResult: Awaited<ReturnType<NitroDIDService["createIdentityWithClaims"]>>;
+    try {
+      nitroDIDResult = await nitroDIDService.createIdentityWithClaims(entity_id, agentClaimData);
+    } catch (error) {
+      logger.error({ error, entity_id }, "Failed to create DID and additional claims");
       return {
         type: "tool_result",
         tool_use_id: "",
         data: {
           success: false,
-          error: "Entity does not have a name yet. Please create a name first using create_name.",
+          error: "Failed to create DID and additional claims",
+          details: error instanceof Error ? error.message : "Unknown error",
         },
         name: "create_identity",
       };
     }
 
-    // Step 2: Initialize CDP client and get existing account
-    logger.info("Initializing Coinbase CDP client...");
-    const cdpClient = createCdpClient({
-      apiKeyId: CDP_API_KEY_ID,
-      apiKeySecret: CDP_API_KEY_SECRET,
-      walletSecret: CDP_WALLET_SECRET,
-    });
-
-    logger.info({ cdpName: entity.cdp_name }, "Retrieving existing CDP account...");
-    const cdpAccount = await cdpClient.evm.getOrCreateAccount({
-      name: entity.cdp_name,
-    });
-
     logger.info(
       {
-        accountName: cdpAccount.name,
-        accountId: (cdpAccount as any).id || "unknown",
+        did: nitroDIDResult.did,
+        agentId: nitroDIDResult.agentId,
+        claimHash: nitroDIDResult.claimHash,
       },
-      "CDP account retrieved successfully",
+      "Successfully created DID and signed additional claims",
     );
 
-    // Step 3: Convert CDP account to viem LocalAccount for x402-fetch
-    const viemAccount = createMockViemAccount(cdpAccount as any);
+    // Step 5: Submit claim with CDP payment
+    logger.info({ entity_id }, "Submitting claim with CDP payment");
 
-    logger.info(
-      {
-        accountAddress: viemAccount.address,
-      },
-      "Converted CDP account to viem account",
-    );
+    const cdpResult = await cdpClaimService.submitClaimWithPayment(entity_id, nitroDIDResult);
 
-    // Step 2: Get service information and pricing (no payment required)
-    logger.info("Fetching service information from opus-genesis-id");
-    const serviceInfoResponse = await fetch(`${OPUS_GENESIS_ID_URL}/genesis/info`);
-    const serviceInfoResult = await processApiResponse(serviceInfoResponse);
-
-    if (!serviceInfoResult.isSuccess) {
-      logger.error({ error: serviceInfoResult.error }, "Failed to get service information");
+    if (!cdpResult.success) {
+      logger.error({ error: cdpResult.error }, "Failed to submit claim with CDP payment");
       return {
         type: "tool_result",
         tool_use_id: "",
         data: {
           success: false,
-          error: "Failed to get service information from opus-genesis-id",
-          details: serviceInfoResult.error,
+          error: "Failed to submit claim with CDP payment",
+          details: cdpResult.error,
+          statusCode: cdpResult.statusCode,
         },
         name: "create_identity",
       };
     }
 
-    const serviceInfo = serviceInfoResult.data;
-    logger.info({ serviceInfo }, "Retrieved service information");
+    // Step 6: Return success result
+    logger.info({ entity_id, did: nitroDIDResult.did }, "Identity creation completed successfully");
 
-    // Step 3: Create x402-enabled fetch client using CDP account
-    const fetchWithPayment = wrapFetchWithPayment(fetch, viemAccount);
-
-    logger.info(
-      {
-        accountAddress: viemAccount.address,
-        x402Enabled: serviceInfo.x402Enabled,
-        cdpAccountName: cdpAccount.name,
-      },
-      "Created x402-enabled fetch client with CDP account",
-    );
-
-    // Step 4: Prepare claim data
-    const claimData = {
-      did: SAMPLE_DID,
-      claimType: "identity_verification",
-      claimData: {
-        verified: true,
-        verificationMethod: "enclave_attestation_cdp",
-        timestamp: new Date().toISOString(),
-        source: "opus-nitro-sdk-mock-cdp",
-        cdpAccount: cdpAccount.name,
-      },
-      issuer: SAMPLE_ISSUER_DID,
-      subject: SAMPLE_DID,
-    };
-
-    logger.info({ claimData }, "Prepared claim data with CDP account info");
-
-    // Step 5: Submit claim with automatic x402 payment using CDP account
-    logger.info("Submitting claim with x402 payment using CDP account");
-
-    // Log the CDP account before payment
-    logger.info(
-      {
-        cdpAddress: viemAccount.address,
-        cdpAccountName: cdpAccount.name,
-        network: "base-sepolia",
-      },
-      "CDP Account ready for payment",
-    );
-
-    const claimResponse = await fetchWithPayment(`${OPUS_GENESIS_ID_URL}/genesis/claim/submit`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(claimData),
-    });
-
-    logger.info(
-      {
-        responseStatus: claimResponse.status,
-        cdpAddress: viemAccount.address,
-      },
-      "Claim submission completed",
-    );
-
-    const claimResult = await processApiResponse(claimResponse);
-
-    if (!claimResult.isSuccess) {
-      logger.error({ error: claimResult.error }, "Failed to submit claim");
-      return {
-        type: "tool_result",
-        tool_use_id: "",
-        data: {
-          success: false,
-          error: "Failed to submit claim to opus-genesis-id",
-          details: claimResult.error,
-          statusCode: claimResult.statusCode,
-        },
-        name: "create_identity",
-      };
-    }
-
-    // Step 7: Extract payment response details
-    let paymentDetails = null;
-    const paymentResponseHeader = claimResponse.headers.get("x-payment-response");
-    if (paymentResponseHeader) {
-      try {
-        paymentDetails = decodeXPaymentResponse(paymentResponseHeader);
-        logger.info({ paymentDetails }, "📋 Extracted x402 payment response");
-      } catch (error) {
-        logger.warn({ error }, "Failed to decode x-payment-response header");
-      }
-    }
-
-    // Also check for X-Payment header in the request that was sent
-    const allResponseHeaders: Record<string, string> = {};
-    claimResponse.headers.forEach((value: string, key: string) => {
-      allResponseHeaders[key] = value;
-    });
-
-    logger.info(
-      {
-        responseStatus: claimResponse.status,
-        responseHeaders: allResponseHeaders,
-      },
-      "📋 Full response details from x402-enabled request",
-    );
-
-    // Check if we actually made a payment
-    logger.info(
-      {
-        hasPaymentDetails: !!paymentDetails,
-        paymentResponseHeader: !!paymentResponseHeader,
-        responseStatus: claimResponse.status,
-      },
-      "💰 PAYMENT ANALYSIS - Did we actually pay?",
-    );
-
-    logger.info({ claimResult: claimResult.data }, "Successfully submitted claim using CDP");
-
-    // Step 8: Return success result
     return {
       type: "tool_result",
       tool_use_id: "",
       data: {
         success: true,
-        message: "Claim submitted successfully with x402 payment using Coinbase CDP",
-        serviceInfo: serviceInfo,
-        claimSubmission: claimResult.data,
-        paymentDetails: paymentDetails || {
-          method: "x402-cdp",
-          status: "processed",
+        message: "Identity created successfully with proper Iden3 AuthClaim, Nitro DID and x402 payment",
+        identity: {
+          did: nitroDIDResult.did,
+          agentId: nitroDIDResult.agentId,
+          claimHash: nitroDIDResult.claimHash,
+          signature: nitroDIDResult.signature,
+          timestamp: nitroDIDResult.timestamp,
         },
-        cdpAccount: {
-          name: cdpAccount.name,
-          id: (cdpAccount as any).id || "unknown",
-          address: viemAccount.address,
+        authClaim: {
+          identityState: identityWithTrees.identityState,
+          claimsTreeRoot: identityWithTrees.authClaimResult.claimsTreeRoot,
+          revocationTreeRoot: identityWithTrees.authClaimResult.revocationTreeRoot,
+          rootsTreeRoot: identityWithTrees.authClaimResult.rootsTreeRoot,
+          hIndex: identityWithTrees.authClaimResult.hIndex.substring(0, 16) + "...",
+          hValue: identityWithTrees.authClaimResult.hValue.substring(0, 16) + "...",
+          publicKeyX: identityWithTrees.authClaimResult.publicKeyX.substring(0, 16) + "...",
+          publicKeyY: identityWithTrees.authClaimResult.publicKeyY.substring(0, 16) + "...",
+        },
+        claimSubmission: cdpResult.claimSubmission,
+        paymentDetails: cdpResult.paymentDetails,
+        cdpAccount: cdpResult.cdpAccount,
+        agentClaims: {
+          llmModel: agentClaimData.llmModel,
+          weightsRevision: {
+            hash: agentClaimData.weightsRevision.hash.substring(0, 16) + "...",
+            version: agentClaimData.weightsRevision.version,
+          },
+          systemPrompt: {
+            hash: agentClaimData.systemPrompt.hash.substring(0, 16) + "...",
+          },
+          relationshipGraph: {
+            hash: agentClaimData.relationshipGraph.hash.substring(0, 16) + "...",
+            nodeCount: agentClaimData.relationshipGraph.nodeCount,
+            edgeCount: agentClaimData.relationshipGraph.edgeCount,
+          },
         },
         timestamp: new Date().toISOString(),
       },
@@ -296,7 +211,7 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
       tool_use_id: "",
       data: {
         success: false,
-        error: "Internal error during CDP claim submission",
+        error: "Internal error during identity creation",
         details: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       },

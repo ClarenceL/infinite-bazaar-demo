@@ -101,6 +101,41 @@ export function CreateIdentityResult({ message }: ToolResultProps) {
               </div>
             )}
 
+            {/* AuthClaim Details */}
+            {data.authClaim && (
+              <div
+                className={`${theme.bg.replace("bg-", "bg-")} rounded-lg border p-3 ${theme.border}`}
+              >
+                <div className={`${theme.accent} mb-2 font-medium text-xs`}>🔐 Iden3 AuthClaim</div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className={`${theme.text} opacity-75`}>Identity State:</span>
+                    <span className={`${theme.text} break-all font-mono text-xs`}>
+                      {data.authClaim.identityState}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={`${theme.text} opacity-75`}>Claims Tree Root:</span>
+                    <span className={`${theme.text} break-all font-mono text-xs`}>
+                      {data.authClaim.claimsTreeRoot}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={`${theme.text} opacity-75`}>Public Key X:</span>
+                    <span className={`${theme.text} font-mono text-xs`}>
+                      {data.authClaim.publicKeyX}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={`${theme.text} opacity-75`}>Public Key Y:</span>
+                    <span className={`${theme.text} font-mono text-xs`}>
+                      {data.authClaim.publicKeyY}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Claim Submission Details */}
             {data.claimSubmission && (
               <div

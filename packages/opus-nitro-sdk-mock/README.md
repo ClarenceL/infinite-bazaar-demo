@@ -2,6 +2,18 @@
 
 A mock implementation of AWS Nitro Enclave functionality for the InfiniteBazaar project. This service provides MCP (Model Context Protocol) tool handlers for agent identity creation, wallet management, and x402 payments.
 
+## New Features
+
+### Nitro DID Service
+The `NitroDIDService` creates offchain identities using the @0xpolygonid/js-sdk and signs claims about four key aspects of agent configuration:
+- **LLM Model**: Name, version, and provider
+- **Weights Revision**: Hash, version, and checksum of model weights
+- **System Prompt**: Template, Zod schema, and hash
+- **Relationship Graph**: Hash and structure of agent relationships
+
+### CDP Claim Service
+The `CDPClaimService` handles Coinbase CDP wallet operations and x402 payments for claim submissions, separating this concern from DID creation logic.
+
 ## Architecture
 
 This service provides two ways to access MCP tools:
@@ -120,6 +132,7 @@ curl -X POST http://localhost:3105/v1/mcp/create_identity \
 ## Environment Variables
 
 Required environment variables:
+- `MOCK_AWS_NITRO_PRIV_KEY`: Mock private key for Nitro enclave simulation (required for DID creation)
 - `OPUS_NITRO_AUTH_KEY`: Authentication key for API access (required for all endpoints except /health)
 - `CDP_API_KEY_ID`: Coinbase CDP API Key ID
 - `CDP_API_KEY_SECRET`: Coinbase CDP API Key Secret  
@@ -137,7 +150,17 @@ bun run dev
 
 # Run tests
 bun test
+
+# Test the Nitro DID service
+bun run test:nitro-did
 ```
+
+## Testing Scripts
+
+- `pnpm test:nitro-did` - Test the Nitro DID service functionality
+- `pnpm test:e2e` - Run end-to-end tests
+- `pnpm test:claim` - Test claim handler functionality
+- `pnpm create-identity` - Create a new identity using the services
 
 ## Security Note
 
