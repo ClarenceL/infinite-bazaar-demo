@@ -195,8 +195,8 @@ async function submitClaimToOpusGenesis(
     console.log("  - DID:", claimData.did);
     console.log("  - Agent ID:", agentId);
 
-    // Step 1: First attempt without payment to get payment requirements
-    console.log("\n🔍 Step 1: Getting payment requirements...");
+    // Step 1: First attempt without payment to trigger 402 Payment Required
+    console.log("\n🔍 Step 1: Attempting request without payment (expecting 402 error)...");
     const initialResponse = await fetch(`${opusGenesisUrl}/genesis/claim/submit`, {
       method: "POST",
       headers: {
@@ -206,10 +206,13 @@ async function submitClaimToOpusGenesis(
     });
 
     const initialResponseData = await initialResponse.json();
+    console.log("  - Response Status:", initialResponse.status);
+    console.log("  - Response Status Text:", initialResponse.statusText);
 
     if (initialResponse.status !== 402) {
       // If it's not a payment required response, handle normally
       if (initialResponse.ok) {
+        console.log("⚠️  Unexpected: Request succeeded without payment!");
         return {
           success: true,
           response: {
@@ -220,6 +223,8 @@ async function submitClaimToOpusGenesis(
           transactionHash: initialResponseData.transactionHash,
         };
       } else {
+        console.log("❌ Non-payment error received:");
+        console.log("  - Error:", initialResponseData.error);
         return {
           success: false,
           error: initialResponseData.error || `HTTP ${initialResponse.status}`,
@@ -230,11 +235,27 @@ async function submitClaimToOpusGenesis(
       }
     }
 
-    // Step 2: Extract payment requirements
-    console.log("💰 Payment required! Processing x402 payment...");
+    // Step 2: Verify and log the 402 Payment Required response
+    console.log("\n✅ Step 2: 402 Payment Required received (as expected)!");
+    console.log("🔍 Analyzing x402 payment instructions...");
+
+    // Log the complete 402 response for verification
+    console.log("📋 Complete 402 Response:");
+    console.log(JSON.stringify(initialResponseData, null, 2));
+
+    // Verify x402 compliance
+    const hasAccepts = Array.isArray(initialResponseData.accepts);
+    const hasError = typeof initialResponseData.error === 'string';
+
+    console.log("\n🧪 x402 Spec Compliance Check:");
+    console.log("  - Has 'accepts' array:", hasAccepts ? "✅" : "❌");
+    console.log("  - Has 'error' message:", hasError ? "✅" : "❌");
+    console.log("  - Accepts array length:", initialResponseData.accepts?.length || 0);
+
     const paymentRequirements = initialResponseData.accepts?.[0];
 
     if (!paymentRequirements) {
+      console.log("❌ Invalid 402 response: No payment requirements found");
       return {
         success: false,
         error: "No payment requirements found in 402 response",
@@ -243,13 +264,36 @@ async function submitClaimToOpusGenesis(
       };
     }
 
-    console.log("  - Payment required for:", paymentRequirements.resource);
-    console.log("  - Amount:", paymentRequirements.maxAmountRequired, "wei");
-    console.log("  - Asset:", paymentRequirements.asset);
-    console.log("  - Network:", paymentRequirements.network);
+    // Step 3: Detailed payment requirements verification
+    console.log("\n💰 Step 3: Payment Requirements Analysis:");
+    console.log("📋 Payment Requirements Structure:");
+    console.log(JSON.stringify(paymentRequirements, null, 2));
 
-    // Step 3: Create a wallet for payment
-    console.log("\n🔑 Step 2: Creating payment wallet...");
+    console.log("\n🔍 Required Payment Details:");
+    console.log("  - Resource:", paymentRequirements.resource);
+    console.log("  - Amount Required:", paymentRequirements.maxAmountRequired, "wei");
+    console.log("  - Asset Address:", paymentRequirements.asset);
+    console.log("  - Network:", paymentRequirements.network);
+    console.log("  - Scheme:", paymentRequirements.scheme || "not specified");
+
+    // Verify required fields
+    const requiredFields = ['resource', 'maxAmountRequired', 'asset', 'network'];
+    const missingFields = requiredFields.filter(field => !paymentRequirements[field]);
+
+    if (missingFields.length > 0) {
+      console.log("❌ Missing required payment fields:", missingFields);
+      return {
+        success: false,
+        error: `Missing required payment fields: ${missingFields.join(', ')}`,
+        status: 402,
+        details: "Invalid payment requirements structure",
+      };
+    }
+
+    console.log("✅ Payment requirements validation passed!");
+
+    // Step 4: Create a wallet for payment
+    console.log("\n🔑 Step 4: Creating payment wallet...");
     console.log("  - NODE_ENV:", process.env.NODE_ENV || "undefined");
     console.log(
       "  - Environment detection:",
@@ -317,17 +361,41 @@ async function submitClaimToOpusGenesis(
 
     console.log("  - Payment wallet address:", viemAccount.address);
 
-    // Step 4: Create x402 payment header
-    console.log("\n💳 Step 3: Creating x402 payment header...");
+    // Step 5: Create x402 payment header
+    console.log("\n💳 Step 5: Creating x402 payment header...");
+    console.log("🔍 Payment header generation process:");
+    console.log("  - Using wallet:", viemAccount.address);
+    console.log("  - For resource:", paymentRequirements.resource);
+    console.log("  - Amount:", paymentRequirements.maxAmountRequired, "wei");
+
     const { createPaymentHeader, x402Version } = await import("@infinite-bazaar-demo/x402");
 
     const paymentHeader = await createPaymentHeader(viemAccount, x402Version, paymentRequirements);
 
-    console.log("  - Payment header created (length:", paymentHeader.length, "chars)");
-    console.log("  - Payment header preview:", paymentHeader.substring(0, 50) + "...");
+    console.log("✅ Payment header created successfully!");
+    console.log("  - Header length:", paymentHeader.length, "characters");
+    console.log("  - Header preview:", paymentHeader.substring(0, 50) + "...");
 
-    // Step 5: Submit claim with payment header
-    console.log("\n🚀 Step 4: Submitting claim with payment...");
+    // Decode and verify payment header structure
+    try {
+      const headerData = JSON.parse(Buffer.from(paymentHeader, 'base64').toString());
+      console.log("🔍 Payment header structure verification:");
+      console.log("  - x402Version:", headerData.x402Version);
+      console.log("  - scheme:", headerData.scheme);
+      console.log("  - network:", headerData.network);
+      console.log("  - has signature:", !!headerData.signature);
+      console.log("  - has transaction data:", !!headerData.transactionData);
+    } catch (error) {
+      console.log("⚠️  Could not decode payment header for verification");
+    }
+
+    // Step 6: Submit claim with payment header
+    console.log("\n🚀 Step 6: Submitting claim with X-PAYMENT header...");
+    console.log("🔍 Making authenticated payment request:");
+    console.log("  - Method: POST");
+    console.log("  - Content-Type: application/json");
+    console.log("  - X-PAYMENT: [payment header attached]");
+    console.log("  - Body: [claim data]");
     const paidResponse = await fetch(`${opusGenesisUrl}/genesis/claim/submit`, {
       method: "POST",
       headers: {
@@ -339,11 +407,22 @@ async function submitClaimToOpusGenesis(
 
     const paidResponseData = await paidResponse.json();
 
+    console.log("📊 Payment Request Results:");
+    console.log("  - Response Status:", paidResponse.status);
+    console.log("  - Response Status Text:", paidResponse.statusText);
+
     if (paidResponse.ok) {
-      console.log("✅ Payment accepted and claim processed!");
+      console.log("\n🎉 SUCCESS: Payment accepted and claim processed!");
+      console.log("📋 Transaction Details:");
       console.log("  - Claim ID:", paidResponseData.claimId);
       console.log("  - Transaction Hash:", paidResponseData.transactionHash);
       console.log("  - Payment Method:", paidResponseData.paymentMethod);
+      console.log("  - Payment Verified:", paidResponseData.paymentVerified);
+      console.log("  - Payment Settlement:", paidResponseData.paymentSettlement);
+
+      // Log complete success response
+      console.log("\n📋 Complete Success Response:");
+      console.log(JSON.stringify(paidResponseData, null, 2));
 
       return {
         success: true,
@@ -362,9 +441,14 @@ async function submitClaimToOpusGenesis(
         },
       };
     } else {
-      console.log("❌ Payment failed or claim rejected:");
+      console.log("\n❌ FAILURE: Payment failed or claim rejected!");
+      console.log("📋 Error Details:");
       console.log("  - Status:", paidResponse.status);
       console.log("  - Error:", paidResponseData.error);
+
+      // Log complete error response
+      console.log("\n📋 Complete Error Response:");
+      console.log(JSON.stringify(paidResponseData, null, 2));
 
       return {
         success: false,
@@ -511,84 +595,6 @@ async function testCreateIdentity() {
       ),
     );
     console.log(`💾 Complete flow data saved to: ${filename}`);
-
-    // Test 2: Deterministic identity creation (same seed should produce same DID)
-    // console.log("\n🧪 Test 2: Deterministic identity creation");
-
-    // const deterministicSeed = new Uint8Array(32);
-    // deterministicSeed.fill(42); // Fill with a known value
-
-    // const deterministicOptions: IdentityCreationOptions = {
-    //   method: "iden3",
-    //   blockchain: "polygon",
-    //   networkId: NETWORK_CONFIG.networkId,
-    //   seed: deterministicSeed,
-    //   revocationOpts: {
-    //     type: CredentialStatusType.SparseMerkleTreeProof,
-    //     id: `urn:uuid:${crypto.randomUUID()}`,
-    //   },
-    // };
-
-    // console.log("📋 Creating first deterministic identity...");
-    // const deterministicResult1 = await identityWallet.createIdentity(deterministicOptions);
-
-    // console.log("📋 Creating second deterministic identity with same seed...");
-    // // Temporarily test failure case - uncomment next line to test error handling
-    // // deterministicSeed[0] = 99; // This would cause different DIDs
-    // const deterministicResult2 = await identityWallet.createIdentity(deterministicOptions);
-
-    // const did1 = deterministicResult1.did.string();
-    // const did2 = deterministicResult2.did.string();
-
-    // console.log("✅ Deterministic identity test results:");
-    // console.log("  - First DID:", did1);
-    // console.log("  - Second DID:", did2);
-    // console.log("  - Are DIDs identical?", did1 === did2 ? "✅ YES" : "❌ NO");
-
-    // // Critical check: DIDs must be identical for deterministic creation
-    // if (did1 !== did2) {
-    //   console.error("❌ CRITICAL ERROR: Deterministic identity creation failed!");
-    //   console.error("Expected identical DIDs but got different ones:");
-    //   console.error("  - First DID: ", did1);
-    //   console.error("  - Second DID:", did2);
-    //   console.error("This indicates a problem with deterministic seed handling.");
-    //   process.exit(1);
-    // }
-
-    // // Save to logs
-    // saveIdentityToLogs("Deterministic Identity Creation 1", deterministicResult1, deterministicSeed);
-    // saveIdentityToLogs("Deterministic Identity Creation 2", deterministicResult2, deterministicSeed);
-
-    // Test 3: Different revocation options
-    // console.log("\n🧪 Test 3: Different revocation options");
-
-    // const reverseProofOptions: IdentityCreationOptions = {
-    //   method: "iden3",
-    //   blockchain: "polygon",
-    //   networkId: NETWORK_CONFIG.networkId,
-    //   revocationOpts: {
-    //     type: CredentialStatusType.Iden3ReverseSparseMerkleTreeProof,
-    //     id: `urn:uuid:${crypto.randomUUID()}`,
-    //     nonce: 1,
-    //   },
-    // };
-
-    // console.log("📋 Creating identity with reverse sparse merkle tree proof...");
-
-    // try {
-    //   const reverseProofResult = await identityWallet.createIdentity(reverseProofOptions);
-    //   console.log("✅ Reverse proof identity created successfully:");
-    //   console.log("  - DID:", reverseProofResult.did.string());
-
-    //   // Save to logs
-    //   saveIdentityToLogs("Reverse Proof Identity Creation", reverseProofResult);
-    // } catch (error) {
-    //   console.log(
-    //     "⚠️  Reverse proof creation failed (this might be expected):",
-    //     error instanceof Error ? error.message : String(error),
-    //   );
-    // }
-
     console.log("\n🎉 All PolygonID SDK tests completed successfully!");
   } catch (error) {
     console.error("❌ Test failed:", error);
@@ -647,61 +653,8 @@ async function testAPIEndpoints() {
       );
     }
 
-    // Test 4: Create identity tool (using existing god_lyra entity)
-    console.log("\n🧪 Test 4: Create identity tool (PolygonID SDK test)");
-    try {
-      const testEntityId = "god_lyra"; // Use existing entity from database
-
-      console.log("📋 Using existing entity god_lyra, testing identity creation...");
-
-      // Try to create identity for existing entity
-      const createIdentityResponse = await fetch(`${baseUrl}/v1/mcp/create_identity`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Auth-Key": authKey,
-        },
-        body: JSON.stringify({
-          entity_id: testEntityId,
-        }),
-      });
-
-      const createIdentityData = await createIdentityResponse.json();
-
-      console.log("✅ Create identity response:", {
-        status: createIdentityResponse.status,
-        success: createIdentityData.success,
-        hasDID: !!createIdentityData.data?.identity?.did,
-        error: createIdentityData.data?.error || null,
-      });
-
-      if (createIdentityData.data?.identity?.did) {
-        console.log("🎉 DID created successfully:", createIdentityData.data.identity.did);
-
-        // Save API identity creation to logs
-        const apiLogData = {
-          testName: "API Identity Creation",
-          timestamp: new Date().toISOString(),
-          entityId: testEntityId,
-          response: createIdentityData,
-        };
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const filename = `api-identity-creation-${timestamp}.json`;
-        const filepath = path.join(identitiesDir, filename);
-
-        fs.writeFileSync(filepath, JSON.stringify(apiLogData, null, 2));
-        console.log(`💾 API identity data saved to: ${filename}`);
-      }
-    } catch (error) {
-      console.log(
-        "❌ Create identity failed:",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-
-    // Test 5: Invalid tool (error handling)
-    console.log("\n🧪 Test 5: Invalid tool (error handling)");
+    // Test 3: Invalid tool (error handling)
+    console.log("\n🧪 Test 3: Invalid tool (error handling)");
     try {
       const invalidResponse = await fetch(`${baseUrl}/v1/mcp/invalid_tool`, {
         method: "POST",

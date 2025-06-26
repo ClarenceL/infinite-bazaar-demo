@@ -255,7 +255,15 @@ export class Iden3AuthClaimService {
       );
 
       // Step 9: Create a proper Identity object using the IdentityWallet
-      const seed = this.createDeterministicSeed(agentId);
+      // SECURITY: Use random seed for proper security (not deterministic)
+      const seed = new Uint8Array(32);
+      crypto.getRandomValues(seed);
+
+      logger.warn(
+        { agentId },
+        "MOCK IMPLEMENTATION: Using random seed for identity creation. In production, this would be handled by AWS Nitro Enclaves with proper key management."
+      );
+
       const { did, credential } = await this.identityWallet.createIdentity({
         method: "iden3",
         blockchain: "polygon",

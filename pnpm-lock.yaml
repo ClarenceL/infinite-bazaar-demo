@@ -483,6 +483,9 @@ importers:
       hono:
         specifier: ^4.6.14
         version: 4.7.11
+      pinata:
+        specifier: ^2.4.8
+        version: 2.4.8(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       viem:
         specifier: ^2.24.3
         version: 2.31.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
@@ -6701,6 +6704,18 @@ packages:
   pify@5.0.0:
     resolution: {integrity: sha512-eW/gHNMlxdSP6dmG6uJip6FXN0EQBwm2clYYd8Wul42Cwu/DK8HEftzsapcNdYe2MfLiIwZqsDk2RDEsTE79hA==}
     engines: {node: '>=10'}
+
+  pinata@2.4.8:
+    resolution: {integrity: sha512-5z2d9pe6q0fO+8GuH5ofy5uxZQtknFUD2K1C1BQ4sTrUKLmW3h0bRCSKWu9d8EQEjDp+2s27s4BXG83lBfW4Ig==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   pino-abstract-transport@0.5.0:
     resolution: {integrity: sha512-+KAgmVeqXYbTtU2FScx1XS3kNyfZ5TrXY07V96QnUSFqo2gAqlvmaxH67Lj7SWazqsMabf+58ctdTcBgnOLUOQ==}
@@ -15640,6 +15655,11 @@ snapshots:
   pify@3.0.0: {}
 
   pify@5.0.0: {}
+
+  pinata@2.4.8(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+    optionalDependencies:
+      react: 19.1.0
+      react-dom: 19.1.0(react@19.1.0)
 
   pino-abstract-transport@0.5.0:
     dependencies:

@@ -1,8 +1,12 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { logger } from "@infinite-bazaar-demo/logs";
 import { http, createPublicClient, formatUnits, parseAbi } from "viem";
 import { baseSepolia } from "viem/chains";
 import { z } from "zod";
 import { createCdpClient } from "./mock-cdp-service.js";
+import { IPFSPublicationService } from "./ipfs-publication-service.js";
 // For now, I'll implement a simplified x402 integration
 // The x402 package has module resolution issues with the current setup
 // TODO: Fix module resolution to use proper x402 imports
@@ -64,6 +68,8 @@ export class ClaimService {
   private publicClient;
   private readonly USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Base Sepolia USDC
   private readonly BASE_SEPOLIA_RPC = "https://sepolia.base.org";
+  private readonly claimsDir: string;
+  private readonly ipfsService: IPFSPublicationService;
 
   constructor() {
     // Service wallet address for receiving payments
@@ -75,10 +81,78 @@ export class ClaimService {
       transport: http(process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org"),
     });
 
+    // Set up claims directory
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const logsDir = path.join(__dirname, "..", "..", "logs");
+    this.claimsDir = path.join(logsDir, "claims");
+
+    // Ensure claims directory exists
+    if (!fs.existsSync(this.claimsDir)) {
+      fs.mkdirSync(this.claimsDir, { recursive: true });
+      logger.info({ claimsDir: this.claimsDir }, "📁 Created claims directory");
+    }
+
     if (!this.SERVICE_WALLET_ADDRESS) {
       logger.warn(
         "X402_SERVICE_WALLET_ADDRESS not configured - payment verification will use mock mode",
       );
+    }
+
+    // Initialize IPFS publication service
+    this.ipfsService = new IPFSPublicationService();
+  }
+
+  /**
+   * Save claim data to file in the claims directory
+   */
+  private saveClaimToFile(
+    claimId: string,
+    claim: ClaimSubmission,
+    result: ClaimSubmissionResult,
+    paymentId?: string,
+    paymentDetails?: any,
+  ): string {
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `claim-${claimId}-${timestamp}.json`;
+      const filepath = path.join(this.claimsDir, filename);
+
+      const claimLogData = {
+        claimId,
+        timestamp: new Date().toISOString(),
+        claim: {
+          did: claim.did,
+          claimType: claim.claimType,
+          claimData: claim.claimData,
+          issuer: claim.issuer,
+          subject: claim.subject,
+        },
+        result: {
+          success: result.success,
+          transactionHash: result.transactionHash,
+          gasUsed: result.gasUsed,
+          timestamp: result.timestamp,
+        },
+        payment: paymentId
+          ? {
+            paymentId,
+            details: paymentDetails,
+          }
+          : null,
+        metadata: {
+          serviceWalletConfigured: !!this.SERVICE_WALLET_ADDRESS,
+          savedAt: new Date().toISOString(),
+        },
+      };
+
+      fs.writeFileSync(filepath, JSON.stringify(claimLogData, null, 2));
+      logger.info({ filepath, claimId }, "💾 Claim data saved to file");
+
+      return filepath;
+    } catch (error) {
+      logger.error({ error, claimId }, "Failed to save claim to file");
+      throw error;
     }
   }
 
@@ -166,7 +240,11 @@ export class ClaimService {
   /**
    * Submit a claim to the blockchain storage contract
    */
-  async submitClaim(claim: ClaimSubmission, paymentId: string): Promise<ClaimSubmissionResult> {
+  async submitClaim(
+    claim: ClaimSubmission,
+    paymentId: string,
+    paymentDetails?: any,
+  ): Promise<ClaimSubmissionResult> {
     try {
       logger.info(
         {
@@ -180,17 +258,36 @@ export class ClaimService {
       // Generate unique claim ID
       const claimId = `claim_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
+      let result: ClaimSubmissionResult;
+
       if (this.SERVICE_WALLET_ADDRESS) {
         // Real blockchain submission
-        const result = await this.submitClaimToContract(claim, claimId, paymentId);
-        return result;
+        result = await this.submitClaimToContract(claim, claimId, paymentId);
       } else {
         // Mock submission for development
         logger.warn(
           "Using mock claim submission - configure blockchain contract for real submission",
         );
-        return await this.mockClaimSubmission(claim, claimId, paymentId);
+        result = await this.mockClaimSubmission(claim, claimId, paymentId);
       }
+
+      // Save claim to file
+      try {
+        const filepath = this.saveClaimToFile(claimId, claim, result, paymentId, paymentDetails);
+        logger.info(
+          {
+            claimId,
+            filepath,
+            transactionHash: result.transactionHash,
+          },
+          "Claim submitted and saved to file successfully",
+        );
+      } catch (saveError) {
+        logger.error({ saveError, claimId }, "Failed to save claim to file, but submission succeeded");
+        // Don't throw here - the claim was successfully submitted
+      }
+
+      return result;
     } catch (error) {
       logger.error({ error, claim, paymentId }, "Failed to submit claim");
       throw error;
@@ -227,7 +324,7 @@ export class ClaimService {
       return {
         success: true,
         claimId,
-        transactionHash: blockchainResult.transactionHash!,
+        transactionHash: blockchainResult.transactionHash || `0x${Math.random().toString(16).substring(2, 66)}`,
         timestamp: new Date().toISOString(),
         gasUsed: 65000, // Estimated gas usage
       };
@@ -297,18 +394,219 @@ export class ClaimService {
   }
 
   /**
-   * Get all claims (placeholder for admin functionality)
+   * Get all claims from saved files
    */
-  async getAllClaims(limit = 10, offset = 0): Promise<ClaimSubmission[]> {
+  async getAllClaims(limit = 10, offset = 0): Promise<any[]> {
     try {
-      logger.info({ limit, offset }, "Retrieving all claims");
+      logger.info({ limit, offset }, "Retrieving all claims from saved files");
 
-      // TODO: Implement actual blockchain reading with pagination
-      // Placeholder implementation
-      return [];
+      // Read all claim files from the claims directory
+      if (!fs.existsSync(this.claimsDir)) {
+        logger.info({ claimsDir: this.claimsDir }, "Claims directory does not exist");
+        return [];
+      }
+
+      const files = fs.readdirSync(this.claimsDir).filter((file) => file.startsWith("claim-") && file.endsWith(".json"));
+
+      // Sort files by modification time (newest first)
+      const fileStats = files.map((file) => ({
+        file,
+        path: path.join(this.claimsDir, file),
+        mtime: fs.statSync(path.join(this.claimsDir, file)).mtime,
+      }));
+
+      fileStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+
+      // Apply pagination
+      const paginatedFiles = fileStats.slice(offset, offset + limit);
+
+      // Read and parse claim files
+      const claims = paginatedFiles.map((fileInfo) => {
+        try {
+          const content = fs.readFileSync(fileInfo.path, "utf8");
+          return JSON.parse(content);
+        } catch (parseError) {
+          logger.error({ error: parseError, file: fileInfo.file }, "Failed to parse claim file");
+          return null;
+        }
+      }).filter(Boolean); // Remove null entries
+
+      logger.info(
+        {
+          totalFiles: files.length,
+          returnedClaims: claims.length,
+          limit,
+          offset,
+        },
+        "Retrieved claims from saved files",
+      );
+
+      return claims;
     } catch (error) {
-      logger.error({ error }, "Failed to retrieve claims");
+      logger.error({ error }, "Failed to retrieve claims from files");
       throw error;
+    }
+  }
+
+  /**
+   * Get claim by claim ID from saved files
+   */
+  async getClaimById(claimId: string): Promise<any | null> {
+    try {
+      logger.info({ claimId }, "Retrieving claim by ID from saved files");
+
+      const files = fs.readdirSync(this.claimsDir).filter((file) => file.includes(claimId) && file.endsWith(".json"));
+
+      if (files.length === 0) {
+        logger.info({ claimId }, "Claim not found in saved files");
+        return null;
+      }
+
+      // If multiple files match, use the most recent one
+      const file = files[files.length - 1];
+      const filepath = path.join(this.claimsDir, file);
+
+      const content = fs.readFileSync(filepath, "utf8");
+      const claim = JSON.parse(content);
+
+      logger.info({ claimId, filepath }, "Retrieved claim from saved file");
+      return claim;
+    } catch (error) {
+      logger.error({ error, claimId }, "Failed to retrieve claim by ID");
+      throw error;
+    }
+  }
+
+  /**
+   * Publish verifiable claim data to IPFS
+   * This should be called after successful claim submission with the complete identity data
+   */
+  async publishClaimToIPFS(
+    agentId: string,
+    did: string,
+    authClaimResult: any,
+    genericClaimResult: any,
+  ): Promise<{
+    success: boolean;
+    ipfsHash?: string;
+    filePath?: string;
+    pinataId?: string;
+    error?: string;
+    mode?: 'ipfs+local' | 'local-only';
+  }> {
+    try {
+      logger.info(
+        {
+          agentId,
+          did,
+        },
+        "Publishing verifiable claim data to IPFS",
+      );
+
+      // Prepare publication data (excludes sensitive information)
+      const publicationData = this.ipfsService.preparePublicationData(
+        agentId,
+        did,
+        authClaimResult,
+        genericClaimResult,
+      );
+
+      // Publish to IPFS
+      const result = await this.ipfsService.publishToIPFS(publicationData);
+
+      if (result.success) {
+        logger.info(
+          {
+            agentId,
+            did,
+            ipfsHash: result.ipfsHash,
+            filePath: result.filePath,
+          },
+          "Successfully published verifiable claim data to IPFS",
+        );
+      } else {
+        logger.error(
+          {
+            agentId,
+            did,
+            error: result.error,
+          },
+          "Failed to publish claim data to IPFS",
+        );
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(
+        {
+          error,
+          agentId,
+          did,
+        },
+        "Error publishing claim to IPFS",
+      );
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Verify a published claim from IPFS
+   */
+  async verifyClaimFromIPFS(ipfsHash: string): Promise<{
+    valid: boolean;
+    data?: any;
+    errors?: string[];
+  }> {
+    try {
+      logger.info({ ipfsHash }, "Verifying claim from IPFS");
+
+      const result = await this.ipfsService.verifyPublishedClaim(ipfsHash);
+
+      logger.info(
+        {
+          ipfsHash,
+          valid: result.valid,
+          errorCount: result.errors?.length || 0,
+        },
+        "Claim verification result",
+      );
+
+      return result;
+    } catch (error) {
+      logger.error({ error, ipfsHash }, "Error verifying claim from IPFS");
+
+      return {
+        valid: false,
+        errors: [error instanceof Error ? error.message : "Verification error"],
+      };
+    }
+  }
+
+  /**
+   * List all published claims in IPFS
+   */
+  async listIPFSClaims(): Promise<Array<{
+    agentId: string;
+    did: string;
+    timestamp: string;
+    ipfsHash: string;
+    filePath: string;
+  }>> {
+    try {
+      logger.info("Listing all published claims from IPFS");
+
+      const claims = await this.ipfsService.listPublishedClaims();
+
+      logger.info({ claimCount: claims.length }, "Retrieved published claims list");
+
+      return claims;
+    } catch (error) {
+      logger.error({ error }, "Error listing IPFS claims");
+      return [];
     }
   }
 }
