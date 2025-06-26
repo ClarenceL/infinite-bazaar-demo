@@ -63,8 +63,8 @@ export class ChatService {
         whereConditions.push(
           or(
             eq(entityContext.contextType, "MESSAGE"),
-            eq(entityContext.contextType, "TOOL_RESULT")
-          )
+            eq(entityContext.contextType, "TOOL_RESULT"),
+          ),
         );
       }
 

@@ -169,7 +169,8 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
           toolName: msg.toolName,
           toolInput: msg.toolInput,
         };
-      } else if (msg.contextType === "TOOL_RESULT" && msg.toolResultData) {
+      }
+      if (msg.contextType === "TOOL_RESULT" && msg.toolResultData) {
         return {
           ...baseMessage,
           toolResultData: msg.toolResultData,
