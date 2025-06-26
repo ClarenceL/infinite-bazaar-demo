@@ -12,12 +12,61 @@ import { createAnthropicToolResult, createAnthropicToolUse } from "../../types/m
 import { getSystemMessage } from "./system-message";
 
 /**
- * Ensure proper tool call pairing in LLM messages
+ * Guard function to ensure that every tool_use has a corresponding tool_result with matching tool_use_id
+ * Removes unpaired tool_use calls and their following tool_result if it exists
  */
 function ensureToolCallPairing(messages: LLMMessage[]): LLMMessage[] {
-  // For now, just return the messages as-is
-  // In a full implementation, this would ensure tool_use messages are properly paired with tool_result messages
-  return messages;
+  const cleanedMessages: LLMMessage[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const currentMsg = messages[i];
+
+    // Skip if currentMsg is undefined (shouldn't happen with proper array access)
+    if (!currentMsg) {
+      continue;
+    }
+
+    // Check if current message contains tool_use
+    if (
+      Array.isArray(currentMsg.content) &&
+      currentMsg.content.length > 0 &&
+      currentMsg.content[0]?.type === "tool_use"
+    ) {
+      const toolUseId = currentMsg.content[0].id;
+      const nextMsg = messages[i + 1];
+
+      // Check if next message is a matching tool_result
+      if (
+        nextMsg &&
+        Array.isArray(nextMsg.content) &&
+        nextMsg.content.length > 0 &&
+        nextMsg.content[0]?.type === "tool_result" &&
+        nextMsg.content[0].tool_use_id === toolUseId
+      ) {
+        // Valid pair - add both messages
+        cleanedMessages.push(currentMsg);
+        cleanedMessages.push(nextMsg);
+        i++; // Skip the next message since we already processed it
+      } else {
+        // Unpaired tool_use - remove it
+        // Also remove the next message if it's a tool_result (but not if it's a normal message)
+        if (
+          nextMsg &&
+          Array.isArray(nextMsg.content) &&
+          nextMsg.content.length > 0 &&
+          nextMsg.content[0]?.type === "tool_result"
+        ) {
+          i++; // Skip the next message (tool_result) as well
+        }
+        // Don't add the current tool_use message to cleanedMessages
+      }
+    } else {
+      // Not a tool_use message - add it normally
+      cleanedMessages.push(currentMsg);
+    }
+  }
+
+  return cleanedMessages;
 }
 
 /**

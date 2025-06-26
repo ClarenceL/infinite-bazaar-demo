@@ -14,14 +14,16 @@ export function CreateIdentityResult({ message }: ToolResultProps) {
   const theme = CREATE_IDENTITY_THEME;
   const data = message.toolResultData;
 
+  // Create friendly title based on the agent identity
+  const agentName = data?.identity?.agentId || "Agent";
+  const title = `${agentName} establishes digital identity`;
+
   return (
     <div className="group mb-4 flex flex-col gap-2">
       {/* Tool result header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={`font-semibold ${theme.accent} text-base`}>
-            @tool-results/create_identity
-          </span>
+          <span className={`font-semibold ${theme.accent} text-base`}>{title}</span>
           <div className={`h-1.5 w-1.5 rounded-full ${theme.accent.replace("text-", "bg-")}`} />
           {data?.success ? (
             <span className={`font-medium text-xs ${theme.success}`}>✓ Success</span>

@@ -35,42 +35,61 @@ export async function processLangChainStream({
   let accumulatedJsonInput = "";
   let toolUseId: string | null = null;
 
-  logger.info(
-    {
-      hasStream: !!stream,
-      hasWriter: !!writer,
-      hasEncoder: !!encoder,
-      streamingContextId,
-    },
-    "🔄 Starting processLangChainStream with parameters",
-  );
-
   try {
-    let chunkCount = 0;
+    console.log("Starting stream processing...");
+
+    // Validate writer and encoder before starting
+    console.log("Validating writer and encoder:", {
+      hasWriter: !!writer,
+      writerType: typeof writer,
+      writerConstructor: writer?.constructor?.name,
+      writerReady: writer?.ready,
+      writerClosed: writer?.closed,
+      writerDesiredSize: writer?.desiredSize,
+      hasEncoder: !!encoder,
+      encoderType: typeof encoder,
+      encoderConstructor: encoder?.constructor?.name
+    });
+
+    // Wait for writer to be ready before proceeding
+    if (writer.ready) {
+      console.log("Waiting for writer to be ready...");
+      try {
+        await writer.ready;
+        console.log("Writer is now ready");
+      } catch (readyError) {
+        console.error("Error waiting for writer ready:", {
+          readyError,
+          readyErrorType: typeof readyError,
+          readyErrorMessage: readyError instanceof Error ? readyError.message : String(readyError)
+        });
+        throw readyError;
+      }
+    }
+
+    // Test a simple write to see if the writer works
+    try {
+      console.log("Testing initial write to stream...");
+      await writer.write(encoder.encode(""));
+      console.log("Initial write test successful");
+    } catch (testWriteError) {
+      console.error("Initial write test failed:", {
+        testWriteError,
+        testWriteErrorType: typeof testWriteError,
+        testWriteErrorMessage: testWriteError instanceof Error ? testWriteError.message : String(testWriteError)
+      });
+      throw testWriteError;
+    }
 
     // Process the stream
     for await (const chunk of stream) {
-      chunkCount++;
-
-      logger.debug(
-        {
-          chunkNumber: chunkCount,
-          chunkType: typeof chunk,
-          hasContent: !!chunk?.content,
-          contentType: typeof chunk?.content,
-          contentLength: Array.isArray(chunk?.content)
-            ? chunk.content.length
-            : typeof chunk?.content === "string"
-              ? chunk.content.length
-              : "unknown",
-          hasAdditionalKwargs: !!chunk?.additional_kwargs,
-          stopReason: chunk?.additional_kwargs?.stop_reason,
-          currentToolCallActive: !!currentToolCall,
-        },
-        "📦 Processing stream chunk",
-      );
-
       try {
+        // Debug chunk structure
+        if (!chunk) {
+          console.warn("Received null/undefined chunk");
+          continue;
+        }
+
         // Check for stream completion of a tool call
         if (
           currentToolCall &&
@@ -78,15 +97,7 @@ export async function processLangChainStream({
           Array.isArray(chunk.content) &&
           chunk.content.length === 0
         ) {
-          logger.info(
-            {
-              accumulatedJsonInput,
-              toolName: currentToolCall.name,
-              toolId: currentToolCall.id,
-              toolUseId,
-            },
-            "🔧 Tool call JSON input complete, parsing",
-          );
+          console.log("Tool call JSON input complete, parsing:", accumulatedJsonInput);
 
           try {
             // Parse the accumulated JSON if not empty, otherwise use empty object
@@ -95,52 +106,50 @@ export async function processLangChainStream({
             // Update the tool call with the parsed input
             currentToolCall.input = parsedInput;
 
-            logger.info(
-              {
-                toolName: currentToolCall.name,
-                input: parsedInput,
-                inputKeys: Object.keys(parsedInput),
-              },
-              "🔧 Processing complete tool call",
+            console.log(
+              `Processing complete tool call: ${currentToolCall.name} with input:`,
+              parsedInput,
             );
 
             // Store the tool call as the assistant's response
-            await saveMessages({
-              role: "assistant",
-              content: currentToolCall,
-              timestamp: Date.now(),
-            });
+            try {
+              await saveMessages({
+                role: "assistant",
+                content: currentToolCall,
+                timestamp: Date.now(),
+              });
+            } catch (saveError) {
+              console.error("Error saving tool call message:", saveError);
+              throw saveError;
+            }
 
             // Send tool call to client, but client should suppress it (it's informational only)
-            await writer.write(
-              encoder.encode(`2:${JSON.stringify({ tool_call: currentToolCall })}\n\n`),
-            );
+            try {
+              await writer.write(
+                encoder.encode(`2:${JSON.stringify({ tool_call: currentToolCall })}\n\n`),
+              );
+            } catch (writeError) {
+              console.error("Error writing tool call to stream:", writeError);
+              throw writeError;
+            }
 
             // Process the tool call
-            logger.info(
-              {
-                toolName: currentToolCall.name,
-                input: currentToolCall.input,
-                toolUseId,
-              },
-              "🔧 Executing tool call handler",
-            );
-
-            const result = await processToolCall(
-              currentToolCall.name,
+            console.log(
+              `Processing tool call: ${currentToolCall.name} with input:`,
               currentToolCall.input,
-              entityId,
             );
 
-            logger.info(
-              {
-                toolName: currentToolCall.name,
-                resultType: typeof result,
-                resultSuccess: result?.data?.success,
-                resultError: result?.data?.error,
-              },
-              "🔧 Tool call handler completed",
-            );
+            let result: ToolCallResult;
+            try {
+              result = await processToolCall(
+                currentToolCall.name,
+                currentToolCall.input,
+                entityId,
+              );
+            } catch (toolCallError) {
+              console.error("Error processing tool call:", toolCallError);
+              throw toolCallError;
+            }
 
             // Add the tool_use_id to connect this result to the tool call
             if (toolUseId) {
@@ -148,23 +157,27 @@ export async function processLangChainStream({
             }
 
             // Add the tool result to message history
-            await saveMessages({
-              role: "user",
-              content: result,
-              timestamp: Date.now(),
-            });
+            try {
+              await saveMessages({
+                role: "user",
+                content: result,
+                timestamp: Date.now(),
+              });
+            } catch (saveResultError) {
+              console.error("Error saving tool result message:", saveResultError);
+              throw saveResultError;
+            }
 
             // Clear the tool use ID since it's been consumed
-            await clearToolUseId();
+            try {
+              await clearToolUseId();
+            } catch (clearError) {
+              console.error("Error clearing tool use ID:", clearError);
+              throw clearError;
+            }
 
             // Send the tool result back to the client with a special format
-            logger.info(
-              {
-                resultData: result?.data,
-                toolName: currentToolCall.name,
-              },
-              "🔧 Sending tool result to client",
-            );
+            console.log("Sending tool result to client:", result);
 
             // Add name field from the tool call to ensure proper mapping on client side
             const enhancedResult = {
@@ -172,23 +185,21 @@ export async function processLangChainStream({
               name: currentToolCall.name,
             };
 
-            await writer.write(
-              encoder.encode(`2:${JSON.stringify({ tool_result: enhancedResult })}\n\n`),
-            );
+            try {
+              await writer.write(
+                encoder.encode(`2:${JSON.stringify({ tool_result: enhancedResult })}\n\n`),
+              );
+            } catch (writeResultError) {
+              console.error("Error writing tool result to stream:", writeResultError);
+              throw writeResultError;
+            }
 
             // Reset tool call tracking
             currentToolCall = null;
             accumulatedJsonInput = "";
             toolUseId = null;
-
-            logger.debug("🔧 Tool call processing complete, state reset");
-          } catch (toolError) {
-            logger.error(
-              toolError,
-              `❌ Error parsing tool call JSON input or processing tool: ${toolError instanceof Error ? toolError.message : "Unknown tool error"} | Tool: ${currentToolCall?.name || "unknown"}, JsonInput: ${accumulatedJsonInput.substring(0, 100)}`,
-            );
-
-            // Reset tool call tracking on error
+          } catch (e) {
+            console.error("Error parsing tool call JSON input:", e);
             currentToolCall = null;
             accumulatedJsonInput = "";
             toolUseId = null;
@@ -197,68 +208,74 @@ export async function processLangChainStream({
           continue;
         }
 
-        // Handle direct string content (LangChain format)
-        if (typeof chunk.content === "string" && chunk.content) {
-          const content = chunk.content;
-
-          logger.debug(
-            {
-              contentLength: content.length,
-              contentPreview: content.substring(0, 100),
-            },
-            "📝 Processing string content",
-          );
-
-          await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
-          currentTextContent += content;
-
-          // Queue real-time DB sync update (non-blocking)
-          if (streamingContextId) {
-            streamingDBSync.queueChunkUpdate(streamingContextId, content);
-          }
-
-          continue;
-        }
-
-        // chunk.content is an array of content blocks (alternative format)
+        // chunk.content is an array of content blocks
         if (Array.isArray(chunk.content) && chunk.content.length > 0) {
-          logger.debug(
-            {
-              blockCount: chunk.content.length,
-              blockTypes: chunk.content.map((block: any) => block?.type || "unknown"),
-            },
-            "📝 Processing content blocks array",
-          );
+          console.log("Processing chunk with content blocks:", {
+            blockCount: chunk.content.length,
+            blockTypes: chunk.content.map((block: any) => ({
+              type: block?.type,
+              hasText: !!block?.text,
+              textLength: block?.text?.length,
+              textPreview: block?.text?.substring(0, 50)
+            }))
+          });
 
-          for (const block of chunk.content as any[]) {
+          for (const block of chunk.content) {
             if (block.type === "text") {
               // Text block
               const content = block.text;
 
-              logger.debug(
-                {
-                  textLength: content?.length || 0,
-                  textPreview: content?.substring(0, 100) || "",
-                },
-                "📝 Processing text block",
-              );
+              console.log("Processing text block:", {
+                contentType: typeof content,
+                contentLength: content?.length,
+                contentValue: content,
+                isString: typeof content === "string",
+                isNull: content === null,
+                isUndefined: content === undefined
+              });
 
-              await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
+              try {
+                // Debug writer state before writing
+                console.log("About to write to stream:", {
+                  writerReady: writer.ready,
+                  writerClosed: writer.closed,
+                  writerDesiredSize: writer.desiredSize,
+                  contentLength: content?.length,
+                  contentPreview: content?.substring(0, 50),
+                  encodedLength: encoder.encode(`0:${JSON.stringify(content)}\n\n`).length
+                });
+
+                await writer.write(encoder.encode(`0:${JSON.stringify(content)}\n\n`));
+                console.log("Successfully wrote to stream");
+              } catch (writeError) {
+                console.error("Error writing to stream:", {
+                  writeError,
+                  writeErrorType: typeof writeError,
+                  writeErrorMessage: writeError instanceof Error ? writeError.message : String(writeError),
+                  writeErrorStack: writeError instanceof Error ? writeError.stack : undefined,
+                  writerState: {
+                    ready: writer.ready,
+                    closed: writer.closed,
+                    desiredSize: writer.desiredSize
+                  },
+                  contentBeingWritten: content?.substring(0, 100)
+                });
+                throw writeError;
+              }
+
               currentTextContent += content;
 
-              // Queue real-time DB sync update (non-blocking)
+              // Queue real-time DB sync update (non-blocking, after core processing)
               if (streamingContextId) {
-                streamingDBSync.queueChunkUpdate(streamingContextId, content);
+                try {
+                  streamingDBSync.queueChunkUpdate(streamingContextId, content);
+                } catch (dbSyncError) {
+                  console.error("Error in DB sync queue update:", dbSyncError);
+                  // Don't throw - this is non-blocking
+                }
               }
             } else if (block.type === "tool_use") {
-              logger.info(
-                {
-                  toolName: block.name,
-                  toolId: block.id,
-                  hasInput: !!block.input,
-                },
-                "🔧 Starting tool use stream",
-              );
+              console.log("Starting tool use stream for:", block.name);
 
               // Create a new ToolCall object with the required properties
               currentToolCall = {
@@ -269,7 +286,12 @@ export async function processLangChainStream({
               } as ToolCall;
 
               // Generate a tool use ID and save it
-              toolUseId = await generateToolUseId();
+              try {
+                toolUseId = await generateToolUseId();
+              } catch (toolIdError) {
+                console.error("Error generating tool use ID:", toolIdError);
+                throw toolIdError;
+              }
 
               // Add the tool use ID to the tool call for persistence
               if (currentToolCall) {
@@ -279,106 +301,59 @@ export async function processLangChainStream({
               // Reset JSON accumulation
               accumulatedJsonInput = "";
 
-              logger.info(
-                {
-                  toolName: currentToolCall?.name,
-                  toolUseId,
-                },
-                "🔧 Started tracking tool call input stream",
-              );
+              console.log(`Started tracking tool call input stream for: ${currentToolCall?.name}`);
             } else if (block.type === "input_json_delta" && currentToolCall) {
               // Accumulate JSON delta for current tool call
-              logger.debug(
-                {
-                  jsonDelta: block.input,
-                  deltaLength: block.input?.length || 0,
-                  accumulatedLength: accumulatedJsonInput.length,
-                  toolName: currentToolCall.name,
-                },
-                "🔧 JSON delta for tool call",
-              );
               accumulatedJsonInput += block.input;
-            } else {
-              logger.warn(
-                {
-                  blockType: block.type,
-                  blockKeys: Object.keys(block || {}),
-                  hasCurrentToolCall: !!currentToolCall,
-                },
-                "⚠️ Unknown or unhandled block type",
-              );
             }
           }
-        } else if (chunk.content === undefined || chunk.content === null) {
-          logger.debug(
-            {
-              chunkKeys: Object.keys(chunk || {}),
-              hasAdditionalKwargs: !!chunk?.additional_kwargs,
-            },
-            "📦 Chunk with no content (likely metadata)",
-          );
-        } else {
-          logger.warn(
-            {
-              contentType: typeof chunk.content,
-              contentValue: chunk.content,
-              chunkKeys: Object.keys(chunk || {}),
-            },
-            "⚠️ Unhandled chunk content format",
-          );
         }
       } catch (chunkError) {
-        // Only log chunk errors that aren't related to overloaded API responses
-        const chunkErrorMessage =
-          chunkError instanceof Error ? chunkError.message : "Unknown chunk error";
-        const isOverloadedChunkError =
-          chunkErrorMessage.includes("overloaded") || chunkErrorMessage.includes("Overloaded");
-
-        if (isOverloadedChunkError) {
-          // Don't log individual chunk errors for overloaded responses - let the main error handler deal with it
-          logger.debug(
-            {
-              chunkNumber: chunkCount,
-              errorMessage: chunkErrorMessage,
-            },
-            "🔄 Chunk processing interrupted by overloaded response",
-          );
-          // Re-throw to let the main error handler deal with it
-          throw chunkError;
-        } else {
-          logger.error(
-            chunkError,
-            `❌ Error processing individual chunk: ${chunkErrorMessage} | ChunkNumber: ${chunkCount}, ChunkKeys: ${Object.keys(chunk || {}).join(", ")}`,
-          );
-        }
+        console.error("Error processing individual chunk:", {
+          chunkError,
+          chunkErrorType: typeof chunkError,
+          chunkErrorMessage: chunkError instanceof Error ? chunkError.message : String(chunkError),
+          chunkKeys: chunk ? Object.keys(chunk) : "chunk is null/undefined"
+        });
+        // Continue processing other chunks
       }
     }
 
-    logger.info(
-      {
-        textLength: currentTextContent.length,
-        totalChunks: chunkCount,
-        streamingContextId,
-      },
-      "✅ Stream processing complete",
-    );
+    console.log("Stream processing complete");
 
-    // Mark streaming record as complete (non-blocking)
+    // Mark streaming record as complete (blocking to ensure completion before return)
     if (streamingContextId) {
-      streamingDBSync.queueCompletion(streamingContextId);
+      try {
+        await streamingDBSync.queueCompletion(streamingContextId);
+      } catch (dbCompletionError) {
+        console.error("Error in DB sync completion:", dbCompletionError);
+        // Don't throw - this is non-blocking but we log the error
+      }
     }
-
-    // Send done signal to indicate stream completion
-    await writer.write(encoder.encode(`data: {"type":"done"}\n\n`));
 
     return currentTextContent;
   } catch (error) {
-    logger.error(
+    // Enhanced error logging to capture undefined errors
+    const errorInfo = {
       error,
-      `❌ Error processing LangChain stream: ${error instanceof Error ? error.message : "Unknown error"} | Context: textLength=${currentTextContent.length}, hasToolCall=${!!currentToolCall}, toolName=${currentToolCall?.name || "none"}, streamingId=${streamingContextId || "none"}`,
-    );
+      errorType: typeof error,
+      errorConstructor: error?.constructor?.name,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      isUndefined: error === undefined,
+      isNull: error === null,
+      currentTextLength: currentTextContent.length,
+      hasCurrentToolCall: !!currentToolCall,
+      toolCallName: currentToolCall?.name,
+      streamingContextId,
+    };
 
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error processing LangChain stream:", errorInfo);
+
+    const errorMessage = error instanceof Error ? error.message :
+      error === undefined ? "Undefined error occurred" :
+        error === null ? "Null error occurred" :
+          String(error);
 
     // Check if it's an overloaded error from Anthropic
     const isOverloadedError =
@@ -392,49 +367,14 @@ export async function processLangChainStream({
 
     // Create a more user-friendly message for overload errors
     const userErrorMessage = isOverloadedError
-      ? "🚨 SYSTEM OVERLOADED 🚨\n\nThe AI service is currently experiencing high demand. Please try again in a few moments.\n\nThis is a temporary issue and will resolve shortly."
-      : `❌ System Error: ${errorMessage}`;
-
-    logger.info(
-      {
-        isOverloadedError,
-        userErrorMessage,
-        originalError: errorMessage,
-      },
-      "📤 Sending error message to client",
-    );
+      ? "The AI service is currently overloaded. Please try again in a few moments."
+      : `Error: ${errorMessage}`;
 
     try {
-      // For overloaded errors, send a system message format with proper escaping
-      if (isOverloadedError) {
-        // Send as a system message with proper formatting
-        await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
-        // Send completion signal to end the stream properly
-        await writer.write(encoder.encode(`data: {"type":"done","error":"overloaded"}\n\n`));
-      } else {
-        // For other errors, send as regular text content
-        await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
-        // Send completion signal
-        await writer.write(encoder.encode(`data: {"type":"done","error":"system_error"}\n\n`));
-      }
+      // Format the error message according to the expected stream format (0: for text content)
+      await writer.write(encoder.encode(`0:${JSON.stringify(userErrorMessage)}\n\n`));
     } catch (writeError) {
-      logger.error(
-        writeError,
-        `❌ Failed to write error message to stream: ${writeError instanceof Error ? writeError.message : "Unknown write error"}`,
-      );
-
-      // Last resort: try to write a minimal error message
-      try {
-        await writer.write(
-          encoder.encode(`0:"System temporarily unavailable. Please try again."\n\n`),
-        );
-        await writer.write(encoder.encode(`data: {"type":"done","error":"write_failed"}\n\n`));
-      } catch (finalError) {
-        logger.error(
-          finalError,
-          "❌ Failed to write even minimal error message - stream may be closed",
-        );
-      }
+      console.error("Failed to write error message to stream:", writeError);
     }
 
     return currentTextContent;

@@ -129,9 +129,9 @@ export class AgentService {
         .where(
           message.chatId
             ? and(
-                eq(entityContext.entityId, actualEntityId),
-                eq(entityContext.chatId, message.chatId),
-              )
+              eq(entityContext.entityId, actualEntityId),
+              eq(entityContext.chatId, message.chatId),
+            )
             : eq(entityContext.entityId, actualEntityId),
         );
 
@@ -195,10 +195,12 @@ export class AgentService {
 
       // Set completedAt for user messages (they are always complete when saved)
       // Also set completedAt for tool use calls from assistant (they are complete when saved)
+      // Also set completedAt for tool result messages (they are complete when saved)
       // Regular assistant text messages will have completedAt set by streaming logic
       if (
         message.role === "user" ||
-        (message.role === "assistant" && dbRecord.contextType === "TOOL_USE")
+        (message.role === "assistant" && dbRecord.contextType === "TOOL_USE") ||
+        dbRecord.contextType === "TOOL_RESULT"
       ) {
         dbRecord.completedAt = new Date();
       }

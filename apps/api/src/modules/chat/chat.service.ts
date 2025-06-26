@@ -59,8 +59,13 @@ export class ChatService {
           ),
         );
       } else {
-        // When not excluding user messages, use the original simple filter
-        whereConditions.push(eq(entityContext.contextType, "MESSAGE"));
+        // When not excluding user messages, include MESSAGE and TOOL_RESULT context types
+        whereConditions.push(
+          or(
+            eq(entityContext.contextType, "MESSAGE"),
+            eq(entityContext.contextType, "TOOL_RESULT")
+          )
+        );
       }
 
       // If not including completed messages, filter to only streaming messages

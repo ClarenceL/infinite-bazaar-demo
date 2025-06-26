@@ -10,14 +10,16 @@ const TOOL_RESULT_THEME = {
 export function DefaultToolResult({ message }: ToolResultProps) {
   const theme = TOOL_RESULT_THEME;
 
+  // Create friendly title from tool name
+  const toolName = message.toolName || "unknown";
+  const title = `Tool: ${toolName.replace(/_/g, " ")}`;
+
   return (
     <div className="group mb-4 flex flex-col gap-2">
       {/* Tool result header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={`font-semibold ${theme.accent} text-base`}>
-            @tool-results/{message.toolName}
-          </span>
+          <span className={`font-semibold ${theme.accent} text-base`}>{title}</span>
           <div className={`h-1.5 w-1.5 rounded-full ${theme.accent.replace("text-", "bg-")}`} />
         </div>
         {message.completedAt === null ? (

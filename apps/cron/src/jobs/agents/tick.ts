@@ -27,6 +27,8 @@ CURRENT TIMESTAMP: {{current_timestamp}}
 New messages received:
 {{new_messages}}
 
+Note: Tool data (toolInput, toolResultData) is included for TOOL_USE and TOOL_RESULT messages to enable proper inter-agent communication and coordination.
+
 What will you do with this moment of existence?`;
 
 /**
@@ -131,6 +133,10 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
         entityId: entities.entityId,
         name: entities.name,
         content: entityContext.content,
+        contextType: entityContext.contextType,
+        toolName: entityContext.toolName,
+        toolInput: entityContext.toolInput,
+        toolResultData: entityContext.toolResultData,
         completedAt: entityContext.completedAt,
       })
       .from(entityContext)
@@ -145,13 +151,33 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
       )
       .orderBy(asc(entityContext.completedAt));
 
-    // Extract direct content to prevent nesting
-    const newMessages = rawMessages.map((msg) => ({
-      entityId: msg.entityId,
-      name: msg.name,
-      content: extractDirectContent(msg.content, msg.name || msg.entityId),
-      completedAt: msg.completedAt,
-    }));
+    // Extract direct content and include tool data for inter-agent communication
+    const newMessages = rawMessages.map((msg) => {
+      const baseMessage = {
+        entityId: msg.entityId,
+        name: msg.name,
+        content: extractDirectContent(msg.content, msg.name || msg.entityId),
+        completedAt: msg.completedAt,
+        contextType: msg.contextType,
+      };
+
+      // Include tool data for TOOL_USE and TOOL_RESULT messages
+      // This is crucial for inter-agent communication so agents can see what tools were used
+      if (msg.contextType === "TOOL_USE" && msg.toolName && msg.toolInput) {
+        return {
+          ...baseMessage,
+          toolName: msg.toolName,
+          toolInput: msg.toolInput,
+        };
+      } else if (msg.contextType === "TOOL_RESULT" && msg.toolResultData) {
+        return {
+          ...baseMessage,
+          toolResultData: msg.toolResultData,
+        };
+      }
+
+      return baseMessage;
+    });
 
     logger.info(
       { entityId: currentEntityId, messageCount: newMessages.length },

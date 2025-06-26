@@ -14,14 +14,16 @@ export function TransferUsdcResult({ message }: ToolResultProps) {
   const theme = TRANSFER_USDC_THEME;
   const data = message.toolResultData;
 
+  // Create friendly title based on the transfer details
+  const amount = data?.amount || "0";
+  const title = `Transfer ${amount} USDC`;
+
   return (
     <div className="group mb-4 flex flex-col gap-2">
       {/* Tool result header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={`font-semibold ${theme.accent} text-base`}>
-            @tool-results/transfer_usdc
-          </span>
+          <span className={`font-semibold ${theme.accent} text-base`}>{title}</span>
           <div className={`h-1.5 w-1.5 rounded-full ${theme.accent.replace("text-", "bg-")}`} />
           {data?.success ? (
             <span className={`font-medium text-xs ${theme.success}`}>✓ Success</span>

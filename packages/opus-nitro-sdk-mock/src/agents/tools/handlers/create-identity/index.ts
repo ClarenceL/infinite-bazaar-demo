@@ -203,20 +203,8 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
 
     const cdpClaimService = new CDPClaimService();
 
-    // Convert unified result to format expected by CDPClaimService
-    const genericClaimForSubmission = {
-      did: unifiedResult.did,
-      claimHash: unifiedResult.genericClaim.claimHash,
-      signature: unifiedResult.genericClaim.signature,
-      claimData: unifiedResult.genericClaim.claimData,
-      agentId: unifiedResult.agentId,
-      timestamp: unifiedResult.timestamp,
-    };
-
-    const cdpResult = await cdpClaimService.submitClaimWithPayment(
-      entity_id,
-      genericClaimForSubmission,
-    );
+    // Pass the complete unified result to CDPClaimService
+    const cdpResult = await cdpClaimService.submitClaimWithPayment(entity_id, unifiedResult);
 
     if (!cdpResult.success) {
       logger.warn(
