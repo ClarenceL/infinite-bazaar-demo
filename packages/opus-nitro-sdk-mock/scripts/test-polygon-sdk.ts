@@ -84,10 +84,10 @@ function saveIdentityToLogs(testName: string, identity: any, seed?: Uint8Array) 
     },
     seed: seed
       ? {
-          hex: Buffer.from(seed).toString("hex"),
-          base64: Buffer.from(seed).toString("base64"),
-          length: seed.length,
-        }
+        hex: Buffer.from(seed).toString("hex"),
+        base64: Buffer.from(seed).toString("base64"),
+        length: seed.length,
+      }
       : null,
   };
 
@@ -476,13 +476,47 @@ async function submitClaimToOpusGenesis(
 async function testCreateIdentity() {
   try {
     console.log("🔧 Testing UNIFIED Identity creation following proper Iden3 flow...");
-    console.log("📋 Flow: ONE seed → BabyJubJub keypair → AuthClaim → GenericClaim");
-
-    // Test 1: Create unified identity with proper Iden3 flow
-    console.log("\n🧪 Test 1: Create unified identity using UnifiedIdentityService");
+    console.log("📋 Flow: Step 1: Generate seed → Step 2: Create identity from seed");
 
     const { UnifiedIdentityService } = await import("../src/services/unified-identity-service.js");
     const unifiedService = new UnifiedIdentityService();
+
+    let keyResult: any = null;
+
+    // Check if TEST_ENTITY_NUMBER is already set
+    if (process.env.TEST_ENTITY_NUMBER) {
+      console.log("\n🔍 Found existing TEST_ENTITY_NUMBER, skipping seed generation");
+      console.log(`  - Using existing seed: ${process.env.TEST_ENTITY_NUMBER}.txt`);
+      console.log("  - Location: logs/seeds/");
+
+      // Create a mock keyResult for logging consistency
+      keyResult = {
+        seedId: process.env.TEST_ENTITY_NUMBER,
+        seedFile: `${process.env.TEST_ENTITY_NUMBER}.txt`,
+        success: true,
+      };
+    } else {
+      // Test 1: Create identity key (seed generation)
+      console.log("\n🧪 Test 1: Create identity key (generate and save seed)");
+
+      keyResult = await unifiedService.createIdentityKey();
+
+      if (!keyResult.success) {
+        throw new Error(`Failed to create identity key: ${keyResult.error}`);
+      }
+
+      console.log("✅ Identity key created successfully!");
+      console.log("  - Seed ID:", keyResult.seedId);
+      console.log("  - Seed File:", keyResult.seedFile);
+      console.log("  - Location: logs/seeds/");
+
+      // Set the TEST_ENTITY_NUMBER for subsequent operations
+      process.env.TEST_ENTITY_NUMBER = keyResult.seedId;
+      console.log(`  - Set TEST_ENTITY_NUMBER=${keyResult.seedId} for testing`);
+    }
+
+    // Test 2: Create unified identity using the saved seed
+    console.log("\n🧪 Test 2: Create unified identity using saved seed");
 
     const testAgentId = "test-agent-" + Date.now();
 
@@ -544,8 +578,8 @@ async function testCreateIdentity() {
     console.log("  - Signature:", unifiedResult.genericClaim.signature.substring(0, 16) + "...");
     console.log("  - LLM Model:", unifiedResult.genericClaim.claimData.llmModel.name);
 
-    // 🔍 Test 1.1: Verify signature and key pairing
-    console.log("\n🔍 Test 1.1: Verifying signature and key pairing");
+    // 🔍 Test 2.1: Verify signature and key pairing
+    console.log("\n🔍 Test 2.1: Verifying signature and key pairing");
 
     try {
       // Verify the claim signature using the unified service
@@ -584,8 +618,8 @@ async function testCreateIdentity() {
       );
     }
 
-    // Test 2: Submit generic claim to opus-genesis-id service
-    console.log("\n🧪 Test 2: Submit GenericClaim to opus-genesis-id service");
+    // Test 3: Submit generic claim to opus-genesis-id service
+    console.log("\n🧪 Test 3: Submit GenericClaim to opus-genesis-id service");
 
     // Convert unified result to format expected by submitClaimToOpusGenesis
     const genericClaimForSubmission = {
@@ -616,9 +650,14 @@ async function testCreateIdentity() {
     const comprehensiveResult = {
       testName: "Unified Identity Creation Following Proper Iden3 Flow",
       timestamp: new Date().toISOString(),
-      architecture: "ONE seed → BabyJubJub keypair → AuthClaim → GenericClaim → All tied together",
+      architecture: "Step 1: Generate seed → Step 2: Load seed → Create identity → All claims tied together",
       securityNote:
-        "MOCK IMPLEMENTATION: This includes seed data for testing only. In production, seeds should never be logged or stored.",
+        "MOCK IMPLEMENTATION: Seeds are saved to files for testing. In production, seeds should be securely managed in AWS KMS.",
+      seedGeneration: {
+        seedId: keyResult.seedId,
+        seedFile: keyResult.seedFile,
+        location: "logs/seeds/",
+      },
       unifiedIdentity: unifiedResult,
       opusGenesisSubmission: opusGenesisResult,
       verification: {
@@ -657,7 +696,8 @@ async function testCreateIdentity() {
     console.log(`💾 Test results saved to: ${filename}`);
     console.log(`💾 Unified identity also saved to: ${path.basename(unifiedResult.filePath)}`);
     console.log("\n🎉 All Unified Identity tests completed successfully!");
-    console.log("✅ Proper Iden3 flow: ONE seed → ALL claims tied together");
+    console.log("✅ Two-step process: Generate seed → Load seed → Create identity");
+    console.log(`✅ Seed saved to: logs/seeds/${keyResult.seedFile}`);
   } catch (error) {
     console.error("❌ Test failed:", error);
     console.error("Error details:", {

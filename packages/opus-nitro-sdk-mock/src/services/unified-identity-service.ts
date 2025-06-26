@@ -111,11 +111,12 @@ export interface UnifiedIdentityResult {
 
 /**
  * Unified Identity Service that follows proper Iden3 flow:
- * 1. Generate ONE random seed
- * 2. Derive BabyJubJub keypair from seed
- * 3. Create AuthClaim with public key coordinates
- * 4. Create GenericClaim about model's signature hashes
- * 5. Everything tied to the same identity/keypair
+ * 1. Generate ONE random seed (createIdentityKey)
+ * 2. Load seed from file for subsequent operations
+ * 3. Derive BabyJubJub keypair from seed
+ * 4. Create AuthClaim with public key coordinates
+ * 5. Create GenericClaim about model's signature hashes
+ * 6. Everything tied to the same identity/keypair
  */
 export class UnifiedIdentityService {
   private identityWallet: IdentityWallet;
@@ -182,8 +183,98 @@ export class UnifiedIdentityService {
   }
 
   /**
+   * Create and save a new identity key (seed) - Step 1 of identity creation
+   * This generates a random seed and saves it to the logs/seeds directory
+   */
+  async createIdentityKey(): Promise<{
+    success: boolean;
+    seedFile: string;
+    seedId: string;
+    error?: string;
+  }> {
+    try {
+      logger.info("Creating new identity key (generating random seed)");
+
+      // Step 1: Generate ONE random seed
+      const seed = new Uint8Array(32);
+      crypto.getRandomValues(seed);
+
+      // Step 2: Generate random 12-digit seed ID
+      const seedId = Math.floor(Math.random() * 900000000000 + 100000000000).toString();
+
+      // Step 3: Ensure seeds directory exists
+      const seedsDir = path.join(process.cwd(), "logs", "seeds");
+      if (!fs.existsSync(seedsDir)) {
+        fs.mkdirSync(seedsDir, { recursive: true });
+        logger.info({ seedsDir }, "Created seeds directory");
+      }
+
+      // Step 4: Save seed to file
+      const seedFile = path.join(seedsDir, `${seedId}.txt`);
+      const seedHex = Buffer.from(seed).toString("hex");
+
+      fs.writeFileSync(seedFile, seedHex);
+
+      logger.info(
+        { seedId, seedFile: path.basename(seedFile) },
+        "🔐 Identity key (seed) generated and saved",
+      );
+
+      logger.warn(
+        "⚠️  SECURITY: Seed saved to file for testing. In production, seeds should be securely managed in AWS KMS or similar.",
+      );
+
+      return {
+        success: true,
+        seedFile: path.basename(seedFile),
+        seedId,
+      };
+    } catch (error) {
+      logger.error({ error }, "Failed to create identity key");
+      return {
+        success: false,
+        seedFile: "",
+        seedId: "",
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Load seed from file based on TEST_ENTITY_NUMBER environment variable
+   */
+  private loadSeedFromFile(): Uint8Array {
+    const entityNumber = process.env.TEST_ENTITY_NUMBER;
+
+    if (!entityNumber) {
+      throw new Error("TEST_ENTITY_NUMBER environment variable is required");
+    }
+
+    const seedsDir = path.join(process.cwd(), "logs", "seeds");
+    const seedFile = path.join(seedsDir, `${entityNumber}.txt`);
+
+    if (!fs.existsSync(seedFile)) {
+      throw new Error(`Seed file not found: ${entityNumber}.txt. Run createIdentityKey() first.`);
+    }
+
+    try {
+      const seedHex = fs.readFileSync(seedFile, "utf8").trim();
+      const seed = new Uint8Array(Buffer.from(seedHex, "hex"));
+
+      logger.info(
+        { entityNumber, seedFile: path.basename(seedFile) },
+        "🔐 Loaded seed from file",
+      );
+
+      return seed;
+    } catch (error) {
+      throw new Error(`Failed to load seed from file ${entityNumber}.txt: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  /**
    * Create a complete identity following proper Iden3 flow:
-   * 1. Generate random seed
+   * 1. Load seed from file (based on TEST_ENTITY_NUMBER)
    * 2. Create identity and derive keypair from seed
    * 3. Create AuthClaim with public key
    * 4. Create GenericClaim about agent configuration
@@ -201,13 +292,12 @@ export class UnifiedIdentityService {
         "Creating unified identity with AuthClaim and GenericClaim",
       );
 
-      // Step 1: Generate ONE random seed for everything
-      const seed = new Uint8Array(32);
-      crypto.getRandomValues(seed);
+      // Step 1: Load seed from file
+      const seed = this.loadSeedFromFile();
 
       logger.info(
         { agentId },
-        "🔐 Generated random seed for unified identity (seed will be saved for testing)",
+        "🔐 Loaded seed from file for unified identity creation",
       );
 
       // Step 2: Create identity from seed
@@ -233,6 +323,11 @@ export class UnifiedIdentityService {
       // The AuthBJJCredential contains the public key coordinates
       const publicKeyX = credential.credentialSubject.x;
       const publicKeyY = credential.credentialSubject.y;
+
+      // Handle undefined public keys
+      if (publicKeyX === undefined || publicKeyY === undefined) {
+        throw new Error("Failed to extract public key coordinates from credential");
+      }
 
       // Generate private key representation (mock for now)
       const privateKey = this.derivePrivateKeyFromSeed(seed);

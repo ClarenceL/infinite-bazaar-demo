@@ -61,6 +61,10 @@ export interface IdentityWithTrees {
 }
 
 /**
+ * @deprecated This service uses deterministic seeds which is a security vulnerability.
+ * Use UnifiedIdentityService instead, which generates random seeds and follows proper Iden3 flow.
+ * This service will be removed in a future version.
+ * 
  * Service for creating proper Iden3 AuthClaim following the official documentation
  * This implements the pattern from https://docs.iden3.io/getting-started/identity/identity-state/#create-identity-trees-and-add-authclaim
  */
@@ -76,6 +80,7 @@ export class Iden3AuthClaimService {
     this.kms = this.initKMS();
     this.identityWallet = this.initIdentityWallet(this.dataStorage, this.credentialWallet);
 
+    logger.warn("⚠️  DEPRECATED: Iden3AuthClaimService uses deterministic seeds (security risk). Use UnifiedIdentityService instead.");
     logger.info("Iden3AuthClaimService initialized for proper AuthClaim creation");
   }
 
