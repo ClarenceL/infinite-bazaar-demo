@@ -84,3 +84,11 @@ export function camelToSnake(obj: Record<string, any>): Record<string, any> {
     {} as Record<string, any>,
   );
 }
+
+export {
+  entities,
+  x402Endpoints,
+  x402ServiceCalls,
+  entityContext,
+  agentRelationships,
+} from "./schema.js";

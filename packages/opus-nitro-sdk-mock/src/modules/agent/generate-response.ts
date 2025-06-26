@@ -324,6 +324,13 @@ export async function generateStreamingResponse(
         error,
         `Error in processLangChainStream: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
+      
+      // Clean up failed streaming record if it exists
+      if (streamingContextId) {
+        logger.info({ streamingContextId }, "Cleaning up failed streaming record");
+        await streamingDBSync.cleanupFailedStreaming(streamingContextId);
+      }
+      
       textContent = "Error processing stream";
       // Still send done signal even on error
       writer.write(encoder.encode(`data: {"type":"done"}\n\n`));

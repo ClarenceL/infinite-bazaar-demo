@@ -7,7 +7,8 @@ const dotenvConfig: dotenv.DotenvConfigOptions = { override: true };
 
 // Set NODE_ENV to development by default if not set
 if (!process.env.NODE_ENV) {
-  throw new Error("NODE_ENV is not set in environment variables");
+  process.env.NODE_ENV = "development";
+  console.log("[CRON2] NODE_ENV not set, defaulting to 'development'");
 }
 
 const env = process.env.NODE_ENV;

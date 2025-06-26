@@ -9,6 +9,8 @@ const prefixes = {
   chat: "chat",
   msg: "msg",
   context: "ctx",
+  endpoint: "ep",
+  call: "call",
 } as const;
 
 export function newId<TPrefix extends keyof typeof prefixes>(prefix: TPrefix) {

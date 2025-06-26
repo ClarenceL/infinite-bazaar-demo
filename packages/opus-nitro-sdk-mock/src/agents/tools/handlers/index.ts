@@ -7,6 +7,9 @@ import type { ToolCallResult } from "../../../types/message.js";
 import { handleCreateIdentity } from "./create-identity/index.js";
 import { handleCreateName } from "./create-name/index.js";
 import { handleTransferUsdc } from "./transfer-usdc/index.js";
+import { handleCreateX402Service } from "./create-x402-service/index.js";
+import { handleDiscoverServices } from "./discover-services/index.js";
+import { handleCallPaidService } from "./call-paid-service/index.js";
 
 /**
  * Process a tool call and return the result
@@ -38,6 +41,15 @@ export async function processToolCall(
 
     case "transfer_usdc":
       return handleTransferUsdc(normalizedInput);
+
+    case "create_x402_service":
+      return handleCreateX402Service(normalizedInput);
+
+    case "discover_services":
+      return handleDiscoverServices(normalizedInput);
+
+    case "call_paid_service":
+      return handleCallPaidService(normalizedInput);
 
     default:
       console.warn(`Unknown tool called: ${toolName}`);

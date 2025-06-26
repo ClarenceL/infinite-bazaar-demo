@@ -5,7 +5,7 @@ import { getUSDCBalance } from "@infinite-bazaar-demo/x402";
 import { http, createPublicClient } from "viem";
 import type { Address } from "viem";
 import { baseSepolia } from "viem/chains";
-import { OPUS_ENTITY_ID, getPromptForEntity } from "../prompts";
+import { OPUS_ENTITY_ID, getPromptForEntity, getPromptForEntityFromDb } from "../prompts";
 
 // Re-export OPUS_ENTITY_ID for backward compatibility
 export { OPUS_ENTITY_ID };
@@ -60,37 +60,32 @@ function replaceTemplateVariables(prompt: string, context: TemplateContext): str
 }
 
 /**
- * Get CDP name from database with caching
+ * Get entity data from database with caching
  */
-async function getCdpNameForEntity(entityId: string): Promise<string | null> {
-  // Check cache first
-  if (entityCdpNameCache.has(entityId)) {
-    return entityCdpNameCache.get(entityId) || null;
-  }
-
+async function getEntityDataForEntity(entityId: string): Promise<{ name: string | null; cdpName: string | null }> {
   try {
-    logger.info({ entityId }, "Fetching CDP name from database");
+    logger.info({ entityId }, "Fetching entity data from database");
 
     const entity = await db
-      .select({ cdpName: entities.cdp_name })
+      .select({ 
+        name: entities.name, 
+        cdpName: entities.cdp_name 
+      })
       .from(entities)
       .where(eq(entities.entityId, entityId))
       .limit(1);
 
-    const cdpName = entity[0]?.cdpName || null;
+    const result = {
+      name: entity[0]?.name || null,
+      cdpName: entity[0]?.cdpName || null
+    };
 
-    // Only cache non-null results - keep querying until CDP name is set
-    if (cdpName) {
-      entityCdpNameCache.set(entityId, cdpName);
-      logger.info({ entityId, cdpName }, "CDP name retrieved and cached");
-    } else {
-      logger.info({ entityId }, "No CDP name found, will retry on next call");
-    }
+    logger.info({ entityId, name: result.name, cdpName: result.cdpName }, "Entity data retrieved");
 
-    return cdpName;
+    return result;
   } catch (error) {
-    logger.error({ error, entityId }, "Failed to fetch CDP name from database");
-    return null;
+    logger.error({ error, entityId }, "Failed to fetch entity data from database");
+    return { name: null, cdpName: null };
   }
 }
 
@@ -165,22 +160,34 @@ export async function getSystemMessage(
 
   logger.info({ entityId }, "Getting system message for agent");
 
-  // Get the system prompt for this entity
-  const systemPrompt = getPromptForEntity(entityId);
+  // Get the system prompt for this entity from database
+  const systemPrompt = await getPromptForEntityFromDb(entityId);
   if (!systemPrompt) {
-    throw new Error(`No system prompt found for entity ID: ${entityId}`);
+    // Fallback to hardcoded prompts for backward compatibility
+    const fallbackPrompt = getPromptForEntity(entityId);
+    if (!fallbackPrompt) {
+      throw new Error(`No system prompt found for entity ID: ${entityId}`);
+    }
+    return replaceTemplateVariables(fallbackPrompt, {
+      current_timestamp: new Date().toISOString(),
+      wallet_address: "0x...pending",
+      balance: "0.00",
+      balance_message: "You will be given a starting balance after you create your identity",
+      entity_id: entityId,
+      ...templateContext,
+    });
   }
 
-  // Get CDP name from database
-  const cdpName = await getCdpNameForEntity(entityId);
+  // Get entity data from database
+  const entityData = await getEntityDataForEntity(entityId);
 
   let walletData = { balance: "0.00", address: "0x...pending" };
   let balanceMessage = "";
 
   // Only fetch wallet data if we have a CDP name
-  if (cdpName) {
-    logger.info({ entityId, cdpName }, "CDP name found, fetching wallet data");
-    walletData = await getCdpWalletData(cdpName);
+  if (entityData.cdpName) {
+    logger.info({ entityId, cdpName: entityData.cdpName }, "CDP name found, fetching wallet data");
+    walletData = await getCdpWalletData(entityData.cdpName);
     balanceMessage = "USDC (use this wisely)";
   } else {
     logger.info({ entityId }, "No CDP name found, skipping wallet data retrieval");
@@ -193,6 +200,7 @@ export async function getSystemMessage(
     balance: walletData.balance,
     balance_message: balanceMessage,
     entity_id: entityId,
+    name: entityData.name || undefined, // This is the key fix!
     ...templateContext,
   };
 

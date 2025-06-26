@@ -1,4 +1,4 @@
-import { db, entityContext, eq } from "@infinite-bazaar-demo/db";
+import { db, entityContext, eq, and, isNull, lte } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 
 interface StreamingSyncUpdate {
@@ -128,7 +128,7 @@ class StreamingDBSyncService {
         .limit(1);
 
       if (current.length > 0) {
-        const newContent = current[0].content + chunkContent;
+        const newContent = (current[0]?.content || "") + chunkContent;
 
         await db
           .update(entityContext)
@@ -161,6 +161,69 @@ class StreamingDBSyncService {
    */
   isEnabled(): boolean {
     return this.enabled;
+  }
+
+  /**
+   * Clean up incomplete streaming records with empty content
+   * This handles cases where streaming was started but failed before any content was written
+   */
+  async cleanupFailedStreaming(contextId: string): Promise<void> {
+    if (!this.enabled || !contextId) return;
+
+    try {
+      // Check if record exists and has empty content
+      const record = await db
+        .select({ content: entityContext.content })
+        .from(entityContext)
+        .where(eq(entityContext.contextId, contextId))
+        .limit(1);
+
+      if (record.length > 0 && record[0]?.content === "") {
+        // Delete the empty incomplete record
+        await db
+          .delete(entityContext)
+          .where(eq(entityContext.contextId, contextId));
+
+        logger.info({ contextId }, "Cleaned up failed streaming record with empty content");
+      }
+    } catch (error) {
+      logger.error({ error, contextId }, "Failed to cleanup streaming record");
+    }
+  }
+
+  /**
+   * Clean up all incomplete records older than specified minutes with empty content
+   */
+  async cleanupStaleIncompleteRecords(olderThanMinutes: number = 5): Promise<void> {
+    if (!this.enabled) return;
+
+    try {
+      const cutoffTime = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+      
+      const deletedRecords = await db
+        .delete(entityContext)
+        .where(
+          and(
+            isNull(entityContext.completedAt),
+            eq(entityContext.content, ""),
+            lte(entityContext.createdAt, cutoffTime)
+          )
+        )
+        .returning({ contextId: entityContext.contextId });
+
+      if (deletedRecords.length > 0) {
+        logger.info(
+          { 
+            deletedCount: deletedRecords.length,
+            cutoffTime,
+            deletedIds: deletedRecords.map(r => r.contextId)
+          }, 
+          "Cleaned up stale incomplete streaming records"
+        );
+      }
+    } catch (error) {
+      logger.error({ error }, "Failed to cleanup stale incomplete records");
+    }
   }
 }
 

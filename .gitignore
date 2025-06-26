@@ -9,6 +9,7 @@ node_modules
 # Local env files
 deploy-secrets.env
 .env
+.env.test
 .env.dev
 .env.vars
 .env.local
@@ -54,3 +55,7 @@ debug-later.txt
 .DS_Store
 archive
 *.pem
+
+# Ignore .env.test files in all packages
+packages/*/.env.test
+packages/**/.env.test

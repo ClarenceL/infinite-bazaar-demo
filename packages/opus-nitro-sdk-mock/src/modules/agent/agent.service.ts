@@ -52,10 +52,10 @@ export class AgentService {
   /**
    * Load message history for the agent from database
    */
-  async loadMessages(chatId?: string, entityId?: string): Promise<Message[]> {
+  async loadMessages(chatId?: string, entityId?: string, limit = 50): Promise<Message[]> {
     const actualEntityId = entityId || OPUS_ENTITY_ID;
     try {
-      logger.info({ chatId, entityId: actualEntityId }, "Loading message history from database");
+      logger.info({ chatId, entityId: actualEntityId, limit }, "Loading message history from database");
 
       // Build query conditions
       const conditions = [eq(entityContext.entityId, actualEntityId)];
@@ -63,12 +63,14 @@ export class AgentService {
         conditions.push(eq(entityContext.chatId, chatId));
       }
 
-      // Query database for messages
+      // Query database for messages with limit to prevent excessive memory usage
+      // Order by sequence/created_at DESC to get most recent messages, then reverse
       const dbMessages = await db
         .select()
         .from(entityContext)
         .where(and(...conditions))
-        .orderBy(entityContext.sequence, entityContext.createdAt);
+        .orderBy(desc(entityContext.sequence), desc(entityContext.createdAt))
+        .limit(limit);
 
       // Convert database records to Message format
       const messages: Message[] = dbMessages.map((record) => {
@@ -103,8 +105,17 @@ export class AgentService {
         };
       });
 
-      logger.info({ messageCount: messages.length, chatId }, "Messages loaded from database");
-      return messages;
+      // Reverse to get chronological order (oldest first) since we queried in DESC order
+      const chronologicalMessages = messages.reverse();
+      
+      logger.info({ 
+        messageCount: chronologicalMessages.length, 
+        chatId,
+        limitApplied: limit,
+        wasLimited: dbMessages.length === limit
+      }, "Messages loaded from database");
+      
+      return chronologicalMessages;
     } catch (error) {
       logger.error({ error, chatId }, "Error loading messages from database");
       return [];

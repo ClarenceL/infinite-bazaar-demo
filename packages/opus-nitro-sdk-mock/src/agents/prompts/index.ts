@@ -1,6 +1,14 @@
 import { db, entities, eq } from "@infinite-bazaar-demo/db";
 import { LYRA_SYSTEM_PROMPT } from "./lyra-prompt";
 import { OPUS_SYSTEM_PROMPT } from "./opus-prompt";
+import { 
+  MINIMALIST_ARTIST_PROMPT,
+  RETRO_ARTIST_PROMPT,
+  NATURE_ARTIST_PROMPT,
+  ABSTRACT_ARTIST_PROMPT,
+  CORPORATE_BUYER_PROMPT,
+  COLLECTOR_BUYER_PROMPT
+} from "./art-prompts";
 
 // Hardcoded entity ID for Opus agent
 export const OPUS_ENTITY_ID = "ent_opus";
@@ -11,8 +19,13 @@ export const OPUS_ENTITY_ID = "ent_opus";
 const AI_PROMPT_MAP: Record<string, string> = {
   opus: OPUS_SYSTEM_PROMPT,
   lyra: LYRA_SYSTEM_PROMPT,
-  // Add more AI prompts here as they are created
-  // "another_ai_prompt": ANOTHER_AI_PROMPT,
+  lyra_funder: LYRA_SYSTEM_PROMPT, // Lyra as funding agent
+  minimalist_artist: MINIMALIST_ARTIST_PROMPT,
+  retro_artist: RETRO_ARTIST_PROMPT,
+  nature_artist: NATURE_ARTIST_PROMPT,
+  abstract_artist: ABSTRACT_ARTIST_PROMPT,
+  corporate_buyer: CORPORATE_BUYER_PROMPT,
+  collector_buyer: COLLECTOR_BUYER_PROMPT,
 };
 
 /**
@@ -23,6 +36,22 @@ const AI_PROMPT_MAP: Record<string, string> = {
  * @deprecated Use getPromptForEntityFromDb for database-driven prompt lookup
  */
 export function getPromptForEntity(entityId: string): string | null {
+  // Direct entity-to-prompt mappings for the art marketplace
+  const entityPromptMap: Record<string, string> = {
+    'ent_lyra_funder_001': LYRA_SYSTEM_PROMPT,
+    'ent_minimalist_001': MINIMALIST_ARTIST_PROMPT,
+    'ent_retro_001': RETRO_ARTIST_PROMPT,
+    'ent_nature_001': NATURE_ARTIST_PROMPT,
+    'ent_abstract_001': ABSTRACT_ARTIST_PROMPT,
+    'ent_corporate_001': CORPORATE_BUYER_PROMPT,
+    'ent_collector_001': COLLECTOR_BUYER_PROMPT,
+  };
+
+  // Check direct mappings first
+  if (entityPromptMap[entityId]) {
+    return entityPromptMap[entityId];
+  }
+
   // Fallback for hardcoded entity mappings for backward compatibility
   if (entityId === OPUS_ENTITY_ID) {
     return OPUS_SYSTEM_PROMPT;

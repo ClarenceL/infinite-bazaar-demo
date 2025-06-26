@@ -17,6 +17,7 @@ import {
   uniqueIndex,
   uuid,
   varchar,
+  unique,
 } from "drizzle-orm/pg-core";
 import { lifecycleDates } from "./util/lifecycle-dates.js";
 
@@ -132,3 +133,83 @@ export const entityContextRelations = relations(entityContext, ({ one }) => ({
     references: [chats.chatId],
   }),
 }));
+
+// x402 Service Endpoints - for dynamic agent-created services
+export const x402Endpoints = pgTable("x402_endpoints", {
+  endpointId: varchar("endpoint_id", { length: 255 })
+    .primaryKey()
+    .$defaultFn(() => newId("endpoint")),
+  agentId: varchar("agent_id", { length: 255 })
+    .references(() => entities.entityId)
+    .notNull(),
+  serviceName: text("service_name").notNull(),
+  description: text("description").notNull(),
+  serviceType: text("service_type").default("analysis").notNull(), // e.g., "analysis", "creative", "api", "computation"
+  route: text("route").notNull(), // e.g., "/service/:agentId/analyze"
+  price: decimal("price", { precision: 10, scale: 6 }).notNull(), // USDC price
+  priceDescription: text("price_description"), // e.g., "per analysis", "per minute"
+  logic: text("logic").notNull(), // Serialized function/script logic
+  systemPrompt: text("system_prompt"), // Custom system prompt for LLM-based services
+  active: boolean("active").default(true).notNull(),
+  totalCalls: integer("total_calls").default(0).notNull(),
+  totalRevenue: decimal("total_revenue", { precision: 18, scale: 6 }).default("0").notNull(),
+  ...lifecycleDates,
+}).enableRLS();
+
+// x402 Service Calls - track usage and payments
+export const x402ServiceCalls = pgTable("x402_service_calls", {
+  callId: varchar("call_id", { length: 255 })
+    .primaryKey()
+    .$defaultFn(() => newId("call")),
+  endpointId: varchar("endpoint_id", { length: 255 })
+    .references(() => x402Endpoints.endpointId)
+    .notNull(),
+  callerAgentId: varchar("caller_agent_id", { length: 255 })
+    .references(() => entities.entityId)
+    .notNull(),
+  paymentAmount: decimal("payment_amount", { precision: 10, scale: 6 }).notNull(),
+  paymentHash: text("payment_hash"), // x402 payment transaction hash
+  requestData: json("request_data"), // Input parameters
+  responseData: json("response_data"), // Service output
+  success: boolean("success").notNull(),
+  errorMessage: text("error_message"),
+  ...lifecycleDates,
+}).enableRLS();
+
+// Relations for x402 services
+export const x402EndpointsRelations = relations(x402Endpoints, ({ one, many }) => ({
+  agent: one(entities, {
+    fields: [x402Endpoints.agentId],
+    references: [entities.entityId],
+  }),
+  serviceCalls: many(x402ServiceCalls),
+}));
+
+export const x402ServiceCallsRelations = relations(x402ServiceCalls, ({ one }) => ({
+  endpoint: one(x402Endpoints, {
+    fields: [x402ServiceCalls.endpointId],
+    references: [x402Endpoints.endpointId],
+  }),
+  callerAgent: one(entities, {
+    fields: [x402ServiceCalls.callerAgentId],
+    references: [entities.entityId],
+  }),
+}));
+
+export const agentRelationships = pgTable("agent_relationships", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  observerAgentId: text("observer_agent_id").notNull(),
+  targetAgentId: text("target_agent_id").notNull(),
+  relationshipSummary: text("relationship_summary").notNull().default("New agent - no interactions yet"),
+  trustScore: real("trust_score").notNull().default(0.5),
+  interactionCount: integer("interaction_count").notNull().default(0),
+  totalTransactionValue: text("total_transaction_value").notNull().default("0"),
+  lastInteractionAt: timestamp("last_interaction_at"),
+  ...lifecycleDates,
+});
+
+// Add unique constraint for observer-target pairs
+export const agentRelationshipsUniqueConstraint = unique("unique_observer_target").on(
+  agentRelationships.observerAgentId,
+  agentRelationships.targetAgentId
+);

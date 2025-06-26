@@ -206,6 +206,8 @@ function replaceTemplateVariables(template: string, variables: Record<string, st
   return result;
 }
 
+
+
 /**
  * Process a single entity with the Opus API
  */
@@ -376,7 +378,7 @@ async function agentJob(job: Job) {
           { entityId: entity.entityId, delaySeconds: 10 },
           "Waiting before processing next entity",
         );
-        await new Promise((resolve) => setTimeout(resolve, 30000));
+        await new Promise((resolve) => setTimeout(resolve, 10000));
       }
     }
 
