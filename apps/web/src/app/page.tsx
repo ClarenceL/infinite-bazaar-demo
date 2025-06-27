@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { ChatContainer } from "@/components/chat-container";
+import { RelationshipGraph } from "@/components/relationship-graph";
 
 export default async function HomePage() {
   return (
@@ -25,8 +26,10 @@ export default async function HomePage() {
         <div className="w-1/2 border-white/10 border-r">
           <ChatContainer />
         </div>
-        {/* Right side empty for now */}
-        <div className="w-1/2" />
+        {/* Relationship graph on the right side */}
+        <div className="w-1/2">
+          <RelationshipGraph />
+        </div>
       </div>
     </div>
   );
