@@ -6,6 +6,7 @@
  * 1. Sets name, cdp_name, and cdp_address to NULL for all entities except god_lyra
  * 2. Ensures the global chat exists
  * 3. Optionally deletes all entity_context (chat messages) with --delete-chats flag
+ * 4. Resets agent_relationships, x402_endpoints, and x402_service_calls tables
  */
 
 import * as path from "node:path";
@@ -75,6 +76,25 @@ async function resetEntitiesAndChat() {
 
       console.log(`✅ Deleted ${deleteResult.count || 0} chat messages from entity_context`);
     }
+
+    // 1.5. Reset x402 and relationship tables
+    console.log("🗑️  Resetting x402_service_calls table...");
+    const deleteServiceCallsResult = await db.execute(sql`
+      DELETE FROM x402_service_calls
+    `);
+    console.log(`✅ Deleted ${deleteServiceCallsResult.count || 0} records from x402_service_calls`);
+
+    console.log("🗑️  Resetting x402_endpoints table...");
+    const deleteEndpointsResult = await db.execute(sql`
+      DELETE FROM x402_endpoints
+    `);
+    console.log(`✅ Deleted ${deleteEndpointsResult.count || 0} records from x402_endpoints`);
+
+    console.log("🗑️  Resetting agent_relationships table...");
+    const deleteRelationshipsResult = await db.execute(sql`
+      DELETE FROM agent_relationships
+    `);
+    console.log(`✅ Deleted ${deleteRelationshipsResult.count || 0} records from agent_relationships`);
 
     // 2. Reset entity fields (except for god_lyra)
     console.log(`Resetting entity fields for all entities except ${PROTECTED_ENTITY_ID}...`);
@@ -154,9 +174,21 @@ async function resetEntitiesAndChat() {
       WHERE chat_id = ${DEFAULT_CHAT_ID}
     `);
 
-    // Check remaining entity_context count
+    // Check remaining counts for all tables
     const remainingMessages = await db.execute(sql`
       SELECT COUNT(*) as count FROM entity_context
+    `);
+
+    const remainingRelationships = await db.execute(sql`
+      SELECT COUNT(*) as count FROM agent_relationships
+    `);
+
+    const remainingEndpoints = await db.execute(sql`
+      SELECT COUNT(*) as count FROM x402_endpoints
+    `);
+
+    const remainingServiceCalls = await db.execute(sql`
+      SELECT COUNT(*) as count FROM x402_service_calls
     `);
 
     console.log("📋 Reset Entities:");
@@ -182,14 +214,27 @@ async function resetEntitiesAndChat() {
       console.log(`  - ${chat.chat_id}: name=${chat.name}, is_global=${chat.is_global}`);
     }
 
-    console.log("📋 Entity Context:");
+    console.log("📋 Table Reset Summary:");
     const messageCount = Number(remainingMessages[0]?.count) || 0;
-    console.log(`  - Remaining messages: ${messageCount}`);
+    const relationshipCount = Number(remainingRelationships[0]?.count) || 0;
+    const endpointCount = Number(remainingEndpoints[0]?.count) || 0;
+    const serviceCallCount = Number(remainingServiceCalls[0]?.count) || 0;
+
+    console.log(`  - Entity Context (messages): ${messageCount}`);
+    console.log(`  - Agent Relationships: ${relationshipCount}`);
+    console.log(`  - X402 Endpoints: ${endpointCount}`);
+    console.log(`  - X402 Service Calls: ${serviceCallCount}`);
 
     if (deleteChats && messageCount === 0) {
       console.log("  ✅ All chat messages successfully deleted");
     } else if (deleteChats && messageCount > 0) {
       console.log("  ⚠️  Some messages may not have been deleted");
+    }
+
+    if (relationshipCount === 0 && endpointCount === 0 && serviceCallCount === 0) {
+      console.log("  ✅ All x402 and relationship tables successfully reset");
+    } else {
+      console.log("  ⚠️  Some records may not have been deleted from x402/relationship tables");
     }
 
     console.log("\n✅ Reset operation completed successfully");
