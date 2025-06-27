@@ -69,7 +69,7 @@ export function RelationshipGraph() {
 
   const svgRef = useRef<SVGSVGElement>(null);
   const nodePositions = useRef<Map<string, NodePosition>>(new Map());
-  const animationRef = useRef<number | undefined>();
+  const animationRef = useRef<number | undefined>(undefined);
   const entityThemes = useRef<Map<string, number>>(new Map());
   const simulationSteps = useRef<number>(0);
   const isStabilized = useRef<boolean>(false);
@@ -122,7 +122,7 @@ export function RelationshipGraph() {
       if (!nodePositions.current.has(entity.id)) {
         // Arrange nodes in a larger circle initially with more spacing
         const angle = (index / entities.length) * 2 * Math.PI;
-        const radius = Math.min(width, height) * 0.35; // Even larger initial radius
+        const radius = Math.min(width, height) * 0.525; // Even larger initial radius (50% increase)
 
         // Use deterministic offset based on entity ID to avoid randomness
         const hash = entity.id.split("").reduce((a, b) => a + b.charCodeAt(0), 0);
@@ -184,8 +184,8 @@ export function RelationshipGraph() {
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         // Increased repulsion distance and force to maintain larger spacing
-        if (distance > 0 && distance < 250) {
-          const force = (600 / (distance * distance)) * forceMultiplier;
+        if (distance > 0 && distance < 375) {
+          const force = (900 / (distance * distance)) * forceMultiplier;
           pos.vx += (dx / distance) * force;
           pos.vy += (dy / distance) * force;
         }
@@ -209,7 +209,7 @@ export function RelationshipGraph() {
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           // Very weak attraction only for extremely distant nodes
-          if (distance > 400) {
+          if (distance > 600) {
             const force = 0.001 * rel.trustScore * forceMultiplier;
             pos.vx += (dx / distance) * force;
             pos.vy += (dy / distance) * force;
@@ -226,7 +226,7 @@ export function RelationshipGraph() {
       pos.y += pos.vy;
 
       // Keep within larger bounds
-      const margin = 60;
+      const margin = 90; // Increased by 50% (60 * 1.5)
       pos.x = Math.max(margin, Math.min(width - margin, pos.x));
       pos.y = Math.max(margin, Math.min(height - margin, pos.y));
     });
@@ -417,7 +417,7 @@ export function RelationshipGraph() {
         ) : (
           <>
             <div
-              className="min-w-[1200px] min-h-[800px] w-full h-full"
+              className="h-full min-h-[800px] w-full min-w-[1200px]"
               onClick={hideTooltip}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -428,7 +428,7 @@ export function RelationshipGraph() {
               role="button"
               aria-label="Graph area - click or press Escape to close tooltip"
             >
-              <svg ref={svgRef} className="w-[1200px] h-[800px]" viewBox="0 0 1200 800">
+              <svg ref={svgRef} className="h-[800px] w-[1200px]" viewBox="0 0 1200 800">
                 {/* Edges (relationships) */}
                 {graphData.relationships.map((relationship) => {
                   const sourcePos = nodePositions.current.get(relationship.observerAgentId);

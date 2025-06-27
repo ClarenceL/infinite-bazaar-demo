@@ -1,9 +1,9 @@
 import {
+  agentRelationships,
   and,
   db,
   desc,
   entities,
-  agentRelationships,
   eq,
   isNotNull,
 } from "@infinite-bazaar-demo/db";
@@ -111,7 +111,10 @@ export class RelationshipsService {
         updatedAt: record.updatedAt?.getTime() || Date.now(),
       }));
 
-      logger.info({ relationshipCount: relationshipsResult.length }, "Relationships fetched successfully");
+      logger.info(
+        { relationshipCount: relationshipsResult.length },
+        "Relationships fetched successfully",
+      );
       return relationshipsResult;
     } catch (error) {
       logger.error({ error }, "Error fetching relationships from database");
@@ -132,9 +135,9 @@ export class RelationshipsService {
       ]);
 
       // Filter relationships to only include those between active entities
-      const activeEntityIds = new Set(entitiesData.map(e => e.id));
+      const activeEntityIds = new Set(entitiesData.map((e) => e.id));
       const validRelationships = relationshipsData.filter(
-        rel => activeEntityIds.has(rel.observerAgentId) && activeEntityIds.has(rel.targetAgentId)
+        (rel) => activeEntityIds.has(rel.observerAgentId) && activeEntityIds.has(rel.targetAgentId),
       );
 
       const result: RelationshipGraphData = {
@@ -146,9 +149,9 @@ export class RelationshipsService {
       logger.info(
         {
           entityCount: entitiesData.length,
-          relationshipCount: validRelationships.length
+          relationshipCount: validRelationships.length,
         },
-        "Graph data fetched successfully"
+        "Graph data fetched successfully",
       );
 
       return result;
@@ -208,4 +211,4 @@ export class RelationshipsService {
   }
 }
 
-export const relationshipsService = new RelationshipsService(); 
+export const relationshipsService = new RelationshipsService();

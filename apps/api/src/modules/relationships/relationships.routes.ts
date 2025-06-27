@@ -239,4 +239,4 @@ export const relationshipsRoutes = new Hono()
         500,
       );
     }
-  }); 
+  });
