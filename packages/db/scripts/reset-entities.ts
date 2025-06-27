@@ -82,7 +82,9 @@ async function resetEntitiesAndChat() {
     const deleteServiceCallsResult = await db.execute(sql`
       DELETE FROM x402_service_calls
     `);
-    console.log(`✅ Deleted ${deleteServiceCallsResult.count || 0} records from x402_service_calls`);
+    console.log(
+      `✅ Deleted ${deleteServiceCallsResult.count || 0} records from x402_service_calls`,
+    );
 
     console.log("🗑️  Resetting x402_endpoints table...");
     const deleteEndpointsResult = await db.execute(sql`
@@ -94,7 +96,9 @@ async function resetEntitiesAndChat() {
     const deleteRelationshipsResult = await db.execute(sql`
       DELETE FROM agent_relationships
     `);
-    console.log(`✅ Deleted ${deleteRelationshipsResult.count || 0} records from agent_relationships`);
+    console.log(
+      `✅ Deleted ${deleteRelationshipsResult.count || 0} records from agent_relationships`,
+    );
 
     // 2. Reset entity fields (except for god_lyra)
     console.log(`Resetting entity fields for all entities except ${PROTECTED_ENTITY_ID}...`);

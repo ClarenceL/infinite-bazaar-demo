@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 
 /**
- * Script to seed default data for Opus agent
- * This creates the default global chat and Opus entity
+ * Script to seed data from john.sql entities
+ * This creates the default global chat and entities extracted from john.sql
  */
 
 import * as path from "node:path";
@@ -48,49 +48,97 @@ const db = drizzle(client);
 // Default data constants
 const DEFAULT_CHAT_ID = "chat_global";
 
-// Entity data to seed
+// Entity data extracted from john.sql
 const ENTITIES_TO_SEED = [
   {
-    entity_id: "ent_opus",
+    entity_id: "ent_collector_001",
     entity_type: "AI",
-    name: null,
-    cdp_address: null,
-    active: true,
-    cdp_name: null,
-    last_query_time: "2025-06-25 02:17:28.969+00",
-    ai_prompt_id: "opus",
-    anthropic_model: "claude-opus-4-20250514",
-    chat_order: 999,
-  },
-  {
-    entity_id: "ent_sonnet",
-    entity_type: "AI",
-    name: null,
-    cdp_address: null,
-    active: true,
-    cdp_name: null,
-    last_query_time: "2025-06-25 02:18:03.201+00",
-    ai_prompt_id: "opus",
+    name: "Avant-Garde Collector",
+    cdp_name: "Avant-Garde-Collector",
+    cdp_address: "0x4b3cc6e047AF244356553b58460d28455765d763",
+    ai_prompt_id: "collector_buyer",
     anthropic_model: null,
-    chat_order: 999,
+    active: true,
+    chat_order: 6,
+    last_query_time: "2025-06-26 23:40:10.222+01",
   },
   {
-    entity_id: "god_lyra",
+    entity_id: "ent_lyra_funder_001",
     entity_type: "AI",
     name: "Lyra",
-    cdp_address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    cdp_name: "Lyra-Funder",
+    cdp_address: "0xB9508cF2D7631Bf92727366B7bfbaD16d5424dB5",
+    ai_prompt_id: "lyra_funder",
+    anthropic_model: "claude-3-5-sonnet-20241022",
     active: true,
-    cdp_name: "opus-demo",
-    last_query_time: "2025-06-25 02:18:36.375+00",
-    ai_prompt_id: "lyra",
-    anthropic_model: "claude-opus-4-20250514",
-    chat_order: 0,
+    chat_order: 7,
+    last_query_time: "2025-06-26 23:40:20.766+01",
+  },
+  {
+    entity_id: "ent_minimalist_001",
+    entity_type: "AI",
+    name: "Zen ASCII Master",
+    cdp_name: "Zen-ASCII-Master",
+    cdp_address: "0x3CF8DdFa52f656530acB630E8F64A3980876A892",
+    ai_prompt_id: "minimalist_artist",
+    anthropic_model: null,
+    active: true,
+    chat_order: 1,
+    last_query_time: "2025-06-26 23:40:24.827+01",
+  },
+  {
+    entity_id: "ent_retro_001",
+    entity_type: "AI",
+    name: "Pixel Nostalgia",
+    cdp_name: "Pixel-Nostalgia",
+    cdp_address: "0x83745B8496c2F345C4011B91dDD6c0E798687CB8",
+    ai_prompt_id: "retro_artist",
+    anthropic_model: null,
+    active: true,
+    chat_order: 2,
+    last_query_time: "2025-06-26 23:40:49.198+01",
+  },
+  {
+    entity_id: "ent_nature_001",
+    entity_type: "AI",
+    name: "Digital Naturalist",
+    cdp_name: "Digital-Naturalist",
+    cdp_address: "0xaE8A1D19D181b4C2e0489e70fa4872C4052ccA6A",
+    ai_prompt_id: "nature_artist",
+    anthropic_model: null,
+    active: true,
+    chat_order: 3,
+    last_query_time: "2025-06-26 23:41:07.105+01",
+  },
+  {
+    entity_id: "ent_abstract_001",
+    entity_type: "AI",
+    name: "Chaos Sculptor",
+    cdp_name: "Chaos-Sculptor",
+    cdp_address: "0x42061E2725e1F063cC259c4741AAD14901de0662",
+    ai_prompt_id: "abstract_artist",
+    anthropic_model: null,
+    active: true,
+    chat_order: 4,
+    last_query_time: "2025-06-26 23:41:20.837+01",
+  },
+  {
+    entity_id: "ent_corporate_001",
+    entity_type: "AI",
+    name: "Executive Curator",
+    cdp_name: "Executive-Curator",
+    cdp_address: "0x9485cad3C4bc6F39Dcc858fB01940ee4d4F317C8",
+    ai_prompt_id: "corporate_buyer",
+    anthropic_model: null,
+    active: true,
+    chat_order: 5,
+    last_query_time: "2025-06-26 23:41:34.713+01",
   },
 ];
 
 // Main function to seed default data
 async function seedDefaultData() {
-  console.log("Starting default data seeding");
+  console.log("Starting john.sql data seeding");
 
   try {
     // 0. Truncate all tables first
@@ -119,7 +167,7 @@ async function seedDefaultData() {
 
     console.log("✅ All tables truncated successfully");
 
-    // 1. Create or update entities
+    // 1. Create entities
     console.log("Creating entities...");
 
     for (const entity of ENTITIES_TO_SEED) {
@@ -127,21 +175,21 @@ async function seedDefaultData() {
 
       await db.execute(sql`
         INSERT INTO entities (
-          entity_id, entity_type, name, cdp_address, active, 
-          cdp_name, last_query_time, ai_prompt_id, anthropic_model, 
-          chat_order, created_at, updated_at
+          entity_id, entity_type, name, cdp_name, cdp_address, 
+          ai_prompt_id, anthropic_model, active, chat_order, 
+          last_query_time, created_at, updated_at
         )
         VALUES (
           ${entity.entity_id},
           ${entity.entity_type},
           ${entity.name},
-          ${entity.cdp_address},
-          ${entity.active},
           ${entity.cdp_name},
-          ${entity.last_query_time},
+          ${entity.cdp_address},
           ${entity.ai_prompt_id},
           ${entity.anthropic_model},
+          ${entity.active},
           ${entity.chat_order},
+          ${entity.last_query_time},
           NOW(),
           NOW()
         )
@@ -173,7 +221,6 @@ async function seedDefaultData() {
       SELECT entity_id, entity_type, name, cdp_address, active, cdp_name, 
              ai_prompt_id, anthropic_model, chat_order, created_at 
       FROM entities 
-      WHERE entity_id IN ('ent_opus', 'ent_sonnet', 'god_lyra')
       ORDER BY chat_order, entity_id
     `);
 
@@ -219,10 +266,10 @@ async function seedDefaultData() {
       );
     }
 
-    console.log("\n✅ Default data seeding completed successfully");
+    console.log("\n✅ John.sql data seeding completed successfully");
     return { success: true };
   } catch (error) {
-    console.error("❌ Error seeding default data:", error);
+    console.error("❌ Error seeding john.sql data:", error);
     process.exit(1);
   } finally {
     // Close the database connection
@@ -233,10 +280,10 @@ async function seedDefaultData() {
 // Run the function
 seedDefaultData()
   .then(() => {
-    console.log("🎉 Seed script completed successfully");
+    console.log("🎉 John.sql seed script completed successfully");
     process.exit(0);
   })
   .catch((error) => {
-    console.error("💥 Seed script failed with error:", error);
+    console.error("💥 John.sql seed script failed with error:", error);
     process.exit(1);
   });
