@@ -111,6 +111,44 @@ export function RelationshipGraph() {
     return COLOR_THEMES[Math.max(0, Math.min(themeIndex, COLOR_THEMES.length - 1))]!;
   };
 
+  // Get color based on trust score (0.0 to 1.0)
+  // Adjusted for high trust values: 0.77+ is good range, below 0.5 is black
+  const getTrustColor = (trustScore: number): string => {
+    // Clamp trust score between 0 and 1
+    const normalizedTrust = Math.max(0, Math.min(1, trustScore));
+
+    if (normalizedTrust < 0.5) {
+      // Very low trust: Bright red for visibility
+      return `rgb(255, 50, 50)`; // Bright red with slight pink tint
+    } else if (normalizedTrust < 0.77) {
+      // Low to medium trust: Fade from bright red to orange (0.5 - 0.77)
+      const ratio = (normalizedTrust - 0.5) / 0.27; // 0.27 = 0.77 - 0.5
+      const r = Math.floor(255 - ratio * 55); // 255 to 200 (red to orange)
+      const g = Math.floor(50 + ratio * 110); // 50 to 160 (more orange)
+      const b = Math.floor(50 - ratio * 10); // 50 to 40 (slight reduction)
+      return `rgb(${r}, ${g}, ${b})`;
+    } else {
+      // High trust: Red to Green to Cyan (0.77 - 1.0)
+      const ratio = (normalizedTrust - 0.77) / 0.23; // 0.23 = 1.0 - 0.77
+
+      if (ratio < 0.5) {
+        // Red to Yellow-Green (0.77 - 0.885)
+        const subRatio = ratio * 2;
+        const r = Math.floor(200 - subRatio * 100); // 200 to 100
+        const g = Math.floor(60 + subRatio * 195); // 60 to 255
+        const b = Math.floor(40 + subRatio * 60); // 40 to 100
+        return `rgb(${r}, ${g}, ${b})`;
+      } else {
+        // Yellow-Green to Cyan (0.885 - 1.0)
+        const subRatio = (ratio - 0.5) * 2;
+        const r = Math.floor(100 - subRatio * 100); // 100 to 0
+        const g = 255;
+        const b = Math.floor(100 + subRatio * 155); // 100 to 255
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+    }
+  };
+
   // Initialize node positions with deterministic layout (no randomness)
   const initializePositions = (entities: Entity[]) => {
     const width = 1200; // Much larger canvas
@@ -379,7 +417,7 @@ export function RelationshipGraph() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-white/5">
       {/* Header */}
       <div className="border-white/10 border-b bg-black/20 p-4 backdrop-blur-sm">
         <h3 className="font-semibold text-base text-white">Agent Relationships</h3>
@@ -438,6 +476,7 @@ export function RelationshipGraph() {
 
                   const opacity = Math.max(0.2, relationship.trustScore);
                   const strokeWidth = Math.max(1, relationship.trustScore * 3);
+                  const trustColor = getTrustColor(relationship.trustScore);
 
                   return (
                     <g key={relationship.id}>
@@ -447,7 +486,7 @@ export function RelationshipGraph() {
                         y1={sourcePos.y}
                         x2={targetPos.x}
                         y2={targetPos.y}
-                        stroke="#00ddeb"
+                        stroke={trustColor}
                         strokeWidth={strokeWidth}
                         opacity={opacity}
                         className="cursor-pointer hover:opacity-100"
@@ -462,17 +501,31 @@ export function RelationshipGraph() {
                         aria-label={`Relationship between ${relationship.observerAgentId} and ${relationship.targetAgentId}`}
                       />
 
-                      {/* Transaction value label */}
-                      <text
-                        x={(sourcePos.x + targetPos.x) / 2}
-                        y={(sourcePos.y + targetPos.y) / 2 - 5}
-                        fill="#00ddeb"
-                        fontSize="10"
-                        textAnchor="middle"
-                        className="pointer-events-none select-none"
-                      >
-                        ${Number.parseFloat(relationship.totalTransactionValue).toFixed(3)}
-                      </text>
+                      {/* Transaction value label with background */}
+                      <g className="pointer-events-none select-none">
+                        {/* Background rectangle */}
+                        <rect
+                          x={(sourcePos.x + targetPos.x) / 2 - 25}
+                          y={(sourcePos.y + targetPos.y) / 2 - 15}
+                          width="50"
+                          height="16"
+                          rx="8"
+                          fill="rgba(0, 0, 0, 0.8)"
+                          stroke="rgba(255, 255, 255, 0.2)"
+                          strokeWidth="0.5"
+                        />
+                        {/* Text label */}
+                        <text
+                          x={(sourcePos.x + targetPos.x) / 2}
+                          y={(sourcePos.y + targetPos.y) / 2 - 3}
+                          fill="white"
+                          fontSize="12"
+                          fontWeight="500"
+                          textAnchor="middle"
+                        >
+                          ${Number.parseFloat(relationship.totalTransactionValue).toFixed(3)}
+                        </text>
+                      </g>
                     </g>
                   );
                 })}

@@ -55,6 +55,7 @@ debug-later.txt
 .DS_Store
 archive
 *.pem
+*-seed.txt
 
 # Ignore .env.test files in all packages
 packages/*/.env.test

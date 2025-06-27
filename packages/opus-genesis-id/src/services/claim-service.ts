@@ -298,7 +298,7 @@ export class ClaimService {
         // Don't throw here - the claim was successfully submitted
       }
 
-      // Automatically attempt IPFS upload for genesis-identity claims with entity data
+      // 🎯 FOCUSED IPFS UPLOAD LOGGING
       logger.info(
         {
           claimId,
@@ -306,12 +306,28 @@ export class ClaimService {
           hasClaimData: !!claim.claimData,
           hasEntityId: !!claim.claimData?.entityId,
           entityId: claim.claimData?.entityId,
-          conditionalResult: claim.claimType === "genesis-identity" && claim.claimData?.entityId,
         },
-        "🔍 IPFS Upload Conditional Check - Evaluating criteria",
+        "🔍 IPFS UPLOAD CHECK: Evaluating if claim should be uploaded to IPFS",
       );
 
-      if (claim.claimType === "genesis-identity" && claim.claimData?.entityId) {
+      // Check conditions for IPFS upload
+      const shouldUploadToIPFS =
+        claim.claimType === "genesis-identity" && claim.claimData?.entityId;
+
+      logger.info(
+        {
+          claimId,
+          shouldUploadToIPFS,
+          reason: shouldUploadToIPFS
+            ? "Conditions met - proceeding with IPFS upload"
+            : claim.claimType !== "genesis-identity"
+              ? "claimType is not 'genesis-identity'"
+              : "entityId is missing",
+        },
+        shouldUploadToIPFS ? "✅ IPFS UPLOAD: STARTING" : "❌ IPFS UPLOAD: SKIPPED",
+      );
+
+      if (shouldUploadToIPFS && claim.claimData) {
         try {
           logger.info(
             {
@@ -319,7 +335,7 @@ export class ClaimService {
               entityId: claim.claimData.entityId,
               did: claim.did,
             },
-            "✅ IPFS Upload: Conditions met - Automatically uploading genesis identity claim to IPFS",
+            "🚀 IPFS UPLOAD: Attempting to upload genesis identity claim",
           );
 
           // Extract and structure the identity data for IPFS upload
@@ -327,7 +343,7 @@ export class ClaimService {
           const genericClaimData = this.extractGenericClaimData(claim.claimData);
 
           const ipfsResult = await this.publishClaimToIPFS(
-            claim.claimData.entityId as string, // We already checked entityId exists above
+            claim.claimData.entityId as string,
             claim.did,
             authClaimData,
             genericClaimData,
@@ -341,15 +357,15 @@ export class ClaimService {
                 pinataId: ipfsResult.pinataId,
                 mode: ipfsResult.mode,
               },
-              "Successfully uploaded genesis identity claim to IPFS",
+              "✅ IPFS UPLOAD: SUCCESS - Genesis identity claim uploaded to IPFS",
             );
           } else {
-            logger.warn(
+            logger.error(
               {
                 claimId,
                 error: ipfsResult.error,
               },
-              "Failed to upload genesis identity claim to IPFS, but blockchain submission succeeded",
+              "❌ IPFS UPLOAD: FAILED - Could not upload to IPFS",
             );
           }
 
@@ -368,7 +384,7 @@ export class ClaimService {
               claimId,
               error: ipfsError,
             },
-            "Error during automatic IPFS upload - continuing with successful claim submission",
+            "❌ IPFS UPLOAD: ERROR - Exception during IPFS upload process",
           );
 
           // Include error in IPFS result
@@ -377,21 +393,6 @@ export class ClaimService {
             error: ipfsError instanceof Error ? ipfsError.message : "Unknown IPFS error",
           };
         }
-      } else {
-        logger.info(
-          {
-            claimId,
-            claimType: claim.claimType,
-            hasClaimData: !!claim.claimData,
-            hasEntityId: !!claim.claimData?.entityId,
-            entityId: claim.claimData?.entityId,
-            reason:
-              !claim.claimType || claim.claimType !== "genesis-identity"
-                ? "claimType is not 'genesis-identity'"
-                : "entityId is missing or falsy",
-          },
-          "❌ IPFS Upload: Conditions NOT met - Skipping automatic IPFS upload",
-        );
       }
 
       return result;
@@ -578,6 +579,14 @@ export class ClaimService {
 
       // If multiple files match, use the most recent one
       const file = files[files.length - 1];
+      if (!file) {
+        logger.error(
+          { claimId, filesLength: files.length },
+          "No file found despite non-empty array",
+        );
+        return null;
+      }
+
       const filepath = path.join(this.claimsDir, file);
 
       const content = fs.readFileSync(filepath, "utf8");
