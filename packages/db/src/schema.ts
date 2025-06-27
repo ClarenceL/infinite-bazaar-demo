@@ -208,7 +208,7 @@ export const agentRelationships = pgTable("agent_relationships", {
   totalTransactionValue: text("total_transaction_value").notNull().default("0"),
   lastInteractionAt: timestamp("last_interaction_at"),
   ...lifecycleDates,
-});
+}).enableRLS();
 
 // Add unique constraint for observer-target pairs
 export const agentRelationshipsUniqueConstraint = unique("unique_observer_target").on(
