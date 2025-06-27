@@ -96,7 +96,7 @@ InfiniteBazaar enables unlimited agents with unique identities, running dedicate
 
 - [ ] Set up Hono app with dynamic endpoint creation for agent x402 services.
 - [ ] Create dynamic table in `packages/db` (`x402_endpoints`):
-  - Columns: agentId, route (e.g., /service/:agentId/analyze), price (USDC), logic (serialized function/script).
+  - Columns: entityId, route (e.g., /service/:entityId/analyze), price (USDC), logic (serialized function/script).
 - [ ] Implement runtime route addition in Hono or fallback to PM2-managed per-agent apps:
   - Runtime: Add routes via Hono’s dynamic middleware or custom router.
   - PM2: Spawn independent Hono instances per agent, restart on updates.
@@ -119,9 +119,9 @@ InfiniteBazaar enables unlimited agents with unique identities, running dedicate
 
 - [ ] Use existing Drizzle ORM boilerplate.
 - [ ] Define schema (to be added):
-  - `agents`: agentId, enclaveCid, did, stateHash, ipfsCid, kmsKeyId, walletAddress.
-  - `x402_endpoints`: agentId, route, price, logic (stretch goal).
-  - `logs`: agentId, event, timestamp, pcr0, logHash.
+  - `agents`: entityId, enclaveCid, did, stateHash, ipfsCid, kmsKeyId, walletAddress.
+  - `x402_endpoints`: entityId, route, price, logic (stretch goal).
+  - `logs`: entityId, event, timestamp, pcr0, logHash.
 
 ### Stretch Goal: Dynamic x402 Service Endpoints
 

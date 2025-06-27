@@ -8,8 +8,6 @@
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun --sourcemap",
     "test": "NODE_ENV=test bun src/tests/run-tests.ts",
-    "test:e2e": "bun run scripts/test-e2e-claim-flow.ts",
-    "test:claim-cdp": "bun run scripts/test-claim-cdp.ts",
     "create-cdp-wallet": "bun run scripts/create-cdp-wallet.ts",
     "format": "biome format --write .",
     "type-check": "bun build ./src/index.ts --no-emit --target=bun > /dev/null && echo 'Types checked successfully' || echo 'Type check failed with errors'",
@@ -17,8 +15,6 @@
     "lint": "biome check .",
     "lint:fix": "biome check --fix .",
     "lint:fix-unsafe": "biome check --fix --unsafe .",
-    "create-identity": "bun run scripts/create-identity.ts",
-    "test:opus-chat": "NODE_ENV=test tsx scripts/test-opus-chat.ts",
     "test:polygon-sdk": "bun run scripts/test-polygon-sdk.ts",
     "seed:default-data": "tsx scripts/seed-default-data.ts"
   },

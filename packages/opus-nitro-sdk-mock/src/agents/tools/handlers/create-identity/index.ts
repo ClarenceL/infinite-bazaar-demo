@@ -216,15 +216,25 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
     // Step 7: Return success result
     logger.info({ entity_id, did: unifiedResult.did }, "Identity creation completed successfully");
 
+    // Get the entity name from database for display
+    const finalEntityRecord = await db
+      .select({ name: entities.name })
+      .from(entities)
+      .where(eq(entities.entityId, entity_id))
+      .limit(1);
+
+    const entityName = finalEntityRecord[0]?.name || entity_id;
+
     return {
       type: "tool_result",
       tool_use_id: "",
       data: {
         success: true,
         message: "Identity created successfully with UnifiedIdentityService",
+        entityName: entityName,
         identity: {
           did: unifiedResult.did,
-          agentId: unifiedResult.agentId,
+          entityId: unifiedResult.entityId,
           seedId: seedId,
           privateKey: unifiedResult.privateKey.substring(0, 16) + "...",
           publicKeyX: unifiedResult.publicKeyX,
@@ -239,6 +249,8 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
           rootsTreeRoot: unifiedResult.authClaim.rootsTreeRoot,
           hIndex: unifiedResult.authClaim.hIndex,
           hValue: unifiedResult.authClaim.hValue,
+          publicKeyX: unifiedResult.publicKeyX,
+          publicKeyY: unifiedResult.publicKeyY,
         },
         genericClaim: {
           claimHash: unifiedResult.genericClaim.claimHash,
@@ -254,6 +266,11 @@ export async function handleCreateIdentity(input: Record<string, any>): Promise<
         claimSubmission: cdpResult.success ? cdpResult.claimSubmission : null,
         paymentDetails: cdpResult.success ? cdpResult.paymentDetails : null,
         cdpAccount: cdpResult.success ? cdpResult.cdpAccount : null,
+        ipfsPublication: cdpResult.success ? cdpResult.ipfsPublication : null,
+        serviceInfo: {
+          x402Enabled: true,
+          price: "0.0001 USDC",
+        },
         seedManagement: {
           seedId: seedId,
           seedFile: `${entity_id}-seed.txt`,

@@ -46,6 +46,14 @@ export interface ClaimSubmissionResult {
   claimId: string;
   timestamp: string;
   gasUsed?: number;
+  ipfsPublication?: {
+    success: boolean;
+    ipfsHash?: string;
+    pinataId?: string;
+    filePath?: string;
+    mode?: "ipfs+local" | "local-only";
+    error?: string;
+  };
 }
 
 export interface X402PaymentResult {
@@ -291,6 +299,18 @@ export class ClaimService {
       }
 
       // Automatically attempt IPFS upload for genesis-identity claims with entity data
+      logger.info(
+        {
+          claimId,
+          claimType: claim.claimType,
+          hasClaimData: !!claim.claimData,
+          hasEntityId: !!claim.claimData?.entityId,
+          entityId: claim.claimData?.entityId,
+          conditionalResult: claim.claimType === "genesis-identity" && claim.claimData?.entityId,
+        },
+        "🔍 IPFS Upload Conditional Check - Evaluating criteria",
+      );
+
       if (claim.claimType === "genesis-identity" && claim.claimData?.entityId) {
         try {
           logger.info(
@@ -299,7 +319,7 @@ export class ClaimService {
               entityId: claim.claimData.entityId,
               did: claim.did,
             },
-            "Automatically uploading genesis identity claim to IPFS",
+            "✅ IPFS Upload: Conditions met - Automatically uploading genesis identity claim to IPFS",
           );
 
           // Extract and structure the identity data for IPFS upload
@@ -332,6 +352,16 @@ export class ClaimService {
               "Failed to upload genesis identity claim to IPFS, but blockchain submission succeeded",
             );
           }
+
+          // Include IPFS result in the response
+          result.ipfsPublication = {
+            success: ipfsResult.success,
+            ipfsHash: ipfsResult.ipfsHash,
+            pinataId: ipfsResult.pinataId,
+            filePath: ipfsResult.filePath,
+            mode: ipfsResult.mode,
+            error: ipfsResult.error,
+          };
         } catch (ipfsError) {
           logger.error(
             {
@@ -340,8 +370,28 @@ export class ClaimService {
             },
             "Error during automatic IPFS upload - continuing with successful claim submission",
           );
-          // Don't throw here - the claim was successfully submitted to blockchain
+
+          // Include error in IPFS result
+          result.ipfsPublication = {
+            success: false,
+            error: ipfsError instanceof Error ? ipfsError.message : "Unknown IPFS error",
+          };
         }
+      } else {
+        logger.info(
+          {
+            claimId,
+            claimType: claim.claimType,
+            hasClaimData: !!claim.claimData,
+            hasEntityId: !!claim.claimData?.entityId,
+            entityId: claim.claimData?.entityId,
+            reason:
+              !claim.claimType || claim.claimType !== "genesis-identity"
+                ? "claimType is not 'genesis-identity'"
+                : "entityId is missing or falsy",
+          },
+          "❌ IPFS Upload: Conditions NOT met - Skipping automatic IPFS upload",
+        );
       }
 
       return result;

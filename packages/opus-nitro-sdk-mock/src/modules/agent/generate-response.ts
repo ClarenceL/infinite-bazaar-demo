@@ -244,7 +244,7 @@ export async function generateStreamingResponse(
         llmMessageCount: llmMessages.length,
         systemMessageLength:
           typeof llmMessages[0]?.content === "string" ? llmMessages[0].content.length : 0,
-        messageRoles: llmMessages.map((m) => m.role),
+        // messageRoles: llmMessages.map((m) => m.role),
         totalContentLength: llmMessages.reduce((acc, msg) => {
           if (typeof msg.content === "string") return acc + msg.content.length;
           if (Array.isArray(msg.content)) return acc + JSON.stringify(msg.content).length;

@@ -104,7 +104,7 @@ export interface UnifiedIdentityResult {
   genericClaim: GenericClaimResult;
 
   // Metadata
-  agentId: string;
+  entityId: string;
   timestamp: string;
   filePath: string;
 }
@@ -314,21 +314,21 @@ export class UnifiedIdentityService {
    * 5. All tied to the same identity
    */
   async createUnifiedIdentity(
-    agentId: string,
+    entityId: string,
     agentClaimData: AgentClaimData,
   ): Promise<UnifiedIdentityResult> {
     try {
       const currentConfig = NETWORK_CONFIG[NETWORK_ENV];
 
       logger.info(
-        { agentId, network: NETWORK_ENV },
+        { entityId, network: NETWORK_ENV },
         "Creating unified identity with AuthClaim and GenericClaim",
       );
 
       // Step 1: Load seed from file
-      const seed = this.loadSeedFromFile(agentId);
+      const seed = this.loadSeedFromFile(entityId);
 
-      logger.info({ agentId }, "🔐 Loaded seed from file for unified identity creation");
+      logger.info({ entityId }, "🔐 Loaded seed from file for unified identity creation");
 
       // Step 2: Create identity from seed
       const { did, credential } = await this.identityWallet.createIdentity({
@@ -342,7 +342,7 @@ export class UnifiedIdentityService {
         },
       });
 
-      logger.info({ did: did.string(), agentId }, "Identity created from seed");
+      logger.info({ did: did.string(), entityId }, "Identity created from seed");
 
       // Step 3: Generate BabyJubJub keypair from the identity using proper PolygonID SDK
       // This creates a cryptographically secure key derived from the seed
@@ -363,7 +363,7 @@ export class UnifiedIdentityService {
 
       logger.info(
         {
-          agentId,
+          entityId,
           publicKeyX: publicKeyX.toString(),
           publicKeyY: publicKeyY.toString(),
         },
@@ -372,14 +372,14 @@ export class UnifiedIdentityService {
 
       // Step 4: Create AuthClaim with the public key coordinates
       const authClaimResult = await this.createAuthClaim(
-        agentId,
+        entityId,
         publicKeyX.toString(),
         publicKeyY.toString(),
       );
 
       // Step 5: Create GenericClaim about agent configuration
       const genericClaimResult = await this.createGenericClaim(
-        agentId,
+        entityId,
         agentClaimData,
         did.string(),
         privateKey,
@@ -395,7 +395,7 @@ export class UnifiedIdentityService {
         publicKeyY: publicKeyY.toString(),
         authClaim: authClaimResult,
         genericClaim: genericClaimResult,
-        agentId,
+        entityId,
         timestamp: new Date().toISOString(),
         filePath: "", // Will be set after saving
       };
@@ -405,7 +405,7 @@ export class UnifiedIdentityService {
 
       logger.info(
         {
-          agentId,
+          entityId,
           did: did.string(),
           filePath,
         },
@@ -414,7 +414,7 @@ export class UnifiedIdentityService {
 
       return unifiedResult;
     } catch (error) {
-      logger.error({ error, agentId, network: NETWORK_ENV }, "Failed to create unified identity");
+      logger.error({ error, entityId, network: NETWORK_ENV }, "Failed to create unified identity");
       throw new Error(
         `Unified identity creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -426,12 +426,12 @@ export class UnifiedIdentityService {
    * Schema hash: ca938857241db9451ea329256b9c06e5
    */
   private async createAuthClaim(
-    agentId: string,
+    entityId: string,
     publicKeyX: string,
     publicKeyY: string,
   ): Promise<AuthClaimResult> {
     try {
-      logger.info({ agentId }, "Creating AuthClaim with BabyJubJub public key");
+      logger.info({ entityId }, "Creating AuthClaim with BabyJubJub public key");
 
       // Use the predefined AuthClaim schema hash from Iden3 docs
       const authSchemaHash = "ca938857241db9451ea329256b9c06e5";
@@ -464,7 +464,7 @@ export class UnifiedIdentityService {
 
       logger.info(
         {
-          agentId,
+          entityId,
           identityState,
           publicKeyX,
           publicKeyY,
@@ -484,7 +484,7 @@ export class UnifiedIdentityService {
         publicKeyY,
       };
     } catch (error) {
-      logger.error({ error, agentId }, "Failed to create AuthClaim");
+      logger.error({ error, entityId }, "Failed to create AuthClaim");
       throw new Error(
         `AuthClaim creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -496,13 +496,13 @@ export class UnifiedIdentityService {
    * Schema hash: 2e2d1c11ad3e500de68d7ce16a0a559e (from Iden3 docs example)
    */
   private async createGenericClaim(
-    agentId: string,
+    entityId: string,
     claimData: AgentClaimData,
     did: string,
     privateKey: string,
   ): Promise<GenericClaimResult> {
     try {
-      logger.info({ agentId }, "Creating GenericClaim about agent configuration");
+      logger.info({ entityId }, "Creating GenericClaim about agent configuration");
 
       // Use the example schema hash from Iden3 docs for KYCAgeCredential
       // In practice, we'd define our own schema for agent configuration
@@ -540,7 +540,7 @@ export class UnifiedIdentityService {
 
       logger.info(
         {
-          agentId,
+          entityId,
           did,
           claimHash,
           llmModel: claimData.llmModel.name,
@@ -555,7 +555,7 @@ export class UnifiedIdentityService {
         claimData,
       };
     } catch (error) {
-      logger.error({ error, agentId }, "Failed to create GenericClaim");
+      logger.error({ error, entityId }, "Failed to create GenericClaim");
       throw new Error(
         `GenericClaim creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -690,7 +690,7 @@ export class UnifiedIdentityService {
    */
   private async saveUnifiedIdentityToFile(result: UnifiedIdentityResult): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const fileName = `unified-identity-${result.agentId}-${timestamp}.json`;
+    const fileName = `unified-identity-${result.entityId}-${timestamp}.json`;
     const filePath = path.join(process.cwd(), "out", "identities", fileName);
 
     // Ensure directory exists
@@ -734,7 +734,7 @@ export class UnifiedIdentityService {
       ),
     );
 
-    logger.info({ filePath, agentId: result.agentId }, "Unified identity saved to file");
+    logger.info({ filePath, entityId: result.entityId }, "Unified identity saved to file");
 
     return filePath;
   }

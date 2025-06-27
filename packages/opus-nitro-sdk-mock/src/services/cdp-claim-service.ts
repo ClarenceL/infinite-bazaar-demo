@@ -22,6 +22,7 @@ export interface CDPClaimSubmissionResult {
     id: string;
     address: string;
   };
+  ipfsPublication?: any;
   error?: string;
   statusCode?: number;
   timestamp: string;
@@ -61,7 +62,7 @@ export class CDPClaimService {
   ): Promise<CDPClaimSubmissionResult> {
     try {
       logger.info(
-        { entityId, agentId: unifiedResult.agentId },
+        { entityId, unifiedEntityId: unifiedResult.entityId },
         "Starting CDP claim submission with x402 payment",
       );
 
@@ -117,6 +118,7 @@ export class CDPClaimService {
           id: (cdpAccount as any).id || "unknown",
           address: viemAccount.address,
         },
+        ipfsPublication: submissionResult.claimResult?.ipfsPublication || null,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -214,9 +216,9 @@ export class CDPClaimService {
   private prepareClaimData(unifiedResult: UnifiedIdentityResult, cdpAccountName: string) {
     const claimData = {
       did: unifiedResult.did,
-      claimType: "nitro_enclave_agent_identity",
+      claimType: "genesis-identity",
       claimData: {
-        agentId: unifiedResult.agentId,
+        entityId: unifiedResult.entityId,
         claimHash: unifiedResult.genericClaim.claimHash,
         signature: unifiedResult.genericClaim.signature,
         verificationMethod: "nitro_enclave_attestation",
@@ -228,7 +230,15 @@ export class CDPClaimService {
       subject: unifiedResult.did,
     };
 
-    logger.info({ claimData }, "Prepared claim data for submission");
+    logger.info(
+      {
+        claimData,
+        claimType: claimData.claimType,
+        hasEntityId: !!claimData.claimData.entityId,
+        entityId: claimData.claimData.entityId,
+      },
+      "📋 Prepared claim data for submission - should trigger IPFS upload",
+    );
     return claimData;
   }
 
