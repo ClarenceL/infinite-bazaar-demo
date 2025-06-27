@@ -7,7 +7,7 @@ export default defineConfig({
   dbCredentials: {
     url:
       process.env.DATABASE_URL ||
-      "postgresql://postgres:lyramusicai@localhost:5432/infinite_bazaar_demo",
+      "postgresql://postgres:password@localhost:5432/infinite_bazaar_demo",
   },
   verbose: true,
   strict: true,

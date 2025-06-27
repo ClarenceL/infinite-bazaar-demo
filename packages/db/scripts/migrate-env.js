@@ -77,7 +77,7 @@ module.exports = defineConfig({
   out: "./migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL || "postgresql://postgres:lyramusicai@localhost:5432/postgres",
+    url: process.env.DATABASE_URL || "postgresql://postgres:password@localhost:5432/postgres",
   },
   verbose: true,
   strict: true,

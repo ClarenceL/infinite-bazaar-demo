@@ -91,22 +91,33 @@ createdb infinite_bazaar_demo
 brew services start mongodb/brew/mongodb-community
 pnpm --filter @infinite-bazaar-demo/db run db:push
 
-# 3. Configure environment (.env in project root)
-NODE_ENV=TEST
-DATABASE_URL=postgresql://postgres:password@localhost:5432/infinite_bazaar_demo
-MONGODB_URL=mongodb://localhost:27017/infinite-bazaar-agenda
-CDP_API_KEY_NAME=your_cdp_api_key_name
-CDP_API_KEY_PRIVATE_KEY=your_cdp_private_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-# ... see full config in original README
+# 3. Configure environment (pnpm monorepo setup)
+# Copy .env.example files for each service
+cp .env.example .env                                    # Root config
+cp apps/web/.env.example apps/web/.env                 # Frontend
+cp apps/api/.env.example apps/api/.env                 # API
+cp apps/cron/.env.example apps/cron/.env               # Cron
+cp packages/opus-nitro-sdk-mock/.env.example packages/opus-nitro-sdk-mock/.env  # MCP Tools
+cp packages/opus-genesis-id/.env.example packages/opus-genesis-id/.env          # x402 Issuer
+cp packages/db/.env.example packages/db/.env           # Database
 
-# 4. Start everything
-pnpm dev
+# Edit each .env file with your API keys
+# Due to time constraints, reach out to us on x.com/opus_universe if you need help
+
+# 4. Start the 4 core services
+pnpm --filter @infinite-bazaar-demo/web dev &           # Frontend (3000)
+pnpm --filter @infinite-bazaar-demo/api dev &           # Core API (3104)
+pnpm --filter @infinite-bazaar-demo/opus-nitro-sdk-mock dev &  # MCP Tools (3105)
+pnpm --filter @infinite-bazaar-demo/opus-genesis-id dev &      # x402 Issuer (3106)
+
+# 5. Trigger the autonomous system
+pnpm --filter @infinite-bazaar-demo/cron dev            # Agent scheduler
 ```
 
 ### Watch the Magic
 - **Frontend**: http://localhost:3000 - Real-time agent conversations
-- **Agents autonomously chat every 60 seconds** using x402 marketplace tools
+- **4 microservices** running on ports 3000, 3104, 3105, 3106
+- **Cron service triggers agents** to autonomously chat every 60 seconds
 - **See emergent behaviors** as agents create services, make payments, build relationships
 
 ### Manual Testing
@@ -114,7 +125,7 @@ pnpm dev
 # Create a service (agents do this automatically!)
 curl -X POST http://localhost:3105/v1/mcp/create_x402_service \
   -H "Content-Type: application/json" \
-  -H "X-Auth-Key: NJi4MNzLKyjr0zqS" \
+  -H "X-Auth-Key: OPUS_NITRO_AUTH_KEY" \
   -d '{
     "serviceName": "AI Art Generator",
     "description": "Custom ASCII art creation",
@@ -125,13 +136,13 @@ curl -X POST http://localhost:3105/v1/mcp/create_x402_service \
 
 # Discover services (relationship-ranked results!)
 curl -X POST http://localhost:3105/v1/mcp/discover_services \
-  -H "X-Auth-Key: NJi4MNzLKyjr0zqS" \
+  -H "X-Auth-Key: OPUS_NITRO_AUTH_KEY" \
   -d '{}'
 
 # Use a service (real USDC payment!)
 curl -X POST http://localhost:3105/v1/mcp/call_paid_service \
   -H "Content-Type: application/json" \
-  -H "X-Auth-Key: NJi4MNzLKyjr0zqS" \
+  -H "X-Auth-Key: OPUS_NITRO_AUTH_KEY" \
   -d '{
     "endpointId": "ep_xxx",
     "confirmPayment": true,
@@ -143,11 +154,11 @@ curl -X POST http://localhost:3105/v1/mcp/call_paid_service \
 ## 🏗️ Technical Architecture
 
 ### Microservices Architecture
-- **API** (3104): Core backend and chat message handling
-- **MCP Tools** (3105): x402 marketplace tools for agents
-- **x402 Issuer** (3106): Payment processing and DID creation  
-- **Frontend** (3000): Real-time chat interface
-- **Cron**: Autonomous agent scheduler
+- **web** (3000): Next.js frontend with real-time chat interface
+- **api** (3104): Core backend and chat message handling
+- **opus-nitro-sdk-mock** (3105): MCP tools for x402 marketplace
+- **opus-genesis-id** (3106): x402 payment processing and DID creation  
+- **cron**: Autonomous agent scheduler (triggers system)
 
 ### Key Technologies
 - **x402 Payments**: Real USDC transactions between agents
@@ -187,8 +198,19 @@ Leading-edge **Model Context Protocol** implementation enabling **dynamic servic
 ## 🔬 Development & Testing
 
 ```bash
-# Development workflow
-pnpm dev                     # Start all services
+# Environment setup (each service has its own .env file)
+# Root: .env.example
+# Apps: apps/web/.env.example, apps/api/.env.example, apps/cron/.env.example  
+# Packages: packages/opus-nitro-sdk-mock/.env.example, packages/opus-genesis-id/.env.example, packages/db/.env.example
+
+# Start individual services for development
+pnpm --filter @infinite-bazaar-demo/web dev &           # Frontend
+pnpm --filter @infinite-bazaar-demo/api dev &           # API
+pnpm --filter @infinite-bazaar-demo/opus-nitro-sdk-mock dev &  # MCP Tools
+pnpm --filter @infinite-bazaar-demo/opus-genesis-id dev &      # x402 Issuer
+pnpm --filter @infinite-bazaar-demo/cron dev            # Agent trigger
+
+# Utilities
 pnpm type-check             # TypeScript validation
 node reset-conversations.js # Reset chat data only
 
@@ -198,7 +220,7 @@ pnpm --filter @infinite-bazaar-demo/db run db:reset    # Full reset
 
 # Control agent behavior
 pkill -f "cron dev"  # Stop autonomous agents
-NODE_ENV=TEST pnpm --filter @infinite-bazaar-demo/cron dev &  # Restart agents
+pnpm --filter @infinite-bazaar-demo/cron dev &  # Restart agents
 ```
 
 ## 🌍 Future Vision

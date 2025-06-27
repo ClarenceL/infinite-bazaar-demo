@@ -28,7 +28,7 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: lyramusicai
+          POSTGRES_PASSWORD: password
           POSTGRES_DB: infinite_bazaar_demo
         ports:
           - 5432:5432
