@@ -48,10 +48,12 @@ async function start() {
     logger.info("Starting agenda...");
     await agenda.start();
 
-    logger.info("Setting up Opus agent cron...");
-    await setupOpusAgentCron(agenda);
+    // Get instance ID from environment
+    const instanceId = process.env.INSTANCE_ID || "default";
+    logger.info({ instanceId }, "Setting up Opus agent cron...");
+    await setupOpusAgentCron(agenda, instanceId);
 
-    logger.info("Cron service started successfully");
+    logger.info({ instanceId }, "Cron service started successfully");
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : "Unknown error" },

@@ -50,6 +50,16 @@ setInterval(() => cache.cleanup(), 5000);
 
 // Chat routes
 export const chatRoutes = new Hono()
+  // Get current instance ID
+  .get("/instance", async (c) => {
+    const instanceId = process.env.INSTANCE_ID || "default";
+    return c.json({
+      success: true,
+      instanceId,
+      message: "Current instance configuration"
+    });
+  })
+
   // Get messages endpoint for polling
   .get("/messages", async (c) => {
     try {
@@ -57,29 +67,30 @@ export const chatRoutes = new Hono()
       const streamingOnly = c.req.query("streaming") === "true";
       const entityId = c.req.query("entityId") || undefined;
       const excludeUserMessages = c.req.query("excludeUserMessages") === "true";
+      const instanceId = c.req.query("instanceId") || "default";
 
       // Create cache key based on query parameters
-      const cacheKey = `messages:${limit}:${streamingOnly}:${entityId || "all"}:${excludeUserMessages}`;
+      const cacheKey = `messages:${limit}:${streamingOnly}:${entityId || "all"}:${excludeUserMessages}:${instanceId}`;
 
       // Check cache first
       const cachedResponse = cache.get(cacheKey);
       if (cachedResponse) {
         logger.info(
-          { limit, streamingOnly, entityId, excludeUserMessages, cached: true },
+          { limit, streamingOnly, entityId, excludeUserMessages, instanceId, cached: true },
           "Returning cached chat messages",
         );
         return c.json(cachedResponse);
       }
 
       logger.info(
-        { limit, streamingOnly, entityId, excludeUserMessages, cached: false },
+        { limit, streamingOnly, entityId, excludeUserMessages, instanceId, cached: false },
         "Fetching chat messages from DB",
       );
 
       // Get messages based on streaming filter and entityId
       const messages = streamingOnly
-        ? await chatService.getStreamingMessages(entityId, excludeUserMessages)
-        : await chatService.getMessages(limit, true, entityId, excludeUserMessages);
+        ? await chatService.getStreamingMessages(entityId, excludeUserMessages, instanceId)
+        : await chatService.getMessages(limit, true, entityId, excludeUserMessages, instanceId);
 
       const response = {
         success: true,
@@ -89,6 +100,7 @@ export const chatRoutes = new Hono()
         streamingOnly, // Include this flag in response
         entityId: entityId || null, // Include entityId in response
         excludeUserMessages, // Include excludeUserMessages flag in response
+        instanceId, // Include instanceId in response
       };
 
       // Cache the response
@@ -113,12 +125,14 @@ export const chatRoutes = new Hono()
   .get("/count", async (c) => {
     try {
       const entityId = c.req.query("entityId") || undefined;
-      const count = await chatService.getMessageCount(entityId);
+      const instanceId = c.req.query("instanceId") || "default";
+      const count = await chatService.getMessageCount(entityId, instanceId);
 
       return c.json({
         success: true,
         count,
         entityId: entityId || null,
+        instanceId,
       });
     } catch (error) {
       logger.error({ error }, "Error getting message count");
@@ -137,23 +151,25 @@ export const chatRoutes = new Hono()
   .get("/latest", async (c) => {
     try {
       const entityId = c.req.query("entityId") || undefined;
-      const cacheKey = `latest:${entityId || "all"}`;
+      const instanceId = c.req.query("instanceId") || "default";
+      const cacheKey = `latest:${entityId || "all"}:${instanceId}`;
 
       // Check cache first
       const cachedResponse = cache.get(cacheKey);
       if (cachedResponse) {
-        logger.info({ entityId, cached: true }, "Returning cached latest message timestamp");
+        logger.info({ entityId, instanceId, cached: true }, "Returning cached latest message timestamp");
         return c.json(cachedResponse);
       }
 
-      logger.info({ entityId, cached: false }, "Fetching latest message timestamp from DB");
+      logger.info({ entityId, instanceId, cached: false }, "Fetching latest message timestamp from DB");
 
-      const timestamp = await chatService.getLatestMessageTimestamp(entityId);
+      const timestamp = await chatService.getLatestMessageTimestamp(entityId, instanceId);
 
       const response = {
         success: true,
         timestamp,
         entityId: entityId || null,
+        instanceId,
       };
 
       // Cache the response

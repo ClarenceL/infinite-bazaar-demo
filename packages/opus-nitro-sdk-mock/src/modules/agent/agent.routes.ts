@@ -10,7 +10,8 @@ export const agentRoutes = new Hono()
   // Get agent information
   .get("/info", async (c) => {
     try {
-      const info = await agentService.getAgentInfo();
+      const instanceId = c.req.query("instanceId") || "default";
+      const info = await agentService.getAgentInfo(instanceId);
       return c.json(info);
     } catch (error) {
       return c.json(
@@ -49,22 +50,25 @@ export const agentRoutes = new Hono()
       const body = await c.req.json();
 
       // Handle both message formats:
-      // 1. { message: "text", chatId?: "id", entityId: "required" } (simple format)
-      // 2. { type: "message", content: { role: "user", content: "text" }, entityId: "required" } (MCP format)
+      // 1. { message: "text", chatId?: "id", entityId: "required", instanceId?: "id" } (simple format)
+      // 2. { type: "message", content: { role: "user", content: "text" }, entityId: "required", instanceId?: "id" } (MCP format)
       let message: string;
       let chatId: string | undefined;
       let entityId: string;
+      let instanceId: string;
 
       if (body.type === "message" && body.content) {
         // MCP format
         message = body.content.content;
         chatId = body.chatId;
         entityId = body.entityId;
+        instanceId = body.instanceId || "default";
       } else {
         // Simple format
         message = body.message;
         chatId = body.chatId;
         entityId = body.entityId;
+        instanceId = body.instanceId || "default";
       }
 
       if (!message || typeof message !== "string") {
@@ -76,12 +80,12 @@ export const agentRoutes = new Hono()
       }
 
       logger.info(
-        { message: message.substring(0, 100), chatId, entityId },
+        { message: message.substring(0, 100), chatId, entityId, instanceId },
         "Chat request received",
       );
 
       // Load message history
-      const messages = await agentService.loadMessages(chatId, entityId);
+      const messages = await agentService.loadMessages(chatId, entityId, instanceId);
 
       // Save the incoming user message
       await agentService.saveMessage(
@@ -91,6 +95,7 @@ export const agentRoutes = new Hono()
           chatId,
         },
         entityId,
+        instanceId,
       );
 
       // Set up Server-Sent Events stream following the reference pattern
@@ -157,18 +162,20 @@ export const agentRoutes = new Hono()
     try {
       const chatId = c.req.query("chatId");
       const entityId = c.req.query("entityId");
+      const instanceId = c.req.query("instanceId") || "default";
 
       if (!entityId || typeof entityId !== "string") {
         return c.json({ error: "entityId query parameter is required" }, 400);
       }
 
-      const messages = await agentService.loadMessages(chatId || undefined, entityId);
+      const messages = await agentService.loadMessages(chatId || undefined, entityId, instanceId);
 
       return c.json({
         success: true,
         messages,
         count: messages.length,
         entityId,
+        instanceId,
       });
     } catch (error) {
       logger.error({ error }, "Error fetching messages");
@@ -186,18 +193,19 @@ export const agentRoutes = new Hono()
   .post("/reset", async (c) => {
     try {
       const body = await c.req.json();
-      const { chatId, entityId } = body as { chatId?: string; entityId: string };
+      const { chatId, entityId, instanceId = "default" } = body as { chatId?: string; entityId: string; instanceId?: string };
 
       if (!entityId || typeof entityId !== "string") {
         return c.json({ error: "entityId is required and must be a string" }, 400);
       }
 
-      await agentService.resetConversation(chatId, entityId);
+      await agentService.resetConversation(chatId, entityId, instanceId);
 
       return c.json({
         success: true,
         message: "Conversation history reset successfully",
         entityId,
+        instanceId,
       });
     } catch (error) {
       logger.error({ error }, "Error resetting conversation");
@@ -214,7 +222,8 @@ export const agentRoutes = new Hono()
   // Health check endpoint
   .get("/health", async (c) => {
     try {
-      const info = await agentService.getAgentInfo();
+      const instanceId = c.req.query("instanceId") || "default";
+      const info = await agentService.getAgentInfo(instanceId);
       return c.json({
         // @ts-ignore
         status: "healthy",

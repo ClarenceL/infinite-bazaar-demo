@@ -33,12 +33,16 @@ export class ChatService {
     includeCompleted = true,
     entityId?: string,
     excludeUserMessages = false,
+    instanceId?: string,
   ): Promise<ChatMessage[]> {
     try {
-      logger.info({ entityId, limit }, "Fetching messages from database");
+      const actualInstanceId = instanceId || "default";
+      logger.info({ entityId, instanceId: actualInstanceId, limit }, "Fetching messages from database");
 
       // Build where conditions with complex filtering logic
-      const whereConditions = [];
+      const whereConditions = [
+        eq(entityContext.instanceId, actualInstanceId)
+      ];
 
       // Add entity filter if specified
       if (entityId) {
@@ -153,16 +157,21 @@ export class ChatService {
   async getStreamingMessages(
     entityId?: string,
     excludeUserMessages = false,
+    instanceId?: string,
   ): Promise<ChatMessage[]> {
-    return this.getMessages(50, false, entityId, excludeUserMessages);
+    return this.getMessages(50, false, entityId, excludeUserMessages, instanceId);
   }
 
   /**
    * Get message count for specified entity or all entities
    */
-  async getMessageCount(entityId?: string): Promise<number> {
+  async getMessageCount(entityId?: string, instanceId?: string): Promise<number> {
     try {
-      const whereConditions = [eq(entityContext.contextType, "MESSAGE")];
+      const actualInstanceId = instanceId || "default";
+      const whereConditions = [
+        eq(entityContext.contextType, "MESSAGE"),
+        eq(entityContext.instanceId, actualInstanceId)
+      ];
 
       if (entityId) {
         whereConditions.push(eq(entityContext.entityId, entityId));
@@ -177,7 +186,8 @@ export class ChatService {
 
       return result.length;
     } catch (error) {
-      logger.error({ error, entityId }, "Error getting message count");
+      const actualInstanceId = instanceId || "default";
+      logger.error({ error, entityId, instanceId: actualInstanceId }, "Error getting message count");
       return 0;
     }
   }
@@ -185,9 +195,13 @@ export class ChatService {
   /**
    * Get the latest message timestamp for polling optimization
    */
-  async getLatestMessageTimestamp(entityId?: string): Promise<number | null> {
+  async getLatestMessageTimestamp(entityId?: string, instanceId?: string): Promise<number | null> {
     try {
-      const whereConditions = [eq(entityContext.contextType, "MESSAGE")];
+      const actualInstanceId = instanceId || "default";
+      const whereConditions = [
+        eq(entityContext.contextType, "MESSAGE"),
+        eq(entityContext.instanceId, actualInstanceId)
+      ];
 
       if (entityId) {
         whereConditions.push(eq(entityContext.entityId, entityId));
@@ -204,7 +218,8 @@ export class ChatService {
 
       return result[0]?.createdAt?.getTime() || null;
     } catch (error) {
-      logger.error({ error, entityId }, "Error getting latest message timestamp");
+      const actualInstanceId = instanceId || "default";
+      logger.error({ error, entityId, instanceId: actualInstanceId }, "Error getting latest message timestamp");
       return null;
     }
   }

@@ -18,14 +18,17 @@ export class AgentService {
   /**
    * Get agent information
    */
-  async getAgentInfo(): Promise<OpusInfo> {
-    logger.info("Getting agent information");
+  async getAgentInfo(instanceId: string): Promise<OpusInfo> {
+    logger.info({ instanceId }, "Getting agent information");
 
     // Get message count from database
     const messageCount = await db
       .select({ count: sql<number>`cast(count(*) as integer)` })
       .from(entityContext)
-      .where(eq(entityContext.entityId, OPUS_ENTITY_ID));
+      .where(and(
+        eq(entityContext.entityId, OPUS_ENTITY_ID),
+        eq(entityContext.instanceId, instanceId)
+      ));
 
     return {
       entityId: OPUS_ENTITY_ID,
@@ -52,16 +55,20 @@ export class AgentService {
   /**
    * Load message history for the agent from database
    */
-  async loadMessages(chatId?: string, entityId?: string, limit = 50): Promise<Message[]> {
+  async loadMessages(chatId?: string, entityId?: string, instanceId?: string, limit = 50): Promise<Message[]> {
     const actualEntityId = entityId || OPUS_ENTITY_ID;
+    const actualInstanceId = instanceId || "default";
     try {
       logger.info(
-        { chatId, entityId: actualEntityId, limit },
+        { chatId, entityId: actualEntityId, instanceId: actualInstanceId, limit },
         "Loading message history from database",
       );
 
       // Build query conditions
-      const conditions = [eq(entityContext.entityId, actualEntityId)];
+      const conditions = [
+        eq(entityContext.entityId, actualEntityId),
+        eq(entityContext.instanceId, actualInstanceId)
+      ];
       if (chatId) {
         conditions.push(eq(entityContext.chatId, chatId));
       }
@@ -131,11 +138,12 @@ export class AgentService {
   /**
    * Save a message to database
    */
-  async saveMessage(message: Message, entityId?: string): Promise<void> {
+  async saveMessage(message: Message, entityId?: string, instanceId?: string): Promise<void> {
     const actualEntityId = entityId || OPUS_ENTITY_ID;
+    const actualInstanceId = instanceId || "default";
     try {
       logger.info(
-        { role: message.role, chatId: message.chatId, entityId: actualEntityId },
+        { role: message.role, chatId: message.chatId, entityId: actualEntityId, instanceId: actualInstanceId },
         "Saving message to database",
       );
 
@@ -147,9 +155,13 @@ export class AgentService {
           message.chatId
             ? and(
                 eq(entityContext.entityId, actualEntityId),
+                eq(entityContext.instanceId, actualInstanceId),
                 eq(entityContext.chatId, message.chatId),
               )
-            : eq(entityContext.entityId, actualEntityId),
+            : and(
+                eq(entityContext.entityId, actualEntityId),
+                eq(entityContext.instanceId, actualInstanceId),
+              ),
         );
 
       const nextSequence = (maxSequenceResult[0]?.maxSeq || 0) + 1;
@@ -157,6 +169,7 @@ export class AgentService {
       // Prepare the database record
       const dbRecord: any = {
         entityId: actualEntityId,
+        instanceId: actualInstanceId,
         role: message.role,
         sequence: nextSequence,
         chatId: message.chatId || null,
@@ -294,13 +307,17 @@ export class AgentService {
   /**
    * Reset conversation history in database
    */
-  async resetConversation(chatId?: string, entityId?: string): Promise<void> {
+  async resetConversation(chatId?: string, entityId?: string, instanceId?: string): Promise<void> {
     const actualEntityId = entityId || OPUS_ENTITY_ID;
+    const actualInstanceId = instanceId || "default";
     try {
-      logger.info({ chatId, entityId: actualEntityId }, "Resetting conversation in database");
+      logger.info({ chatId, entityId: actualEntityId, instanceId: actualInstanceId }, "Resetting conversation in database");
 
       // Build delete conditions
-      const conditions = [eq(entityContext.entityId, actualEntityId)];
+      const conditions = [
+        eq(entityContext.entityId, actualEntityId),
+        eq(entityContext.instanceId, actualInstanceId)
+      ];
       if (chatId) {
         conditions.push(eq(entityContext.chatId, chatId));
       }
@@ -308,10 +325,10 @@ export class AgentService {
       // Delete messages from database
       const deleteResult = await db.delete(entityContext).where(and(...conditions));
 
-      logger.info({ chatId, entityId: actualEntityId }, "Conversation reset in database");
+      logger.info({ chatId, entityId: actualEntityId, instanceId: actualInstanceId }, "Conversation reset in database");
     } catch (error) {
       logger.error(
-        { error, chatId, entityId: actualEntityId },
+        { error, chatId, entityId: actualEntityId, instanceId: actualInstanceId },
         "Error resetting conversation in database",
       );
       throw error;

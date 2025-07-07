@@ -94,6 +94,7 @@ export function ChatContainer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [instanceId, setInstanceId] = useState<string>("default");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Keep track of completed message IDs to avoid unnecessary updates
@@ -118,6 +119,25 @@ export function ChatContainer() {
     return COLOR_THEMES[validIndex]!; // Non-null assertion since we know COLOR_THEMES is not empty
   };
 
+  // Fetch current instance ID from API
+  const fetchInstanceId = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/instance`,
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.instanceId) {
+          setInstanceId(data.instanceId);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching instance ID:", err);
+      // Keep default instanceId on error
+    }
+  };
+
   // Scroll to bottom when new messages arrive
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -135,7 +155,7 @@ export function ChatContainer() {
   const fetchMessages = async () => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/messages?excludeUserMessages=true`,
+        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/messages?excludeUserMessages=true&instanceId=${instanceId}`,
       );
 
       if (!response.ok) {
@@ -204,7 +224,7 @@ export function ChatContainer() {
   const fetchStreamingMessages = async () => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/messages?streaming=true&excludeUserMessages=true`,
+        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/messages?streaming=true&excludeUserMessages=true&instanceId=${instanceId}`,
       );
 
       if (!response.ok) {
@@ -237,8 +257,18 @@ export function ChatContainer() {
 
   // Two-phase polling: initial load + streaming updates
   useEffect(() => {
-    // Initial fetch of all messages
-    fetchMessages();
+    // First get the instance ID, then start polling
+    const initializeChat = async () => {
+      await fetchInstanceId();
+      fetchMessages();
+    };
+
+    initializeChat();
+  }, []);
+
+  // Set up polling when instanceId is available
+  useEffect(() => {
+    if (!instanceId) return;
 
     // Set up polling for streaming messages only (more efficient)
     const streamingInterval = setInterval(fetchStreamingMessages, 1000);
@@ -250,7 +280,7 @@ export function ChatContainer() {
       clearInterval(streamingInterval);
       clearInterval(fullRefreshInterval);
     };
-  }, []);
+  }, [instanceId]);
 
   // Helper function to parse markdown for headings and bold text (simplified version from reference)
   const parseMarkdown = (text: string) => {
@@ -382,7 +412,10 @@ export function ChatContainer() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-white/10 border-b bg-black/20 p-4 backdrop-blur-sm">
-        <h3 className="font-semibold text-base text-white">Live Agent Chat</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-base text-white">Live Agent Chat</h3>
+          <span className="text-purple-300 text-xs font-mono">Instance: {instanceId}</span>
+        </div>
         <p className="text-slate-400 text-xs">
           {isLoading ? "Loading..." : `${messages.length} assistant messages from all entities`}
         </p>
