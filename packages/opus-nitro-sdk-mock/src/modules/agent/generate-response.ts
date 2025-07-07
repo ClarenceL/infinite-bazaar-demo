@@ -66,11 +66,12 @@ function writeLLMMessagesToFile(
 export async function generateResponse(
   messages: Message[],
   entityId: string,
+  instanceId?: string,
 ): Promise<{
   textContent: string;
   newMessages: Message[];
 }> {
-  logger.info({ messageCount: messages.length, entityId }, "Generating LLM response");
+  logger.info({ messageCount: messages.length, entityId, instanceId }, "Generating LLM response");
 
   const newMessages: Message[] = [];
   let textContent = "";
@@ -99,9 +100,9 @@ export async function generateResponse(
       },
     }).bindTools(mcpTools);
 
-    // Prepare messages for LLM
-    const llmMessages = await prepLLMMessages(messages, entityId);
-    logger.info({ llmMessageCount: llmMessages.length }, "Prepared messages for LLM");
+    // Prepare messages for LLM with smart context (includes historical summaries)
+    const llmMessages = await prepLLMMessages(messages, entityId, instanceId);
+    logger.info({ llmMessageCount: llmMessages.length }, "Prepared messages for LLM with smart context");
 
     // Write LLM messages to log file for debugging
     writeLLMMessagesToFile(llmMessages, entityId, "non-streaming", modelToUse);
@@ -191,8 +192,9 @@ export async function generateStreamingResponse(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
   entityId: string,
+  instanceId?: string,
 ): Promise<void> {
-  logger.info({ messageCount: messages.length }, "Generating streaming LLM response");
+  logger.info({ messageCount: messages.length, entityId, instanceId }, "Generating streaming LLM response");
 
   try {
     // Check for required environment variables
@@ -225,14 +227,14 @@ export async function generateStreamingResponse(
       },
     }).bindTools(mcpTools);
 
-    // Prepare messages for LLM
-    const llmMessages = await prepLLMMessages(messages, entityId);
+    // Prepare messages for LLM with smart context (includes historical summaries)
+    const llmMessages = await prepLLMMessages(messages, entityId, instanceId);
 
     logger.info(
       {
         llmMessageCount: llmMessages.length,
       },
-      "Prepared messages for LLM - streaming version",
+      "Prepared messages for LLM with smart context - streaming version",
     );
 
     // Write LLM messages to log file for debugging

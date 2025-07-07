@@ -235,3 +235,24 @@ export const agentRelationshipsUniqueConstraint = unique("unique_observer_target
   agentRelationships.observerAgentId,
   agentRelationships.targetAgentId,
 );
+
+// Context Summaries - for smart token management
+export const contextSummaries = pgTable("context_summaries", {
+  summaryId: varchar("summary_id", { length: 255 })
+    .primaryKey()
+    .$defaultFn(() => newId("summary")),
+  instanceId: varchar("instance_id", { length: 255 }).notNull(),
+  entityId: varchar("entity_id", { length: 255 })
+    .references(() => entities.entityId)
+    .notNull(),
+  summaryText: text("summary_text").notNull(), // The actual summary
+  messageCount: integer("message_count").notNull(), // How many messages this summarizes
+  lastMessageId: varchar("last_message_id", { length: 255 }), // Last message included in summary
+  tokenEstimate: integer("token_estimate"), // Estimated tokens in the summary
+  summaryType: text("summary_type").default("conversation").notNull(), // "conversation", "global_activity", etc.
+  ...lifecycleDates,
+}, (table) => ({
+  instanceIdx: index("context_summaries_instance_idx").on(table.instanceId),
+  entityIdx: index("context_summaries_entity_idx").on(table.entityId),
+  typeIdx: index("context_summaries_type_idx").on(table.summaryType),
+})).enableRLS();

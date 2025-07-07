@@ -244,6 +244,35 @@ async function processEntity(entity: any, cycleInterval: string, instanceId: str
 
     await sendMessageToOpusAPI(entityId, finalMessage, instanceId);
 
+    // Trigger auto-summarization check (if needed)
+    try {
+      logger.info({ entityId, instanceId }, "Triggering auto-summarization check");
+      
+      // Make a request to the summarization endpoint
+      const summarizationResponse = await fetch(`${API_BASE_URL}/internal/summarize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Key": process.env.OPUS_NITRO_AUTH_KEY || "",
+        },
+        body: JSON.stringify({
+          entityId,
+          instanceId,
+        }),
+      });
+      
+      if (!summarizationResponse.ok) {
+        logger.warn(
+          { entityId, instanceId, status: summarizationResponse.status },
+          "Summarization check failed (non-critical)"
+        );
+      } else {
+        logger.info({ entityId, instanceId }, "Auto-summarization check completed");
+      }
+    } catch (error) {
+      logger.warn({ entityId, instanceId, error }, "Auto-summarization check failed (non-critical)");
+    }
+
     // Update the entity's last query time after successful processing
     await db
       .update(entities)

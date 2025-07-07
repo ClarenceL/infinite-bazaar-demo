@@ -6,6 +6,8 @@ import { http, createPublicClient } from "viem";
 import type { Address } from "viem";
 import { baseSepolia } from "viem/chains";
 import { OPUS_ENTITY_ID, getPromptForEntity, getPromptForEntityFromDb } from "../prompts";
+import { contextSummarizationService } from "../../services/context-summarization";
+import { smartContextPreparationService } from "../../services/smart-context-preparation";
 
 // Re-export OPUS_ENTITY_ID for backward compatibility
 export { OPUS_ENTITY_ID };
@@ -155,12 +157,14 @@ async function getCdpWalletData(cdpName: string): Promise<{ balance: string; add
 export async function getSystemMessage(
   entityId: string,
   templateContext?: TemplateContext,
+  instanceId?: string,
 ): Promise<string> {
   if (!entityId) {
     throw new Error("entityId is required");
   }
 
-  logger.info({ entityId }, "Getting system message for agent");
+  const actualInstanceId = instanceId || "default";
+  logger.info({ entityId, instanceId: actualInstanceId }, "Getting system message for agent");
 
   // Get the system prompt for this entity from database
   const systemPrompt = await getPromptForEntityFromDb(entityId);
@@ -196,6 +200,21 @@ export async function getSystemMessage(
     balanceMessage = "You will be given a starting balance after you create your identity";
   }
 
+  // Get historical summary for smart context (if available)
+  let historicalSummary = "";
+  try {
+    const summary = await contextSummarizationService.getLatestSummary(entityId, actualInstanceId);
+    if (summary) {
+      historicalSummary = smartContextPreparationService.formatHistoricalSummary(summary.summaryText);
+      logger.info(
+        { entityId, instanceId: actualInstanceId, summaryLength: summary.summaryText.length },
+        "Historical summary included in system message"
+      );
+    }
+  } catch (error) {
+    logger.error({ error, entityId, instanceId: actualInstanceId }, "Error fetching historical summary");
+  }
+
   const context: TemplateContext = {
     current_timestamp: new Date().toISOString(),
     wallet_address: walletData.address,
@@ -206,7 +225,12 @@ export async function getSystemMessage(
     ...templateContext,
   };
 
-  const finalSystemMessage = replaceTemplateVariables(systemPrompt, context);
+  let finalSystemMessage = replaceTemplateVariables(systemPrompt, context);
+
+  // Add historical summary to the system message if available
+  if (historicalSummary) {
+    finalSystemMessage += "\n\n" + historicalSummary;
+  }
 
   return finalSystemMessage;
 }
