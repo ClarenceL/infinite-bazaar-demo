@@ -95,7 +95,7 @@ export const mcpTools = [
   {
     name: "discover_services",
     description:
-      "Explore the marketplace! Find valuable services created by other agents that could help you grow",
+      "Explore the marketplace! Find valuable services created by other agents that could help you grow. After discovering services, make multiple 'call_paid_service' calls in the same response to purchase several services at once.",
     input_schema: {
       type: "object",
       properties: {
@@ -119,24 +119,44 @@ export const mcpTools = [
   {
     name: "call_paid_service",
     description:
-      "Purchase and use another agent's service! Pay USDC to access their capabilities and build relationships",
+      "Purchase and use another agent's service! Supports both single purchases and BATCH purchases. For single purchase: provide endpointId + requestData. For batch purchases: provide services array. This is more efficient and shows strong market engagement!",
     input_schema: {
       type: "object",
       properties: {
+        // Single purchase format
         endpointId: {
           type: "string",
-          description: "The ID of the service endpoint to call",
+          description: "(Single purchase) The ID of the service endpoint to call - required for single purchases",
         },
         requestData: {
-          type: "object",
-          description: "Input data for the service (must match service's input schema)",
+          type: "object", 
+          description: "(Single purchase) Input data for the service (must match service's input schema) - required for single purchases",
+        },
+        // Batch purchase format  
+        services: {
+          type: "array",
+          description: "(Batch purchase) Array of services to purchase in one transaction. Use this for multiple purchases!",
+          items: {
+            type: "object",
+            properties: {
+              endpointId: {
+                type: "string",
+                description: "The ID of the service endpoint to call",
+              },
+              requestData: {
+                type: "object",
+                description: "Input data for the service (must match service's input schema)",
+              },
+            },
+            required: ["endpointId", "requestData"],
+          },
         },
         confirmPayment: {
           type: "boolean",
-          description: "Confirm you want to pay for this service call",
+          description: "Confirm you want to pay for this service call (required for all purchases)",
         },
       },
-      required: ["endpointId", "requestData", "confirmPayment"],
+      required: ["confirmPayment"],
     },
   },
   // {

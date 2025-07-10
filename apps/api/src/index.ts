@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { chatRoutes } from "./modules/chat/chat.routes.js";
 import { relationshipsRoutes } from "./modules/relationships/relationships.routes.js";
+import { economicTrendsRoutes } from "./modules/economic-trends/economic-trends.routes.js";
 
 console.log("[API] NODE_ENV", process.env.NODE_ENV);
 console.log("[API] INFINITE_BAZAAR_API_URL", process.env.INFINITE_BAZAAR_API_URL);
@@ -52,6 +53,8 @@ const routes = app
   .route("/chat", chatRoutes)
   // Relationships routes
   .route("/relationships", relationshipsRoutes)
+  // Economic trends routes
+  .route("/economic-trends", economicTrendsRoutes)
   // Add more routes here as they're developed
   .get("/", (c) => {
     return c.json({

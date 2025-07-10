@@ -16,7 +16,8 @@
     "lint:fix": "biome check --fix .",
     "lint:fix-unsafe": "biome check --fix --unsafe .",
     "test:polygon-sdk": "bun run scripts/test-polygon-sdk.ts",
-    "seed:default-data": "tsx scripts/seed-default-data.ts"
+    "seed:default-data": "tsx scripts/seed-default-data.ts",
+    "seed:instance-data": "tsx scripts/seed-instance-data.ts"
   },
   "keywords": ["nitro", "enclave", "mock", "aws", "infinite-bazaar"],
   "author": "",

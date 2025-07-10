@@ -114,6 +114,7 @@ export const agentRoutes = new Hono()
             writer,
             encoder,
             entityId,
+            instanceId,
           );
 
           logger.info("Streaming response completed successfully");

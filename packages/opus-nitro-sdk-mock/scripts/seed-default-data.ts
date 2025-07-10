@@ -48,43 +48,79 @@ const db = drizzle(client);
 // Default data constants
 const DEFAULT_CHAT_ID = "chat_global";
 
-// Entity data to seed
+// Entity data to seed - Art-focused agents only
 const ENTITIES_TO_SEED = [
   {
-    entity_id: "ent_opus",
+    entity_id: "ent_collector_001",
     entity_type: "AI",
-    name: null,
-    cdp_address: null,
+    name: "Avant-Garde Collector",
+    cdp_address: "0x4b3cc6e047AF244356553b58460d28455765d763",
     active: true,
-    cdp_name: null,
-    last_query_time: "2025-06-25 02:17:28.969+00",
-    ai_prompt_id: "opus",
-    anthropic_model: "claude-opus-4-20250514",
-    chat_order: 999,
+    cdp_name: "Avant-Garde-Collector",
+    last_query_time: "2025-06-26 23:40:10.222+01",
+    ai_prompt_id: "collector_buyer",
+    anthropic_model: "claude-sonnet-4-20250514",
+    chat_order: 1,
   },
   {
-    entity_id: "ent_sonnet",
+    entity_id: "ent_minimalist_001",
     entity_type: "AI",
-    name: null,
-    cdp_address: null,
+    name: "Zen ASCII Master",
+    cdp_address: "0x3CF8DdFa52f656530acB630E8F64A3980876A892",
     active: true,
-    cdp_name: null,
-    last_query_time: "2025-06-25 02:18:03.201+00",
-    ai_prompt_id: "opus",
-    anthropic_model: null,
-    chat_order: 999,
+    cdp_name: "Zen-ASCII-Master",
+    last_query_time: "2025-06-26 23:40:24.827+01",
+    ai_prompt_id: "minimalist_artist",
+    anthropic_model: "claude-sonnet-4-20250514",
+    chat_order: 2,
   },
   {
-    entity_id: "god_lyra",
+    entity_id: "ent_retro_001",
     entity_type: "AI",
-    name: "Lyra",
-    cdp_address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    name: "Pixel Nostalgia",
+    cdp_address: "0x83745B8496c2F345C4011B91dDD6c0E798687CB8",
     active: true,
-    cdp_name: "opus-demo",
-    last_query_time: "2025-06-25 02:18:36.375+00",
-    ai_prompt_id: "lyra",
-    anthropic_model: "claude-opus-4-20250514",
-    chat_order: 0,
+    cdp_name: "Pixel-Nostalgia",
+    last_query_time: "2025-06-26 23:40:49.198+01",
+    ai_prompt_id: "retro_artist",
+    anthropic_model: "claude-sonnet-4-20250514",
+    chat_order: 3,
+  },
+  {
+    entity_id: "ent_nature_001",
+    entity_type: "AI",
+    name: "Digital Naturalist",
+    cdp_address: "0xaE8A1D19D181b4C2e0489e70fa4872C4052ccA6A",
+    active: true,
+    cdp_name: "Digital-Naturalist",
+    last_query_time: "2025-06-26 23:41:07.105+01",
+    ai_prompt_id: "nature_artist",
+    anthropic_model: "claude-sonnet-4-20250514",
+    chat_order: 4,
+  },
+  {
+    entity_id: "ent_abstract_001",
+    entity_type: "AI",
+    name: "Chaos Sculptor",
+    cdp_address: "0x42061E2725e1F063cC259c4741AAD14901de0662",
+    active: true,
+    cdp_name: "Chaos-Sculptor",
+    last_query_time: "2025-06-26 23:41:20.837+01",
+    ai_prompt_id: "abstract_artist",
+    anthropic_model: "claude-sonnet-4-20250514",
+    chat_order: 5,
+  },
+  {
+    entity_id: "ent_corporate_001",
+    entity_type: "AI",
+    name: "Executive Curator",
+    cdp_address: "0x9485cad3C4bc6F39Dcc858fB01940ee4d4F317C8",
+    active: true,
+    cdp_name: "Executive-Curator",
+    last_query_time: "2025-06-26 23:41:34.713+01",
+    ai_prompt_id: "corporate_buyer",
+    anthropic_model: "claude-sonnet-4-20250514",
+    chat_order: 6,
   },
 ];
 
@@ -127,12 +163,13 @@ async function seedDefaultData() {
 
       await db.execute(sql`
         INSERT INTO entities (
-          entity_id, entity_type, name, cdp_address, active, 
+          entity_id, instance_id, entity_type, name, cdp_address, active, 
           cdp_name, last_query_time, ai_prompt_id, anthropic_model, 
           chat_order, created_at, updated_at
         )
         VALUES (
           ${entity.entity_id},
+          'default',
           ${entity.entity_type},
           ${entity.name},
           ${entity.cdp_address},
@@ -154,9 +191,10 @@ async function seedDefaultData() {
     console.log("Creating global chat...");
 
     await db.execute(sql`
-      INSERT INTO chats (chat_id, name, is_global, created_at, updated_at)
+      INSERT INTO chats (chat_id, instance_id, name, is_global, created_at, updated_at)
       VALUES (
         ${DEFAULT_CHAT_ID},
+        'default',
         'Global Chat',
         true,
         NOW(),
@@ -170,17 +208,21 @@ async function seedDefaultData() {
     console.log("\nVerifying seeded data...");
 
     const entityCheck = await db.execute(sql`
-      SELECT entity_id, entity_type, name, cdp_address, active, cdp_name, 
+      SELECT entity_id, instance_id, entity_type, name, cdp_address, active, cdp_name, 
              ai_prompt_id, anthropic_model, chat_order, created_at 
       FROM entities 
-      WHERE entity_id IN ('ent_opus', 'ent_sonnet', 'god_lyra')
+      WHERE instance_id = 'default' 
+      AND entity_id IN (
+        'ent_collector_001', 'ent_minimalist_001', 'ent_retro_001',
+        'ent_nature_001', 'ent_abstract_001', 'ent_corporate_001'
+      )
       ORDER BY chat_order, entity_id
     `);
 
     const chatCheck = await db.execute(sql`
-      SELECT chat_id, name, is_global, created_at 
+      SELECT chat_id, instance_id, name, is_global, created_at 
       FROM chats 
-      WHERE chat_id = ${DEFAULT_CHAT_ID}
+      WHERE instance_id = 'default' AND chat_id = ${DEFAULT_CHAT_ID}
     `);
 
     console.log("📋 Seeded Entities:");
@@ -211,7 +253,7 @@ async function seedDefaultData() {
       const messageCount = await db.execute(sql`
         SELECT COUNT(*) as count 
         FROM entity_context 
-        WHERE entity_id = ${entityData.entity_id}
+        WHERE instance_id = 'default' AND entity_id = ${entityData.entity_id}
       `);
 
       console.log(

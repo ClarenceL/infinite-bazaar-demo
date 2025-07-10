@@ -52,7 +52,7 @@ export class RelationshipService {
   /**
    * Get or create a relationship between two agents
    */
-  async getOrCreateRelationship(observerId: string, targetId: string): Promise<AgentRelationship> {
+  async getOrCreateRelationship(observerId: string, targetId: string, instanceId: string = "default"): Promise<AgentRelationship> {
     try {
       // Don't create self-relationships
       if (observerId === targetId) {
@@ -67,6 +67,7 @@ export class RelationshipService {
           and(
             eq(agentRelationships.observerAgentId, observerId),
             eq(agentRelationships.targetAgentId, targetId),
+            eq(agentRelationships.instanceId, instanceId),
           ),
         )
         .limit(1);
@@ -102,6 +103,7 @@ export class RelationshipService {
       const newRelationship = await db
         .insert(agentRelationships)
         .values({
+          instanceId: instanceId,
           observerAgentId: observerId,
           targetAgentId: targetId,
           relationshipSummary: "New agent - no interactions yet",
@@ -149,10 +151,11 @@ export class RelationshipService {
     observerId: string,
     targetId: string,
     event: RelationshipUpdateEvent,
+    instanceId: string = "default",
   ): Promise<AgentRelationship> {
     try {
       // Get or create the relationship
-      const relationship = await this.getOrCreateRelationship(observerId, targetId);
+      const relationship = await this.getOrCreateRelationship(observerId, targetId, instanceId);
 
       const oldTrustScore = relationship.trustScore;
 
@@ -688,12 +691,17 @@ Opinion:`;
   /**
    * Get all relationships for an observer agent
    */
-  async getRelationshipsForAgent(observerId: string): Promise<AgentRelationship[]> {
+  async getRelationshipsForAgent(observerId: string, instanceId: string = "default"): Promise<AgentRelationship[]> {
     try {
       const relationships = await db
         .select()
         .from(agentRelationships)
-        .where(eq(agentRelationships.observerAgentId, observerId));
+        .where(
+          and(
+            eq(agentRelationships.observerAgentId, observerId),
+            eq(agentRelationships.instanceId, instanceId),
+          ),
+        );
 
       return relationships as AgentRelationship[];
     } catch (error) {
@@ -711,7 +719,7 @@ Opinion:`;
   /**
    * Get relationship between two specific agents
    */
-  async getRelationship(observerId: string, targetId: string): Promise<AgentRelationship | null> {
+  async getRelationship(observerId: string, targetId: string, instanceId: string = "default"): Promise<AgentRelationship | null> {
     try {
       if (observerId === targetId) {
         return null; // No self-relationships
@@ -724,6 +732,7 @@ Opinion:`;
           and(
             eq(agentRelationships.observerAgentId, observerId),
             eq(agentRelationships.targetAgentId, targetId),
+            eq(agentRelationships.instanceId, instanceId),
           ),
         )
         .limit(1);

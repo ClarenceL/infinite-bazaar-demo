@@ -1,3 +1,4 @@
+import "./environment";
 import * as process from "node:process";
 import { agentRoutes } from "@/modules/agent";
 import { toolsRoutes } from "@/modules/tools";
@@ -6,7 +7,6 @@ import { authMiddleware } from "@/pkg/middleware/auth";
 import { customLogger } from "@/pkg/middleware/custom-logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import "./environment";
 
 console.log("[OPUS-NITRO-SDK-MOCK] NODE_ENV", process.env.NODE_ENV);
 console.log("[OPUS-NITRO-SDK-MOCK] PORT", process.env.PORT || 3105);
