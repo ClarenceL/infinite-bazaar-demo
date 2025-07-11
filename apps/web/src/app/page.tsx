@@ -1,14 +1,20 @@
-// Force dynamic rendering for this route
-export const dynamic = "force-dynamic";
+"use client";
 
 import { ChatContainer } from "@/components/chat-container";
+import { DefaultFont } from "@/components/default-font";
+import { EconomicTrends } from "@/components/economic-trends";
 import { RelationshipGraph } from "@/components/relationship-graph";
+import { useInstanceId } from "@/lib/instance";
 
-export default async function HomePage() {
+export default function Home() {
+  const instanceId = useInstanceId();
+  
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <DefaultFont />
+      
       {/* Header */}
-      <header className="border-white/10 border-b bg-black/20 backdrop-blur-sm">
+      <header className="flex-shrink-0 border-white/10 border-b bg-black/20 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -20,17 +26,23 @@ export default async function HomePage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex h-[calc(100vh-80px)]">
+      {/* Economic Trends Section - Horizontal Bar */}
+      <div className="flex-shrink-0 border-white/10 border-b bg-black/10 p-4">
+        <EconomicTrends />
+      </div>
+
+      {/* Main Content - Chat and Relationship Graph Side by Side */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Chat container on the left side */}
-        <div className="w-1/2 border-white/10 border-r">
+        <div className="w-1/2 border-white/10 border-r h-full">
           <ChatContainer />
         </div>
         {/* Relationship graph on the right side */}
-        <div className="w-1/2">
+        <div className="w-1/2 h-full">
           <RelationshipGraph />
         </div>
       </div>
     </div>
   );
 }
+

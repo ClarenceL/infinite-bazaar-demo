@@ -28,6 +28,7 @@ class StreamingDBSyncService {
     role: string;
     chatId?: string;
     sequence: number;
+    instanceId?: string;
   }): Promise<string | null> {
     if (!this.enabled) return null;
 
@@ -37,6 +38,7 @@ class StreamingDBSyncService {
       await db.insert(entityContext).values({
         contextId,
         entityId: params.entityId,
+        instanceId: params.instanceId || "default",
         role: params.role,
         content: "", // Start with empty content
         sequence: params.sequence,

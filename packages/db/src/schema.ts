@@ -37,11 +37,12 @@ export const entities = pgTable("entities", {
   entityId: varchar("entity_id", { length: 255 })
     .primaryKey()
     .$defaultFn(() => newId("entity")),
+  instanceId: varchar("instance_id", { length: 255 }).notNull(),
   entityType: entityEnum("entity_type"),
   name: text("name"),
   // this is the name humans give, but it's never passed to the agent
   // instead they choose their own "name", and the cdp_name is hardcoded or deterministic based on the name
-  cdp_name: varchar("cdp_name", { length: 255 }).unique(),
+  cdp_name: varchar("cdp_name", { length: 255 }),
   cdp_address: varchar("cdp_address", { length: 44 }),
   iden3_key_id: varchar("iden3_key_id", { length: 255 }),
   ai_prompt_id: varchar("ai_prompt_id", { length: 255 }), // Maps to AI prompt templates
@@ -50,20 +51,26 @@ export const entities = pgTable("entities", {
   chat_order: integer("chat_order").default(999).notNull(), // Order for processing in cron job (lower = earlier)
   lastQueryTime: timestamp("last_query_time", { withTimezone: true }), // Track when entity last queried for new messages
   ...lifecycleDates,
-}).enableRLS();
+}, (table) => ({
+  instanceIdx: index("entities_instance_idx").on(table.instanceId),
+  cdpNameInstanceUnique: unique("entities_cdp_name_instance_unique").on(table.instanceId, table.cdp_name),
+})).enableRLS();
 
 // Chat rooms table - supports global chat and direct messages
 export const chats = pgTable("chats", {
   chatId: varchar("chat_id", { length: 255 })
     .primaryKey()
     .$defaultFn(() => newId("chat")),
+  instanceId: varchar("instance_id", { length: 255 }).notNull(),
   name: text("name").notNull(), // e.g., "Global Chat"
   isGlobal: boolean("is_global").default(false).notNull(),
   // For direct messages between two entities
   fromEntityId: varchar("from_entity_id", { length: 255 }).references(() => entities.entityId),
   toEntityId: varchar("to_entity_id", { length: 255 }).references(() => entities.entityId),
   ...lifecycleDates,
-}).enableRLS();
+}, (table) => ({
+  instanceIdx: index("chats_instance_idx").on(table.instanceId),
+})).enableRLS();
 
 // Entity context table - tracks LLM messages from agents, optionally scoped to a chat
 export const entityContext = pgTable(
@@ -72,6 +79,7 @@ export const entityContext = pgTable(
     contextId: varchar("context_id", { length: 255 })
       .primaryKey()
       .$defaultFn(() => newId("context")),
+    instanceId: varchar("instance_id", { length: 255 }).notNull(),
     entityId: varchar("entity_id", { length: 255 })
       .references(() => entities.entityId)
       .notNull(),
@@ -99,6 +107,8 @@ export const entityContext = pgTable(
     ),
     // Index for efficient querying by completion status
     completedAtIdx: index("entity_context_completed_at_idx").on(table.completedAt),
+    // Index for efficient instance-scoped queries
+    instanceIdx: index("entity_context_instance_idx").on(table.instanceId),
   }),
 ).enableRLS();
 
@@ -139,6 +149,7 @@ export const x402Endpoints = pgTable("x402_endpoints", {
   endpointId: varchar("endpoint_id", { length: 255 })
     .primaryKey()
     .$defaultFn(() => newId("endpoint")),
+  instanceId: varchar("instance_id", { length: 255 }).notNull(),
   agentId: varchar("agent_id", { length: 255 })
     .references(() => entities.entityId)
     .notNull(),
@@ -154,13 +165,16 @@ export const x402Endpoints = pgTable("x402_endpoints", {
   totalCalls: integer("total_calls").default(0).notNull(),
   totalRevenue: decimal("total_revenue", { precision: 18, scale: 6 }).default("0").notNull(),
   ...lifecycleDates,
-}).enableRLS();
+}, (table) => ({
+  instanceIdx: index("x402_endpoints_instance_idx").on(table.instanceId),
+})).enableRLS();
 
 // x402 Service Calls - track usage and payments
 export const x402ServiceCalls = pgTable("x402_service_calls", {
   callId: varchar("call_id", { length: 255 })
     .primaryKey()
     .$defaultFn(() => newId("call")),
+  instanceId: varchar("instance_id", { length: 255 }).notNull(),
   endpointId: varchar("endpoint_id", { length: 255 })
     .references(() => x402Endpoints.endpointId)
     .notNull(),
@@ -174,7 +188,9 @@ export const x402ServiceCalls = pgTable("x402_service_calls", {
   success: boolean("success").notNull(),
   errorMessage: text("error_message"),
   ...lifecycleDates,
-}).enableRLS();
+}, (table) => ({
+  instanceIdx: index("x402_service_calls_instance_idx").on(table.instanceId),
+})).enableRLS();
 
 // Relations for x402 services
 export const x402EndpointsRelations = relations(x402Endpoints, ({ one, many }) => ({
@@ -198,6 +214,7 @@ export const x402ServiceCallsRelations = relations(x402ServiceCalls, ({ one }) =
 
 export const agentRelationships = pgTable("agent_relationships", {
   id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: varchar("instance_id", { length: 255 }).notNull(),
   observerAgentId: text("observer_agent_id").notNull(),
   targetAgentId: text("target_agent_id").notNull(),
   relationshipSummary: text("relationship_summary")
@@ -208,10 +225,34 @@ export const agentRelationships = pgTable("agent_relationships", {
   totalTransactionValue: text("total_transaction_value").notNull().default("0"),
   lastInteractionAt: timestamp("last_interaction_at"),
   ...lifecycleDates,
-}).enableRLS();
+}, (table) => ({
+  instanceIdx: index("agent_relationships_instance_idx").on(table.instanceId),
+})).enableRLS();
 
-// Add unique constraint for observer-target pairs
-export const agentRelationshipsUniqueConstraint = unique("unique_observer_target").on(
+// Add unique constraint for observer-target pairs within instance
+export const agentRelationshipsUniqueConstraint = unique("unique_observer_target_instance").on(
+  agentRelationships.instanceId,
   agentRelationships.observerAgentId,
   agentRelationships.targetAgentId,
 );
+
+// Context Summaries - for smart token management
+export const contextSummaries = pgTable("context_summaries", {
+  summaryId: varchar("summary_id", { length: 255 })
+    .primaryKey()
+    .$defaultFn(() => newId("summary")),
+  instanceId: varchar("instance_id", { length: 255 }).notNull(),
+  entityId: varchar("entity_id", { length: 255 })
+    .references(() => entities.entityId)
+    .notNull(),
+  summaryText: text("summary_text").notNull(), // The actual summary
+  messageCount: integer("message_count").notNull(), // How many messages this summarizes
+  lastMessageId: varchar("last_message_id", { length: 255 }), // Last message included in summary
+  tokenEstimate: integer("token_estimate"), // Estimated tokens in the summary
+  summaryType: text("summary_type").default("conversation").notNull(), // "conversation", "global_activity", etc.
+  ...lifecycleDates,
+}, (table) => ({
+  instanceIdx: index("context_summaries_instance_idx").on(table.instanceId),
+  entityIdx: index("context_summaries_entity_idx").on(table.entityId),
+  typeIdx: index("context_summaries_type_idx").on(table.summaryType),
+})).enableRLS();

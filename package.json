@@ -9,6 +9,8 @@
     "build:staging": "turbo run build:staging",
     "build:vercel": "turbo run build",
     "dev": "turbo run dev",
+    "dev:demo": "turbo run dev --filter=!@infinite-bazaar-demo/cron",
+    "dev:demo-safe": "DEMO_MODE=true turbo run dev --filter=!@infinite-bazaar-demo/cron",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
     "lint:fix-unsafe": "turbo run lint:fix-unsafe",
@@ -16,7 +18,11 @@
     "clean": "turbo run clean",
     "clean:node_modules": "rimraf ./node_modules ./packages/*/node_modules ./apps/*/node_modules",
     "test": "turbo run test",
-    "setup:foundry": "./scripts/install-foundry.sh"
+    "setup:foundry": "./scripts/install-foundry.sh",
+    "seed:instance": "pnpm --filter @infinite-bazaar-demo/opus-nitro-sdk-mock seed:instance-data",
+    "seed:default": "pnpm --filter @infinite-bazaar-demo/opus-nitro-sdk-mock seed:default-data",
+    "reset:instance": "pnpm --filter @infinite-bazaar-demo/db db:reset-instance",
+    "reset:entities": "pnpm --filter @infinite-bazaar-demo/db db:reset"
   },
   "keywords": [],
   "author": "Clarence Liu",

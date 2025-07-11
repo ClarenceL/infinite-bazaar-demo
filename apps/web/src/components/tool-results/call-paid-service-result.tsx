@@ -18,10 +18,23 @@ export function CallPaidServiceResult({ message }: ToolResultProps) {
   const theme = CALL_PAID_SERVICE_THEME;
   const data = message.toolResultData;
 
-  // Create friendly title based on the service call
-  const serviceName = data?.serviceCall?.serviceName || "Service";
-  const provider = data?.serviceCall?.provider || "Provider";
-  const title = `Called "${serviceName}" by ${provider}`;
+  // Check if this is a batch purchase or single purchase
+  const isBatch = data?.successfulPurchases && Array.isArray(data.successfulPurchases);
+  
+  // Create friendly title based on the service call type
+  let title: string;
+  if (isBatch) {
+    const successCount = data.successfulPurchases.length;
+    const failedCount = data.failedPurchases?.length || 0;
+    title = `Batch Purchase: ${successCount} services`;
+    if (failedCount > 0) {
+      title += ` (${failedCount} failed)`;
+    }
+  } else {
+    const serviceName = data?.serviceCall?.serviceName || "Service";
+    const provider = data?.serviceCall?.provider || "Provider";
+    title = `Called "${serviceName}" by ${provider}`;
+  }
 
   return (
     <div className="group mb-4 flex flex-col gap-2">
@@ -47,33 +60,116 @@ export function CallPaidServiceResult({ message }: ToolResultProps) {
       <div className={`rounded-xl ${theme.bg} ${theme.border} p-4 shadow-lg backdrop-blur-sm`}>
         {data?.success ? (
           <div className="space-y-4">
-            {/* Service Call Summary */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className={`${theme.text} text-sm opacity-75`}>Call ID:</span>
-                <span className={`${theme.text} break-all font-mono text-xs`}>
-                  {data.serviceCall?.callId}
-                </span>
-              </div>
+            {isBatch ? (
+              /* Batch Purchase Summary */
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className={`${theme.text} text-sm opacity-75`}>Services Purchased:</span>
+                  <span className={`${theme.success} font-medium text-sm`}>
+                    {data.successfulPurchases.length}
+                  </span>
+                </div>
 
-              <div className="flex items-center justify-between">
-                <span className={`${theme.text} text-sm opacity-75`}>Price:</span>
-                <span className={`${theme.payment} font-medium text-sm`}>
-                  {data.serviceCall?.price} USDC{" "}
-                  {data.serviceCall?.priceDescription && `(${data.serviceCall.priceDescription})`}
-                </span>
-              </div>
+                <div className="flex items-center justify-between">
+                  <span className={`${theme.text} text-sm opacity-75`}>Total Spent:</span>
+                  <span className={`${theme.payment} font-medium text-sm`}>
+                    {data.totalSpent?.toFixed(4) || '0'} USDC
+                  </span>
+                </div>
 
-              <div className="flex items-center justify-between">
-                <span className={`${theme.text} text-sm opacity-75`}>Payment Hash:</span>
-                <span className={`${theme.text} break-all font-mono text-xs`}>
-                  {data.serviceCall?.paymentHash}
-                </span>
+                {data.failedPurchases && data.failedPurchases.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className={`${theme.text} text-sm opacity-75`}>Failed:</span>
+                    <span className={`${theme.error} font-medium text-sm`}>
+                      {data.failedPurchases.length}
+                    </span>
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              /* Single Service Call Summary */
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className={`${theme.text} text-sm opacity-75`}>Call ID:</span>
+                  <span className={`${theme.text} break-all font-mono text-xs`}>
+                    {data.serviceCall?.callId}
+                  </span>
+                </div>
 
-            {/* Payment Details */}
-            {data.payment && (
+                <div className="flex items-center justify-between">
+                  <span className={`${theme.text} text-sm opacity-75`}>Price:</span>
+                  <span className={`${theme.payment} font-medium text-sm`}>
+                    {data.serviceCall?.price} USDC{" "}
+                    {data.serviceCall?.priceDescription && `(${data.serviceCall.priceDescription})`}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className={`${theme.text} text-sm opacity-75`}>Payment Hash:</span>
+                  <span className={`${theme.text} break-all font-mono text-xs`}>
+                    {data.serviceCall?.paymentHash}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Batch Purchase Details */}
+            {isBatch && data.successfulPurchases && data.successfulPurchases.length > 0 && (
+              <div className={`rounded-lg border ${theme.border} bg-cyan-900/20 p-3`}>
+                <div className={`${theme.service} mb-2 flex items-center gap-1 font-medium text-xs`}>
+                  🛍️ Services Purchased
+                </div>
+                <div className="space-y-2">
+                  {data.successfulPurchases.map((service: any, index: number) => (
+                    <div key={index} className={`rounded bg-cyan-900/10 p-2`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`${theme.text} font-medium text-xs`}>
+                          {service.serviceName}
+                        </span>
+                        <span className={`${theme.payment} font-medium text-xs`}>
+                          {service.price} USDC
+                        </span>
+                      </div>
+                      <div className={`${theme.text} text-xs opacity-75`}>
+                        Provider: {service.provider}
+                      </div>
+                      {service.response?.output?.result && (
+                        <div className={`${theme.text} text-xs mt-1 opacity-90`}>
+                          {typeof service.response.output.result === 'string' 
+                            ? service.response.output.result.substring(0, 100) + '...'
+                            : JSON.stringify(service.response.output.result).substring(0, 100) + '...'
+                          }
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Failed Purchases */}
+            {isBatch && data.failedPurchases && data.failedPurchases.length > 0 && (
+              <div className={`rounded-lg border ${theme.border} bg-red-900/20 p-3`}>
+                <div className={`${theme.error} mb-2 flex items-center gap-1 font-medium text-xs`}>
+                  ❌ Failed Purchases
+                </div>
+                <div className="space-y-2">
+                  {data.failedPurchases.map((failure: any, index: number) => (
+                    <div key={index} className={`rounded bg-red-900/10 p-2`}>
+                      <div className={`${theme.text} font-medium text-xs mb-1`}>
+                        Service ID: {failure.endpointId}
+                      </div>
+                      <div className={`${theme.error} text-xs`}>
+                        {failure.error}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Payment Details - Single Purchase Only */}
+            {!isBatch && data.payment && (
               <div className={`rounded-lg border ${theme.border} bg-amber-900/20 p-3`}>
                 <div
                   className={`${theme.payment} mb-2 flex items-center gap-1 font-medium text-xs`}
@@ -97,8 +193,8 @@ export function CallPaidServiceResult({ message }: ToolResultProps) {
               </div>
             )}
 
-            {/* Service Input */}
-            {data.serviceCall?.response?.input && (
+            {/* Service Input - Single Purchase Only */}
+            {!isBatch && data.serviceCall?.response?.input && (
               <div className={`rounded-lg border ${theme.border} bg-blue-900/20 p-3`}>
                 <div className={`${theme.link} mb-2 flex items-center gap-1 font-medium text-xs`}>
                   📝 Service Input
@@ -118,8 +214,8 @@ export function CallPaidServiceResult({ message }: ToolResultProps) {
               </div>
             )}
 
-            {/* Service Response */}
-            {data.serviceCall?.response?.output && (
+            {/* Service Response - Single Purchase Only */}
+            {!isBatch && data.serviceCall?.response?.output && (
               <div className={`rounded-lg border ${theme.border} bg-green-900/20 p-3`}>
                 <div
                   className={`${theme.response} mb-2 flex items-center gap-1 font-medium text-xs`}
@@ -150,8 +246,8 @@ export function CallPaidServiceResult({ message }: ToolResultProps) {
               </div>
             )}
 
-            {/* Service Metadata */}
-            {(data.serviceCall?.response?.metadata ||
+            {/* Service Metadata - Single Purchase Only */}
+            {!isBatch && (data.serviceCall?.response?.metadata ||
               data.serviceCall?.response?.output?.metadata) && (
               <div className={`rounded-lg border ${theme.border} bg-gray-900/20 p-3`}>
                 <div

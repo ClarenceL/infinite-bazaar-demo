@@ -6,6 +6,7 @@ import {
   entities,
   eq,
   isNotNull,
+  like,
 } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 
@@ -41,9 +42,17 @@ export class RelationshipsService {
   /**
    * Get all active entities
    */
-  async getEntities(): Promise<Entity[]> {
+  async getEntities(instanceId?: string): Promise<Entity[]> {
     try {
-      logger.info("Fetching entities from database");
+      logger.info({ instanceId }, "Fetching entities from database");
+
+      // Build where conditions
+      const whereConditions = [eq(entities.active, true)];
+      
+      // Add instanceId filter if provided
+      if (instanceId) {
+        whereConditions.push(like(entities.entityId, `%_${instanceId}`));
+      }
 
       const dbEntities = await db
         .select({
@@ -55,7 +64,7 @@ export class RelationshipsService {
           createdAt: entities.createdAt,
         })
         .from(entities)
-        .where(eq(entities.active, true))
+        .where(and(...whereConditions))
         .orderBy(desc(entities.createdAt));
 
       const entitiesResult: Entity[] = dbEntities.map((record) => ({
@@ -67,7 +76,7 @@ export class RelationshipsService {
         createdAt: record.createdAt?.getTime() || Date.now(),
       }));
 
-      logger.info({ entityCount: entitiesResult.length }, "Entities fetched successfully");
+      logger.info({ entityCount: entitiesResult.length, instanceId }, "Entities fetched successfully");
       return entitiesResult;
     } catch (error) {
       logger.error({ error }, "Error fetching entities from database");
@@ -78,9 +87,22 @@ export class RelationshipsService {
   /**
    * Get all agent relationships
    */
-  async getRelationships(): Promise<Relationship[]> {
+  async getRelationships(instanceId?: string): Promise<Relationship[]> {
     try {
-      logger.info("Fetching relationships from database");
+      logger.info({ instanceId }, "Fetching relationships from database");
+
+      // If instanceId is provided, we need to filter relationships to only include
+      // those between entities that belong to this instance
+      let entityFilter: string[] | undefined;
+      if (instanceId) {
+        const instanceEntities = await this.getEntities(instanceId);
+        entityFilter = instanceEntities.map(e => e.id);
+        
+        if (entityFilter.length === 0) {
+          logger.info({ instanceId }, "No entities found for instance, returning empty relationships");
+          return [];
+        }
+      }
 
       const dbRelationships = await db
         .select({
@@ -98,7 +120,7 @@ export class RelationshipsService {
         .from(agentRelationships)
         .orderBy(desc(agentRelationships.updatedAt));
 
-      const relationshipsResult: Relationship[] = dbRelationships.map((record) => ({
+      let relationshipsResult: Relationship[] = dbRelationships.map((record) => ({
         id: record.id,
         observerAgentId: record.observerAgentId,
         targetAgentId: record.targetAgentId,
@@ -111,8 +133,15 @@ export class RelationshipsService {
         updatedAt: record.updatedAt?.getTime() || Date.now(),
       }));
 
+      // Filter relationships if instanceId is provided
+      if (entityFilter) {
+        relationshipsResult = relationshipsResult.filter(rel =>
+          entityFilter!.includes(rel.observerAgentId) && entityFilter!.includes(rel.targetAgentId)
+        );
+      }
+
       logger.info(
-        { relationshipCount: relationshipsResult.length },
+        { relationshipCount: relationshipsResult.length, instanceId },
         "Relationships fetched successfully",
       );
       return relationshipsResult;
@@ -125,13 +154,13 @@ export class RelationshipsService {
   /**
    * Get complete graph data (entities + relationships)
    */
-  async getGraphData(): Promise<RelationshipGraphData> {
+  async getGraphData(instanceId?: string): Promise<RelationshipGraphData> {
     try {
-      logger.info("Fetching complete graph data");
+      logger.info({ instanceId }, "Fetching complete graph data");
 
       const [entitiesData, relationshipsData] = await Promise.all([
-        this.getEntities(),
-        this.getRelationships(),
+        this.getEntities(instanceId),
+        this.getRelationships(instanceId),
       ]);
 
       // Filter relationships to only include those between active entities
@@ -150,6 +179,7 @@ export class RelationshipsService {
         {
           entityCount: entitiesData.length,
           relationshipCount: validRelationships.length,
+          instanceId,
         },
         "Graph data fetched successfully",
       );

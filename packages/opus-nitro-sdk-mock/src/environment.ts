@@ -7,16 +7,21 @@ const dotenvConfig: dotenv.DotenvConfigOptions = { override: true };
 
 // Set NODE_ENV to development by default if not set
 if (!process.env.NODE_ENV) {
-  throw new Error("NODE_ENV is not set in environment variables");
+  process.env.NODE_ENV = "development";
+  console.log("[OPUS-NITRO-SDK-MOCK] NODE_ENV not set, defaulting to 'development'");
 }
 
 const env = process.env.NODE_ENV;
 
+// Go up to project root (two levels up from packages/opus-nitro-sdk-mock/src)
+const projectRoot = resolve(__dirname, "../../../");
+
 if (env !== "development") {
-  dotenvConfig.path = resolve(`.env.${env}`);
+  dotenvConfig.path = resolve(projectRoot, `.env.${env}`);
   console.log(`[API] Loading environment for NODE_ENV: ${env} from ${dotenvConfig.path}`);
 } else {
-  console.log(`[API] Loading environment for NODE_ENV: ${env} from .env`);
+  dotenvConfig.path = resolve(projectRoot, ".env");
+  console.log(`[API] Loading environment for NODE_ENV: ${env} from ${dotenvConfig.path}`);
 }
 
 const result = dotenv.config(dotenvConfig);
@@ -26,7 +31,7 @@ if (result.error) {
   console.warn("Falling back to default .env file");
 
   // Try to load the default .env file as fallback
-  const defaultEnvPath = resolve(".env");
+  const defaultEnvPath = resolve(projectRoot, ".env");
   const defaultResult = dotenv.config({ path: defaultEnvPath, override: true });
 
   if (defaultResult.error) {

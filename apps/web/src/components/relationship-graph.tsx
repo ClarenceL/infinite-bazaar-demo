@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useInstanceId } from "@/lib/instance";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
+import { Play, Square, Loader2 } from "lucide-react";
 
 interface Entity {
   id: string;
@@ -38,12 +42,28 @@ interface NodePosition {
   vy: number;
 }
 
+interface BidirectionalGroup {
+  entities: [string, string];
+  relationships: Relationship[];
+  totalValue: number;
+  avgTrustScore: number;
+}
+
 interface Tooltip {
   visible: boolean;
   x: number;
   y: number;
   content: string;
-  relationship?: Relationship;
+  relationship?: Relationship | BidirectionalGroup;
+}
+
+interface CronJobStatus {
+  instanceId: string;
+  isRunning: boolean;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  cycleInterval: string;
+  jobId?: string;
 }
 
 // Color theme pool for entities (reusing from chat-container)
@@ -66,6 +86,12 @@ export function RelationshipGraph() {
   const [error, setError] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<Tooltip>({ visible: false, x: 0, y: 0, content: "" });
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(0);
+  const [viewBoxKey, setViewBoxKey] = useState<number>(0); // Force viewBox recalculation
+  const instanceId = useInstanceId(); // Use the URL parameter hook
+
+  // Cron control state
+  const [cronStatus, setCronStatus] = useState<CronJobStatus | null>(null);
+  const [isCronToggling, setIsCronToggling] = useState(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const nodePositions = useRef<Map<string, NodePosition>>(new Map());
@@ -75,6 +101,8 @@ export function RelationshipGraph() {
   const isStabilized = useRef<boolean>(false);
   const maxSimulationSteps = 300; // Stop simulation after this many steps
   const lastDataHash = useRef<string>("");
+
+
 
   // Create a hash of the graph data to detect changes
   const createDataHash = (data: GraphData): string => {
@@ -151,21 +179,24 @@ export function RelationshipGraph() {
 
   // Initialize node positions with deterministic layout (no randomness)
   const initializePositions = (entities: Entity[]) => {
-    const width = 1200; // Much larger canvas
-    const height = 800;
+    const width = 800; // Reduced to reasonable size
+    const height = 600;
     const centerX = width / 2;
     const centerY = height / 2;
 
     entities.forEach((entity, index) => {
       if (!nodePositions.current.has(entity.id)) {
-        // Arrange nodes in a larger circle initially with more spacing
+        // Arrange nodes in a circle, with radius based on number of entities
         const angle = (index / entities.length) * 2 * Math.PI;
-        const radius = Math.min(width, height) * 0.525; // Even larger initial radius (50% increase)
+        // Reasonable base radius that fits well in viewport
+        const baseRadius = Math.min(width, height) * 0.3;
+        const radiusMultiplier = Math.max(0.4, Math.min(1.0, entities.length / 5));
+        const radius = baseRadius * radiusMultiplier;
 
         // Use deterministic offset based on entity ID to avoid randomness
         const hash = entity.id.split("").reduce((a, b) => a + b.charCodeAt(0), 0);
-        const offsetX = ((hash % 100) - 50) * 0.8; // -40 to +40 range
-        const offsetY = (((hash * 17) % 100) - 50) * 0.8; // Different offset for Y
+        const offsetX = ((hash % 100) - 50) * 0.4;
+        const offsetY = (((hash * 17) % 100) - 50) * 0.4;
 
         nodePositions.current.set(entity.id, {
           x: centerX + Math.cos(angle) * radius + offsetX,
@@ -177,19 +208,74 @@ export function RelationshipGraph() {
     });
   };
 
+  // Calculate optimal viewBox to fit all nodes
+  const calculateViewBox = (): string => {
+    if (!graphData || graphData.entities.length === 0) {
+      return "0 0 800 600"; // Match canvas size
+    }
+
+    const positions = graphData.entities
+      .map(entity => nodePositions.current.get(entity.id))
+      .filter(pos => pos !== undefined);
+
+    if (positions.length === 0) {
+      return "0 0 800 600"; // Match canvas size
+    }
+
+    // Calculate bounding box
+    const minX = Math.min(...positions.map(pos => pos.x));
+    const maxX = Math.max(...positions.map(pos => pos.x));
+    const minY = Math.min(...positions.map(pos => pos.y));
+    const maxY = Math.max(...positions.map(pos => pos.y));
+
+    // Reasonable padding that doesn't make graph too small
+    const nodePadding = 50;
+    const paddedMinX = minX - nodePadding;
+    const paddedMaxX = maxX + nodePadding;
+    const paddedMinY = minY - nodePadding;
+    const paddedMaxY = maxY + nodePadding;
+
+    const width = paddedMaxX - paddedMinX;
+    const height = paddedMaxY - paddedMinY;
+
+    // Use a reasonable aspect ratio and don't make it too big
+    const maxDimension = 800;
+    const aspectRatio = width / height;
+    
+    let finalWidth = width;
+    let finalHeight = height;
+    
+    if (width > maxDimension) {
+      finalWidth = maxDimension;
+      finalHeight = maxDimension / aspectRatio;
+    }
+    
+    if (finalHeight > maxDimension) {
+      finalHeight = maxDimension;
+      finalWidth = maxDimension * aspectRatio;
+    }
+
+    // Center the content
+    const centerOffsetX = (finalWidth - width) / 2;
+    const centerOffsetY = (finalHeight - height) / 2;
+
+    return `${paddedMinX - centerOffsetX} ${paddedMinY - centerOffsetY} ${finalWidth} ${finalHeight}`;
+  };
+
   // Simple force-directed layout simulation (runs for limited time)
   const updatePositions = () => {
     if (!graphData || isStabilized.current) return;
 
     const { entities, relationships } = graphData;
-    const width = 1200; // Match larger canvas
-    const height = 800;
+    const width = 800; // Match canvas size
+    const height = 600;
     const centerX = width / 2;
     const centerY = height / 2;
 
     // Stop after enough steps
     if (simulationSteps.current >= maxSimulationSteps) {
       isStabilized.current = true;
+      setViewBoxKey(prev => prev + 1); // Trigger viewBox recalculation
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = undefined;
@@ -211,23 +297,23 @@ export function RelationshipGraph() {
       pos.vx += (centerX - pos.x) * centerForce;
       pos.vy += (centerY - pos.y) * centerForce;
 
-      // Stronger repulsion between nodes to prevent overlap
-      entities.forEach((otherEntity) => {
-        if (entity.id === otherEntity.id) return;
-        const otherPos = nodePositions.current.get(otherEntity.id);
-        if (!otherPos) return;
+              // Balanced repulsion between nodes
+        entities.forEach((otherEntity) => {
+          if (entity.id === otherEntity.id) return;
+          const otherPos = nodePositions.current.get(otherEntity.id);
+          if (!otherPos) return;
 
-        const dx = pos.x - otherPos.x;
-        const dy = pos.y - otherPos.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+          const dx = pos.x - otherPos.x;
+          const dy = pos.y - otherPos.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Increased repulsion distance and force to maintain larger spacing
-        if (distance > 0 && distance < 375) {
-          const force = (900 / (distance * distance)) * forceMultiplier;
-          pos.vx += (dx / distance) * force;
-          pos.vy += (dy / distance) * force;
-        }
-      });
+          // Increased minimum distance for better spacing
+          if (distance > 0 && distance < 150) {
+            const force = (1000 / (distance * distance)) * forceMultiplier;
+            pos.vx += (dx / distance) * force;
+            pos.vy += (dy / distance) * force;
+          }
+        });
 
       // Much weaker attraction for connected nodes
       relationships.forEach((rel) => {
@@ -247,8 +333,8 @@ export function RelationshipGraph() {
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           // Very weak attraction only for extremely distant nodes
-          if (distance > 600) {
-            const force = 0.001 * rel.trustScore * forceMultiplier;
+          if (distance > 280) {
+            const force = 0.0008 * rel.trustScore * forceMultiplier;
             pos.vx += (dx / distance) * force;
             pos.vy += (dy / distance) * force;
           }
@@ -263,8 +349,8 @@ export function RelationshipGraph() {
       pos.x += pos.vx;
       pos.y += pos.vy;
 
-      // Keep within larger bounds
-      const margin = 90; // Increased by 50% (60 * 1.5)
+      // Keep within bounds
+      const margin = 50;
       pos.x = Math.max(margin, Math.min(width - margin, pos.x));
       pos.y = Math.max(margin, Math.min(height - margin, pos.y));
     });
@@ -284,7 +370,7 @@ export function RelationshipGraph() {
   const fetchGraphData = async () => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/relationships/graph`,
+        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/relationships/graph?instanceId=${instanceId}`,
       );
 
       if (!response.ok) {
@@ -307,6 +393,7 @@ export function RelationshipGraph() {
           lastDataHash.current = newDataHash;
           setGraphData(data);
           setLastUpdateTime(Date.now());
+          setViewBoxKey(prev => prev + 1); // Trigger immediate viewBox recalculation
 
           // Only initialize positions for new entities (prevents resetting existing ones)
           const hasNewEntities = data.entities.some(
@@ -340,12 +427,84 @@ export function RelationshipGraph() {
     }
   };
 
+  // Fetch cron status
+  const fetchCronStatus = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/cron/status/${instanceId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setCronStatus(data.status);
+      }
+    } catch (error) {
+      // Silent fail for cron status checks
+    }
+  };
+
+  // Toggle cron job (start/stop)
+  const toggleCronJob = async () => {
+    if (!cronStatus) return;
+    
+    try {
+      setIsCronToggling(true);
+      
+      const endpoint = cronStatus.isRunning ? 'stop' : 'start';
+      const response = await fetch(`${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/cron/${endpoint}/${instanceId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: endpoint === 'start' ? JSON.stringify({ cycleInterval: "1 minute" }) : undefined,
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        if (endpoint === 'start') {
+          setCronStatus(data.status);
+        } else {
+          await fetchCronStatus(); // Refresh status after stopping
+        }
+        toast({
+          title: "Success",
+          description: `Cron job ${cronStatus.isRunning ? 'stopped' : 'started'}`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to toggle cron job",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to connect to API",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCronToggling(false);
+    }
+  };
+
   // Polling setup
   useEffect(() => {
-    fetchGraphData();
+    // Start polling when instanceId is available
+    if (instanceId) {
+      fetchGraphData();
+      fetchCronStatus(); // Fetch cron status on mount
+    }
+  }, [instanceId]);
 
-    // Set up polling every 5 seconds
-    const interval = setInterval(fetchGraphData, 5000);
+  // Set up polling when instanceId is available
+  useEffect(() => {
+    if (!instanceId) return;
+
+    // Set up polling every 5 seconds for graph data and cron status
+    const interval = setInterval(() => {
+      fetchGraphData();
+      fetchCronStatus();
+    }, 5000);
 
     return () => {
       clearInterval(interval);
@@ -353,7 +512,7 @@ export function RelationshipGraph() {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, []);
+  }, [instanceId]);
 
   // Start animation only once when data is first loaded
   useEffect(() => {
@@ -371,18 +530,66 @@ export function RelationshipGraph() {
     };
   }, [graphData]);
 
+  // Create bidirectional relationship groups
+  const createBidirectionalGroups = (relationships: Relationship[]) => {
+    const groups = new Map<string, {
+      entities: [string, string];
+      relationships: Relationship[];
+      totalValue: number;
+      avgTrustScore: number;
+    }>();
+
+    relationships.forEach(rel => {
+      // Create a consistent key for the pair (sort to ensure same key regardless of direction)
+      const entities = [rel.observerAgentId, rel.targetAgentId].sort() as [string, string];
+      const key = `${entities[0]}-${entities[1]}`;
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          entities,
+          relationships: [],
+          totalValue: 0,
+          avgTrustScore: 0,
+        });
+      }
+
+      const group = groups.get(key)!;
+      group.relationships.push(rel);
+      group.totalValue += Number.parseFloat(rel.totalTransactionValue || "0");
+    });
+
+    // Calculate average trust scores
+    groups.forEach(group => {
+      group.avgTrustScore = group.relationships.reduce((sum, rel) => sum + rel.trustScore, 0) / group.relationships.length;
+    });
+
+    return Array.from(groups.values());
+  };
+
   // Handle edge click for tooltip
-  const handleEdgeClick = (event: React.MouseEvent, relationship: Relationship) => {
+  const handleEdgeClick = (event: React.MouseEvent, relationshipGroup: BidirectionalGroup) => {
+    event.stopPropagation(); // Prevent hiding tooltip
+    
     const containerRect = svgRef.current?.parentElement?.getBoundingClientRect();
     if (!containerRect) return;
+
+    // Create detailed content for bidirectional relationship
+    const content = relationshipGroup.relationships.length === 1 
+      ? relationshipGroup.relationships[0]?.relationshipSummary || "No summary available"
+      : `Bidirectional relationship with ${relationshipGroup.relationships.length} interactions`;
 
     setTooltip({
       visible: true,
       x: event.clientX - containerRect.left,
       y: event.clientY - containerRect.top,
-      content: relationship.relationshipSummary,
-      relationship,
+      content,
+      relationship: relationshipGroup,
     });
+  };
+
+  // Type guard to check if relationship is BidirectionalGroup
+  const isBidirectionalGroup = (rel: Relationship | BidirectionalGroup): rel is BidirectionalGroup => {
+    return 'entities' in rel && 'relationships' in rel;
   };
 
   // Hide tooltip
@@ -417,9 +624,9 @@ export function RelationshipGraph() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-white/5">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-white/10 border-b bg-black/20 p-4 backdrop-blur-sm">
+      <div className="border-white/10 border-b bg-gradient-to-b from-slate-900/80 to-slate-800/60 p-4 backdrop-blur-sm">
         <h3 className="font-semibold text-base text-white">Agent Relationships</h3>
         <p className="text-slate-400 text-xs">
           {isLoading
@@ -437,10 +644,45 @@ export function RelationshipGraph() {
             </span>
           )}
         </p>
+        <div className="mt-2 flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleCronJob}
+            disabled={isCronToggling || !cronStatus}
+            className="h-7 px-2 text-xs flex items-center gap-1 border-slate-600 hover:border-slate-500 bg-slate-800/50 hover:bg-slate-700/50"
+          >
+            {isCronToggling ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : cronStatus?.isRunning ? (
+              <Square className="h-3 w-3" />
+            ) : (
+              <Play className="h-3 w-3" />
+            )}
+            <span className="hidden sm:inline">
+              {cronStatus?.isRunning ? "Stop" : "Start"}
+            </span>
+          </Button>
+          <span className="text-slate-400 text-xs">
+            {cronStatus?.isRunning ? (
+              <>
+                Running
+                {cronStatus?.nextRunAt && (
+                  <span className="hidden sm:inline">
+                    {" • Next: "}
+                    {new Date(cronStatus.nextRunAt).toLocaleTimeString()}
+                  </span>
+                )}
+              </>
+            ) : (
+              "Stopped"
+            )}
+          </span>
+        </div>
       </div>
 
       {/* Graph */}
-      <div className="relative flex-1 overflow-auto">
+      <div className="relative flex-1 overflow-hidden bg-gradient-to-br from-slate-900/40 to-slate-800/30">
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-slate-400 text-sm">Loading graph...</div>
@@ -455,7 +697,7 @@ export function RelationshipGraph() {
         ) : (
           <>
             <div
-              className="h-full min-h-[800px] w-full min-w-[1200px]"
+              className="h-full w-full"
               onClick={hideTooltip}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -466,94 +708,128 @@ export function RelationshipGraph() {
               role="button"
               aria-label="Graph area - click or press Escape to close tooltip"
             >
-              <svg ref={svgRef} className="h-[800px] w-[1200px]" viewBox="0 0 1200 800">
-                {/* Edges (relationships) */}
-                {graphData.relationships.map((relationship) => {
-                  const sourcePos = nodePositions.current.get(relationship.observerAgentId);
-                  const targetPos = nodePositions.current.get(relationship.targetAgentId);
+              <svg 
+                ref={svgRef} 
+                className="h-full w-full" 
+                viewBox={calculateViewBox()}
+                preserveAspectRatio="xMidYMid meet"
+                key={viewBoxKey}
+              >
+                {/* Edges (simplified bidirectional relationships) */}
+                {createBidirectionalGroups(graphData.relationships).map((group, index) => {
+                  const [entity1, entity2] = group.entities;
+                  const pos1 = nodePositions.current.get(entity1);
+                  const pos2 = nodePositions.current.get(entity2);
 
-                  if (!sourcePos || !targetPos) return null;
+                  if (!pos1 || !pos2) return null;
 
-                  const opacity = Math.max(0.2, relationship.trustScore);
-                  const strokeWidth = Math.max(1, relationship.trustScore * 3);
-                  const trustColor = getTrustColor(relationship.trustScore);
+                  // Enhanced visual properties
+                  const opacity = Math.max(0.3, Math.min(0.9, group.avgTrustScore));
+                  const strokeWidth = Math.max(2, Math.min(6, group.avgTrustScore * 5)); // Increased thickness
+                  const trustColor = getTrustColor(group.avgTrustScore);
+
+                  // Calculate if there's bidirectional flow
+                  const entity1ToEntity2 = group.relationships
+                    .filter(rel => rel.observerAgentId === entity1)
+                    .reduce((sum, rel) => sum + Number.parseFloat(rel.totalTransactionValue || "0"), 0);
+                  
+                  const entity2ToEntity1 = group.relationships
+                    .filter(rel => rel.observerAgentId === entity2)
+                    .reduce((sum, rel) => sum + Number.parseFloat(rel.totalTransactionValue || "0"), 0);
+
+                  const isBidirectional = entity1ToEntity2 > 0 && entity2ToEntity1 > 0;
 
                   return (
-                    <g key={relationship.id}>
-                      {/* Edge line */}
+                    <g key={`group-${index}`}>
+                      {/* Main edge line with enhanced styling */}
                       <line
-                        x1={sourcePos.x}
-                        y1={sourcePos.y}
-                        x2={targetPos.x}
-                        y2={targetPos.y}
+                        x1={pos1.x}
+                        y1={pos1.y}
+                        x2={pos2.x}
+                        y2={pos2.y}
                         stroke={trustColor}
                         strokeWidth={strokeWidth}
                         opacity={opacity}
-                        className="cursor-pointer hover:opacity-100"
-                        onClick={(e) => handleEdgeClick(e, relationship)}
+                        strokeLinecap="round"
+                        className="cursor-pointer hover:opacity-100 transition-opacity duration-200"
+                        onClick={(e) => handleEdgeClick(e, group)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
-                            handleEdgeClick(e as any, relationship);
+                            handleEdgeClick(e as any, group);
                           }
                         }}
                         tabIndex={0}
                         role="button"
-                        aria-label={`Relationship between ${relationship.observerAgentId} and ${relationship.targetAgentId}`}
+                        aria-label={`Relationship between ${(() => {
+                          const ent1 = graphData.entities.find(e => e.id === entity1);
+                          const ent2 = graphData.entities.find(e => e.id === entity2);
+                          return `${ent1?.name || entity1} and ${ent2?.name || entity2}`;
+                        })()}`}
                       />
 
-                      {/* Transaction value label with background */}
-                      <g className="pointer-events-none select-none">
-                        {/* Background rectangle */}
-                        <rect
-                          x={(sourcePos.x + targetPos.x) / 2 - 25}
-                          y={(sourcePos.y + targetPos.y) / 2 - 15}
-                          width="50"
-                          height="16"
-                          rx="8"
-                          fill="rgba(0, 0, 0, 0.8)"
-                          stroke="rgba(255, 255, 255, 0.2)"
-                          strokeWidth="0.5"
-                        />
-                        {/* Text label */}
-                        <text
-                          x={(sourcePos.x + targetPos.x) / 2}
-                          y={(sourcePos.y + targetPos.y) / 2 - 3}
-                          fill="white"
-                          fontSize="12"
-                          fontWeight="500"
-                          textAnchor="middle"
-                        >
-                          ${Number.parseFloat(relationship.totalTransactionValue).toFixed(3)}
-                        </text>
-                      </g>
+
                     </g>
                   );
                 })}
 
-                {/* Nodes (entities) */}
+                {/* Nodes (entities) with enhanced styling */}
                 {graphData.entities.map((entity) => {
                   const pos = nodePositions.current.get(entity.id);
                   if (!pos) return null;
 
                   const theme = getEntityTheme(entity.id);
-                  const radius = 20;
+                  const radius = 18; // Reduced for better readability
 
                   return (
                     <g key={entity.id}>
-                      {/* Node circle */}
+                      {/* Node shadow */}
+                      <circle
+                        cx={pos.x + 2}
+                        cy={pos.y + 2}
+                        r={radius}
+                        fill="rgba(0, 0, 0, 0.3)"
+                        className="pointer-events-none"
+                      />
+
+                      {/* Node circle with enhanced styling */}
                       <circle
                         cx={pos.x}
                         cy={pos.y}
                         r={radius}
                         className={`${theme.bg} ${theme.border} stroke-2`}
+                        filter="url(#glow)"
                       />
 
-                      {/* Entity name */}
+                      {/* Entity type indicator */}
+                      <circle
+                        cx={pos.x + 10}
+                        cy={pos.y - 10}
+                        r="4"
+                        fill={entity.entityType === "AI" ? "rgb(34, 197, 94)" : "rgb(59, 130, 246)"}
+                        stroke="white"
+                        strokeWidth="1"
+                        className="pointer-events-none"
+                      />
+
+                      {/* Entity name with background */}
+                      <rect
+                        x={pos.x - (entity.name.length * 3.5)}
+                        y={pos.y + radius + 8}
+                        width={entity.name.length * 7}
+                        height="16"
+                        rx="4"
+                        fill="rgba(0, 0, 0, 0.7)"
+                        stroke="rgba(255, 255, 255, 0.1)"
+                        strokeWidth="0.5"
+                        className="pointer-events-none"
+                      />
+
                       <text
                         x={pos.x}
-                        y={pos.y + radius + 15}
+                        y={pos.y + radius + 18}
                         fill="white"
-                        fontSize="10"
+                        fontSize="11"
+                        fontWeight="500"
                         textAnchor="middle"
                         className="pointer-events-none select-none"
                       >
@@ -562,37 +838,128 @@ export function RelationshipGraph() {
                     </g>
                   );
                 })}
+
+                {/* Define filters for enhanced visuals */}
+                <defs>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge> 
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
               </svg>
             </div>
 
-            {/* Tooltip */}
-            {tooltip.visible && (
-              <div
-                className="absolute z-10 max-w-xs rounded-lg bg-black/90 p-3 text-white text-xs shadow-lg backdrop-blur-sm"
-                style={{
-                  left: tooltip.x + 10,
-                  top: tooltip.y - 10,
-                  transform: tooltip.x > 200 ? "translateX(-100%)" : undefined,
-                }}
-              >
-                <div className="mb-2 font-semibold">
-                  Trust Score: {tooltip.relationship?.trustScore.toFixed(3)}
+            {/* Simplified tooltip */}
+            {tooltip.visible && tooltip.relationship && (() => {
+              const rel = tooltip.relationship;
+              return (
+                <div
+                  className="absolute z-20 max-w-xs rounded-lg bg-slate-900/95 p-3 text-white text-sm shadow-2xl backdrop-blur-sm border border-slate-700"
+                  style={{
+                    left: tooltip.x + 10,
+                    top: tooltip.y - 10,
+                    transform: tooltip.x > 300 ? "translateX(-100%)" : undefined,
+                  }}
+                >
+                  {isBidirectionalGroup(rel) ? (
+                    <>
+                      <div className="mb-2 font-semibold text-slate-100">
+                        {(() => {
+                          const entity1 = graphData.entities.find(e => e.id === rel.entities[0]);
+                          const entity2 = graphData.entities.find(e => e.id === rel.entities[1]);
+                          return `${entity1?.name || rel.entities[0]} ↔ ${entity2?.name || rel.entities[1]}`;
+                        })()}
+                      </div>
+                      
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Trust Score:</span>
+                          <span className="text-slate-200">{rel.avgTrustScore.toFixed(3)}</span>
+                        </div>
+                        
+                        {/* Money flow in both directions */}
+                        <div className="mt-2 pt-2 border-t border-slate-600">
+                          <div className="text-slate-300 font-medium mb-1">Money Flow:</div>
+                          {(() => {
+                            const entity1ToEntity2 = rel.relationships
+                              .filter(r => r.observerAgentId === rel.entities[0])
+                              .reduce((sum, r) => sum + Number.parseFloat(r.totalTransactionValue || "0"), 0);
+                            
+                            const entity2ToEntity1 = rel.relationships
+                              .filter(r => r.observerAgentId === rel.entities[1])
+                              .reduce((sum, r) => sum + Number.parseFloat(r.totalTransactionValue || "0"), 0);
+                            
+                            const entity1 = graphData.entities.find(e => e.id === rel.entities[0]);
+                            const entity2 = graphData.entities.find(e => e.id === rel.entities[1]);
+                            const entity1Name = entity1?.name || rel.entities[0];
+                            const entity2Name = entity2?.name || rel.entities[1];
+                            
+                            return (
+                              <div className="space-y-1">
+                                <div className="flex justify-between">
+                                  <span className="text-slate-400">{entity1Name} → {entity2Name}:</span>
+                                  <span className="text-green-400">${entity1ToEntity2.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-400">{entity2Name} → {entity1Name}:</span>
+                                  <span className="text-green-400">${entity2ToEntity1.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between pt-1 border-t border-slate-700">
+                                  <span className="text-slate-300 font-medium">Total:</span>
+                                  <span className="text-white font-medium">${(entity1ToEntity2 + entity2ToEntity1).toFixed(2)}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                        
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Interactions:</span>
+                          <span className="text-slate-200">
+                            {rel.relationships.reduce((sum: number, r: Relationship) => sum + r.interactionCount, 0)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-2 font-semibold text-slate-100">
+                        {(() => {
+                          const observer = graphData.entities.find(e => e.id === rel.observerAgentId);
+                          const target = graphData.entities.find(e => e.id === rel.targetAgentId);
+                          return `${observer?.name || rel.observerAgentId} → ${target?.name || rel.targetAgentId}`;
+                        })()}
+                      </div>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Trust Score:</span>
+                          <span className="text-slate-200">{rel.trustScore.toFixed(3)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Transaction Value:</span>
+                          <span className="text-green-400">${Number.parseFloat(rel.totalTransactionValue || "0").toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Interactions:</span>
+                          <span className="text-slate-200">{rel.interactionCount}</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="mb-2 text-slate-300">
-                  Interactions: {tooltip.relationship?.interactionCount}
-                </div>
-                <div className="text-slate-200">{tooltip.content}</div>
-              </div>
-            )}
+              );
+            })()}
           </>
         )}
       </div>
 
       {/* Footer */}
-      <div className="border-white/10 border-t bg-black/20 p-4 backdrop-blur-sm">
+      <div className="border-white/10 border-t bg-gradient-to-t from-slate-900/80 to-slate-800/60 p-3 backdrop-blur-sm">
         <div className="text-center text-slate-400 text-xs">
-          Updates every 5s • Click edges for details • Trust affects opacity • Scroll to explore •
-          Layout stabilizes automatically
+          Click relationships for details • Green circles = AI • Blue circles = Human • Line thickness = Trust level
         </div>
       </div>
     </div>

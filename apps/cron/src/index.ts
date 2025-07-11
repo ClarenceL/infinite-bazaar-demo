@@ -12,6 +12,14 @@ const logger = createLogger({
 // Simple logging
 logger.info("Starting infinite-bazaar cron service...");
 
+// Check if demo mode is enabled
+const isDemoMode = process.env.DEMO_MODE === 'true';
+if (isDemoMode) {
+  logger.info("Demo mode enabled - cron service disabled");
+  logger.info("To run with agent activity, set DEMO_MODE=false or remove the environment variable");
+  process.exit(0);
+}
+
 // MongoDB connection
 const mongoUrl = process.env.MONGODB_URL || "mongodb://localhost:27017/infinite-bazaar-agenda";
 logger.info({ mongoUrl }, "MongoDB configuration");
@@ -48,10 +56,12 @@ async function start() {
     logger.info("Starting agenda...");
     await agenda.start();
 
-    logger.info("Setting up Opus agent cron...");
-    await setupOpusAgentCron(agenda);
+    // Get instance ID from environment
+    const instanceId = process.env.INSTANCE_ID || "default";
+    logger.info({ instanceId }, "Setting up Opus agent cron...");
+    await setupOpusAgentCron(agenda, instanceId);
 
-    logger.info("Cron service started successfully");
+    logger.info({ instanceId }, "Cron service started successfully");
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : "Unknown error" },

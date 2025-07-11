@@ -29,8 +29,25 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
     // Extract parameters from input
     const { serviceType, maxPrice, searchQuery, entity_id } = input;
 
+    // Get the instance_id from the requesting entity
+    let instanceId = "default";
+    if (entity_id) {
+      const entityResult = await db
+        .select({ instanceId: entities.instanceId })
+        .from(entities)
+        .where(eq(entities.entityId, entity_id))
+        .limit(1);
+      
+      if (entityResult.length > 0) {
+        instanceId = entityResult[0]!.instanceId;
+      }
+    }
+
     // Build query conditions
-    const conditions = [eq(x402Endpoints.active, true)];
+    const conditions = [
+      eq(x402Endpoints.active, true),
+      eq(x402Endpoints.instanceId, instanceId)
+    ];
 
     // Exclude services created by the requesting agent
     if (entity_id) {
@@ -101,7 +118,7 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
 
         if (entity_id && service.agentId !== entity_id) {
           try {
-            relationship = await relationshipService.getRelationship(entity_id, service.agentId);
+            relationship = await relationshipService.getRelationship(entity_id, service.agentId, instanceId);
             if (relationship) {
               trustScore = relationship.trustScore;
               relationshipSummary = relationship.relationshipSummary;
@@ -124,6 +141,7 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
                 specificOutcome: `Found available service: ${service.serviceName}`,
                 emotionalTone: "neutral" as any,
               },
+              instanceId,
             );
           } catch (error) {
             logger.warn(
@@ -206,6 +224,8 @@ export async function handleDiscoverServices(input: Record<string, any>): Promis
           "You'll pay the listed price in USDC for each service call",
           "Each service has a description of what it does",
           "Check the price and priceDescription to understand costs",
+          "💡 PRO TIP: Make MULTIPLE 'call_paid_service' calls in your response to buy several services at once!",
+          "Multiple purchases in one response shows market engagement and builds relationships faster",
         ],
         summary: {
           totalServicesFound: services.length,

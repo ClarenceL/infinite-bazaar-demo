@@ -104,7 +104,7 @@ function extractDirectContent(content: string, entityName: string): string {
 /**
  * Fetch new messages since the entity's last query time
  */
-async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
+async function fetchNewMessages(currentEntityId: string, instanceId: string): Promise<any[]> {
   try {
     // Get the entity's last query time
     const entity = await db
@@ -112,11 +112,14 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
         lastQueryTime: entities.lastQueryTime,
       })
       .from(entities)
-      .where(eq(entities.entityId, currentEntityId))
+      .where(and(
+        eq(entities.entityId, currentEntityId),
+        eq(entities.instanceId, instanceId)
+      ))
       .limit(1);
 
     if (entity.length === 0) {
-      logger.warn({ entityId: currentEntityId }, "Entity not found");
+      logger.warn({ entityId: currentEntityId, instanceId }, "Entity not found");
       return [];
     }
 
@@ -124,7 +127,7 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
     const lastQueryTime = entity[0]?.lastQueryTime || new Date(Date.now() - 60 * 1000);
 
     logger.info(
-      { entityId: currentEntityId, lastQueryTime },
+      { entityId: currentEntityId, instanceId, lastQueryTime },
       "Fetching messages since last query time",
     );
 
@@ -143,6 +146,8 @@ async function fetchNewMessages(currentEntityId: string): Promise<any[]> {
       .innerJoin(entities, eq(entityContext.entityId, entities.entityId))
       .where(
         and(
+          eq(entityContext.instanceId, instanceId),
+          eq(entities.instanceId, instanceId),
           isNotNull(entityContext.completedAt),
           gte(entityContext.completedAt, lastQueryTime),
           ne(entityContext.entityId, currentEntityId),
@@ -209,21 +214,21 @@ function replaceTemplateVariables(template: string, variables: Record<string, st
 /**
  * Process a single entity with the Opus API
  */
-async function processEntity(entity: any, cycleInterval: string): Promise<void> {
+async function processEntity(entity: any, cycleInterval: string, instanceId: string): Promise<void> {
   const entityId = entity.entityId;
   const entityName = entity.name || entity.entityId;
 
-  logger.info({ entityId, entityName }, "Processing entity");
+  logger.info({ entityId, entityName, instanceId }, "Processing entity");
 
   try {
     // Record the query start time
     const queryTime = new Date();
 
     // Fetch new messages for this entity
-    logger.info({ entityId }, "Fetching new messages for entity");
-    const newMessages = await fetchNewMessages(entityId);
+    logger.info({ entityId, instanceId }, "Fetching new messages for entity");
+    const newMessages = await fetchNewMessages(entityId, instanceId);
     logger.info(
-      { entityId, newMessagesCount: newMessages.length },
+      { entityId, instanceId, newMessagesCount: newMessages.length },
       "Found new messages for entity",
     );
 
@@ -237,7 +242,36 @@ async function processEntity(entity: any, cycleInterval: string): Promise<void> 
     // Replace template variables
     const finalMessage = replaceTemplateVariables(TEMPLATE_MESSAGE, templateVariables);
 
-    await sendMessageToOpusAPI(entityId, finalMessage);
+    await sendMessageToOpusAPI(entityId, finalMessage, instanceId);
+
+    // Trigger auto-summarization check (if needed)
+    try {
+      logger.info({ entityId, instanceId }, "Triggering auto-summarization check");
+      
+      // Make a request to the summarization endpoint
+      const summarizationResponse = await fetch(`${API_BASE_URL}/internal/summarize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Key": process.env.OPUS_NITRO_AUTH_KEY || "",
+        },
+        body: JSON.stringify({
+          entityId,
+          instanceId,
+        }),
+      });
+      
+      if (!summarizationResponse.ok) {
+        logger.warn(
+          { entityId, instanceId, status: summarizationResponse.status },
+          "Summarization check failed (non-critical)"
+        );
+      } else {
+        logger.info({ entityId, instanceId }, "Auto-summarization check completed");
+      }
+    } catch (error) {
+      logger.warn({ entityId, instanceId, error }, "Auto-summarization check failed (non-critical)");
+    }
 
     // Update the entity's last query time after successful processing
     await db
@@ -245,14 +279,17 @@ async function processEntity(entity: any, cycleInterval: string): Promise<void> 
       .set({
         lastQueryTime: queryTime,
       })
-      .where(eq(entities.entityId, entityId));
+      .where(and(
+        eq(entities.entityId, entityId),
+        eq(entities.instanceId, instanceId)
+      ));
 
     logger.info(
-      { entityId, lastQueryTime: queryTime },
+      { entityId, instanceId, lastQueryTime: queryTime },
       "Successfully processed entity and updated last query time",
     );
   } catch (error) {
-    logger.error({ entityId, error }, "Error processing entity");
+    logger.error({ entityId, instanceId, error }, "Error processing entity");
     // Don't throw - continue with other entities
   }
 }
@@ -260,8 +297,8 @@ async function processEntity(entity: any, cycleInterval: string): Promise<void> 
 /**
  * Send message to Opus API with timeout handling
  */
-async function sendMessageToOpusAPI(entityId: string, message: string): Promise<void> {
-  logger.info({ entityId, apiBaseUrl: API_BASE_URL }, "Making HTTP request to Opus API");
+async function sendMessageToOpusAPI(entityId: string, message: string, instanceId: string): Promise<void> {
+  logger.info({ entityId, instanceId, apiBaseUrl: API_BASE_URL }, "Making HTTP request to Opus API");
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -280,6 +317,7 @@ async function sendMessageToOpusAPI(entityId: string, message: string): Promise<
           content: message,
         },
         entityId: entityId,
+        instanceId: instanceId,
       }),
       signal: controller.signal,
     });
@@ -288,6 +326,7 @@ async function sendMessageToOpusAPI(entityId: string, message: string): Promise<
     logger.info(
       {
         entityId,
+        instanceId,
         status: response.status,
         statusText: response.statusText,
       },
@@ -299,6 +338,7 @@ async function sendMessageToOpusAPI(entityId: string, message: string): Promise<
       logger.error(
         {
           entityId,
+          instanceId,
           status: response.status,
           statusText: response.statusText,
           errorBody: errorText,
@@ -309,9 +349,9 @@ async function sendMessageToOpusAPI(entityId: string, message: string): Promise<
   } catch (fetchError) {
     clearTimeout(timeoutId);
     if (fetchError instanceof Error && fetchError.name === "AbortError") {
-      logger.error({ entityId }, "Request timeout for entity");
+      logger.error({ entityId, instanceId }, "Request timeout for entity");
     } else {
-      logger.error({ entityId, error: fetchError }, "Fetch error for entity");
+      logger.error({ entityId, instanceId, error: fetchError }, "Fetch error for entity");
     }
     throw fetchError;
   }
@@ -320,8 +360,8 @@ async function sendMessageToOpusAPI(entityId: string, message: string): Promise<
 /**
  * Get all active entities from the database ordered by chat_order
  */
-async function getActiveEntities() {
-  logger.info("Querying active entities from database...");
+async function getActiveEntities(instanceId: string) {
+  logger.info({ instanceId }, "Querying active entities from database...");
   const entitiesList = await db
     .select({
       entityId: entities.entityId,
@@ -330,10 +370,13 @@ async function getActiveEntities() {
       chatOrder: entities.chat_order,
     })
     .from(entities)
-    .where(eq(entities.active, true))
+    .where(and(
+      eq(entities.active, true),
+      eq(entities.instanceId, instanceId)
+    ))
     .orderBy(asc(entities.chat_order));
 
-  logger.info({ entitiesFound: entitiesList.length }, "Found entities to process");
+  logger.info({ instanceId, entitiesFound: entitiesList.length }, "Found entities to process");
   return entitiesList;
 }
 
@@ -341,15 +384,15 @@ async function getActiveEntities() {
  * Single Opus agent job that processes all entities
  */
 async function agentJob(job: Job) {
-  const { cycle_interval = "1 minute" } = job.attrs.data || {};
+  const { cycle_interval = "1 minute", instance_id = "default" } = job.attrs.data || {};
 
-  logger.info({ jobId: job.attrs._id, cycle_interval }, "Starting Opus agent job for all entities");
+  logger.info({ jobId: job.attrs._id, cycle_interval, instance_id }, "Starting Opus agent job for all entities");
 
   try {
-    const entitiesList = await getActiveEntities();
+    const entitiesList = await getActiveEntities(instance_id);
 
     if (entitiesList.length === 0) {
-      logger.info("No entities found - nothing to process");
+      logger.info({ instance_id }, "No entities found - nothing to process");
       return;
     }
 
@@ -364,11 +407,12 @@ async function agentJob(job: Job) {
           entityIndex: i + 1,
           totalEntities: entitiesList.length,
           chatOrder: entity.chatOrder,
+          instance_id,
         },
         "Processing entity",
       );
 
-      await processEntity(entity, cycle_interval);
+      await processEntity(entity, cycle_interval, instance_id);
 
       // Add 10 second delay between entities (except for the last one)
       if (i < entitiesList.length - 1) {
@@ -380,9 +424,9 @@ async function agentJob(job: Job) {
       }
     }
 
-    logger.info({ entitiesProcessed: entitiesList.length }, "Opus agent job completed");
+    logger.info({ entitiesProcessed: entitiesList.length, instance_id }, "Opus agent job completed");
   } catch (error) {
-    logger.error({ error }, "Agent job failed");
+    logger.error({ error, instance_id }, "Agent job failed");
     throw error;
   }
 }
@@ -390,11 +434,11 @@ async function agentJob(job: Job) {
 /**
  * Setup the single Opus agent job
  */
-export async function setupOpusAgentCron(agenda: any) {
+export async function setupOpusAgentCron(agenda: any, instanceId: string = "default") {
   const cycleInterval = process.env.OPUS_CYCLE_INTERVAL || "1 minute";
 
   try {
-    logger.info({ cycleInterval }, "Setting up Opus agent cron job");
+    logger.info({ cycleInterval, instanceId }, "Setting up Opus agent cron job");
 
     // Define the single job
     agenda.define("opus-agent", agentJob);
@@ -408,20 +452,22 @@ export async function setupOpusAgentCron(agenda: any) {
     // Schedule the single recurring job
     const job = await agenda.every(cycleInterval, "opus-agent", {
       cycle_interval: cycleInterval,
+      instance_id: instanceId,
     });
 
     logger.info(
       {
         cycleInterval,
+        instanceId,
         nextRunAt: job.attrs.nextRunAt,
         jobId: job.attrs._id,
       },
       "Scheduled opus-agent job",
     );
 
-    logger.info("Opus agent cron setup completed");
+    logger.info({ instanceId }, "Opus agent cron setup completed");
   } catch (error) {
-    logger.error({ error }, "Failed to setup Opus agent cron");
+    logger.error({ error, instanceId }, "Failed to setup Opus agent cron");
     throw error;
   }
 }

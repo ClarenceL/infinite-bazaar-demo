@@ -60,7 +60,7 @@ const ENTITIES_TO_SEED = [
     cdp_name: null,
     cdp_address: null,
     ai_prompt_id: "opus",
-    anthropic_model: "claude-opus-4-20250514",
+    anthropic_model: "claude-3-5-sonnet-20240620",
     active: true, // Set to true/false as needed
     chat_order: 999,
     last_query_time: "2025-06-25 02:17:28.969+00",
@@ -84,7 +84,7 @@ const ENTITIES_TO_SEED = [
     cdp_name: "opus-demo",
     cdp_address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     ai_prompt_id: "lyra",
-    anthropic_model: "claude-opus-4-20250514",
+    anthropic_model: "claude-3-5-sonnet-20240620",
     active: true, // Set to true/false as needed
     chat_order: 0,
     last_query_time: "2025-06-25 02:18:36.375+00",

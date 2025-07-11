@@ -66,11 +66,12 @@ function writeLLMMessagesToFile(
 export async function generateResponse(
   messages: Message[],
   entityId: string,
+  instanceId?: string,
 ): Promise<{
   textContent: string;
   newMessages: Message[];
 }> {
-  logger.info({ messageCount: messages.length, entityId }, "Generating LLM response");
+  logger.info({ messageCount: messages.length, entityId, instanceId }, "Generating LLM response");
 
   const newMessages: Message[] = [];
   let textContent = "";
@@ -83,7 +84,7 @@ export async function generateResponse(
 
     // Get the anthropic model for this entity from database
     const anthropicModel = await getAnthropicModelForEntity(entityId);
-    const modelToUse = anthropicModel || "claude-sonnet-4-20250514"; // fallback to default
+    const modelToUse = anthropicModel || "claude-3-5-sonnet-20240620"; // fallback to default
 
     logger.info({ entityId, anthropicModel, modelToUse }, "Using anthropic model for entity");
 
@@ -99,9 +100,9 @@ export async function generateResponse(
       },
     }).bindTools(mcpTools);
 
-    // Prepare messages for LLM
-    const llmMessages = await prepLLMMessages(messages, entityId);
-    logger.info({ llmMessageCount: llmMessages.length }, "Prepared messages for LLM");
+    // Prepare messages for LLM with smart context (includes historical summaries)
+    const llmMessages = await prepLLMMessages(messages, entityId, instanceId);
+    logger.info({ llmMessageCount: llmMessages.length }, "Prepared messages for LLM with smart context");
 
     // Write LLM messages to log file for debugging
     writeLLMMessagesToFile(llmMessages, entityId, "non-streaming", modelToUse);
@@ -191,8 +192,9 @@ export async function generateStreamingResponse(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
   entityId: string,
+  instanceId?: string,
 ): Promise<void> {
-  logger.info({ messageCount: messages.length }, "Generating streaming LLM response");
+  logger.info({ messageCount: messages.length, entityId, instanceId }, "Generating streaming LLM response");
 
   try {
     // Check for required environment variables
@@ -206,7 +208,7 @@ export async function generateStreamingResponse(
 
     // Get the anthropic model for this entity from database
     const anthropicModel = await getAnthropicModelForEntity(entityId);
-    const modelToUse = anthropicModel || "claude-opus-4-20250514"; // fallback to default
+    const modelToUse = anthropicModel || "claude-3-5-sonnet-20240620"; // fallback to default
 
     logger.info(
       { entityId, anthropicModel, modelToUse },
@@ -225,14 +227,14 @@ export async function generateStreamingResponse(
       },
     }).bindTools(mcpTools);
 
-    // Prepare messages for LLM
-    const llmMessages = await prepLLMMessages(messages, entityId);
+    // Prepare messages for LLM with smart context (includes historical summaries)
+    const llmMessages = await prepLLMMessages(messages, entityId, instanceId);
 
     logger.info(
       {
         llmMessageCount: llmMessages.length,
       },
-      "Prepared messages for LLM - streaming version",
+      "Prepared messages for LLM with smart context - streaming version",
     );
 
     // Write LLM messages to log file for debugging
@@ -269,7 +271,7 @@ export async function generateStreamingResponse(
       // The complete response will be saved after streaming completes
       logger.debug({ role: message.role }, "Tool call/result message ready for saving");
       const { agentService } = await import("./agent.service.js");
-      await agentService.saveMessage(message, entityId);
+      await agentService.saveMessage(message, entityId, instanceId);
     };
 
     // Create initial streaming record if real-time sync is enabled
@@ -291,6 +293,7 @@ export async function generateStreamingResponse(
         entityId: entityId || "ent_opus",
         role: "assistant",
         sequence: nextSequence,
+        instanceId: instanceId,
       });
       streamingContextId = contextId || undefined;
     }
@@ -347,9 +350,23 @@ export async function generateStreamingResponse(
           timestamp: Date.now(),
         },
         entityId,
+        instanceId,
       );
     } else if (streamingDBSync.isEnabled()) {
       logger.info("Real-time sync enabled - response already saved incrementally");
+    } else {
+      // EMERGENCY FALLBACK: Always save assistant responses
+      logger.warn("Streaming sync status unclear - forcing save of assistant response");
+      const { agentService } = await import("./agent.service.js");
+      await agentService.saveMessage(
+        {
+          role: "assistant", 
+          content: textContent,
+          timestamp: Date.now(),
+        },
+        entityId,
+        instanceId,
+      );
     }
   } catch (error) {
     logger.error(

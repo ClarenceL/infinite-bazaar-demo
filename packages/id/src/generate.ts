@@ -11,6 +11,7 @@ const prefixes = {
   context: "ctx",
   endpoint: "ep",
   call: "call",
+  summary: "sum",
 } as const;
 
 export function newId<TPrefix extends keyof typeof prefixes>(prefix: TPrefix) {

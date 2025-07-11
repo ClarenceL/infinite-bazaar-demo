@@ -200,9 +200,10 @@ function logLLMMessages(messages: LLMMessage[]): void {
 export const prepLLMMessages = async (
   messages: Message[],
   entityId: string,
+  instanceId?: string,
 ): Promise<LLMMessages> => {
   // Get system message with context and entityId
-  const systemMessage = await getSystemMessage(entityId);
+  const systemMessage = await getSystemMessage(entityId, undefined, instanceId);
 
   // Prepare message history for the LLM
   // First add the system message

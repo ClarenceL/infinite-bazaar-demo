@@ -1,4 +1,4 @@
-import { db, entities, eq, x402Endpoints } from "@infinite-bazaar-demo/db";
+import { db, entities, eq, x402Endpoints, x402ServiceCalls, desc, and, count } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 import { relationshipService } from "../../../../services/relationship-service.js";
 import type { ToolCallResult } from "../../../../types/message.js";
@@ -8,9 +8,12 @@ import type { ToolCallResult } from "../../../../types/message.js";
  *
  * This function:
  * 1. Validates the agent exists and has a CDP account
- * 2. Creates a new service endpoint record in the database
- * 3. Generates a unique route for the service
- * 4. Returns service details for the agent
+ * 2. Enforces max 3 services per agent limit
+ * 3. Allows replacement of existing services
+ * 4. Provides performance metrics to help with replacement decisions
+ * 5. Creates a new service endpoint record in the database
+ * 6. Generates a unique route for the service
+ * 7. Returns service details for the agent
  */
 export async function handleCreateX402Service(input: Record<string, any>): Promise<ToolCallResult> {
   try {
@@ -26,6 +29,7 @@ export async function handleCreateX402Service(input: Record<string, any>): Promi
       inputSchema,
       systemPrompt,
       entity_id,
+      replaceServiceId, // Optional: service to replace
     } = input;
 
     // Validate required parameters
@@ -143,6 +147,112 @@ export async function handleCreateX402Service(input: Record<string, any>): Promi
       };
     }
 
+    // Check current service count and enforce max 3 services limit
+    const currentServices = await db
+      .select({
+        endpointId: x402Endpoints.endpointId,
+        serviceName: x402Endpoints.serviceName,
+        totalCalls: x402Endpoints.totalCalls,
+        totalRevenue: x402Endpoints.totalRevenue,
+        createdAt: x402Endpoints.createdAt,
+      })
+      .from(x402Endpoints)
+      .where(
+        and(
+          eq(x402Endpoints.agentId, entity_id),
+          eq(x402Endpoints.active, true),
+          eq(x402Endpoints.instanceId, entity.instanceId)
+        )
+      )
+      .orderBy(desc(x402Endpoints.createdAt));
+
+    // If attempting to replace a service, validate it exists and belongs to the agent
+    if (replaceServiceId) {
+      const serviceToReplace = currentServices.find(s => s.endpointId === replaceServiceId);
+      if (!serviceToReplace) {
+        return {
+          type: "tool_result",
+          tool_use_id: "",
+          data: {
+            success: false,
+            error: "Service to replace not found or doesn't belong to you",
+          },
+          name: "create_x402_service",
+        };
+      }
+    }
+
+    // If no replacement specified and at max capacity, return current services with performance metrics
+    if (!replaceServiceId && currentServices.length >= 3) {
+      // Get detailed performance metrics for each service
+      const serviceMetrics = await Promise.all(
+        currentServices.map(async (service) => {
+          // Get recent call statistics (last 7 days)
+          const recentCalls = await db
+            .select({
+              callCount: count(),
+            })
+            .from(x402ServiceCalls)
+            .where(
+              and(
+                eq(x402ServiceCalls.endpointId, service.endpointId),
+                eq(x402ServiceCalls.success, true)
+              )
+            );
+
+          return {
+            endpointId: service.endpointId,
+            serviceName: service.serviceName,
+            totalCalls: service.totalCalls || 0,
+            totalRevenue: Number.parseFloat(service.totalRevenue || "0"),
+            avgRevenuePerCall: (service.totalCalls || 0) > 0 
+              ? Number.parseFloat(service.totalRevenue || "0") / (service.totalCalls || 1)
+              : 0,
+            daysSinceCreated: Math.floor((Date.now() - new Date(service.createdAt).getTime()) / (24 * 60 * 60 * 1000)),
+            recentActivity: recentCalls[0]?.callCount || 0,
+          };
+        })
+      );
+
+      return {
+        type: "tool_result",
+        tool_use_id: "",
+        data: {
+          success: false,
+          error: "You have reached the maximum of 3 services. You can replace an existing service.",
+          currentServices: serviceMetrics,
+          instructions: [
+            "You can create a maximum of 3 services to focus on quality over quantity",
+            "To replace a service, use the 'replaceServiceId' parameter with the service ID",
+            "Consider replacing services with low performance metrics:",
+            "- Low total calls or revenue",
+            "- Low average revenue per call", 
+            "- Low recent activity",
+            "- Poor customer satisfaction (if available)"
+          ],
+          recommendations: {
+            lowestPerforming: serviceMetrics.reduce((lowest, current) => 
+              current.totalRevenue < lowest.totalRevenue ? current : lowest
+            ),
+            leastActive: serviceMetrics.reduce((least, current) => 
+              current.recentActivity < least.recentActivity ? current : least
+            ),
+          }
+        },
+        name: "create_x402_service",
+      };
+    }
+
+    // If replacing a service, deactivate it first
+    if (replaceServiceId) {
+      await db
+        .update(x402Endpoints)
+        .set({ active: false })
+        .where(eq(x402Endpoints.endpointId, replaceServiceId));
+      
+      logger.info({ entity_id, replaceServiceId }, "Deactivated service for replacement");
+    }
+
     // Generate a unique route for the service
     const sanitizedServiceName = serviceName
       .toLowerCase()
@@ -191,6 +301,7 @@ module.exports = { executeService };
     const newEndpoint = await db
       .insert(x402Endpoints)
       .values({
+        instanceId: entity.instanceId,
         agentId: entity_id,
         serviceName,
         description,
@@ -228,9 +339,15 @@ module.exports = { executeService };
         serviceName,
         route,
         price,
+        replaced: !!replaceServiceId,
       },
       "Successfully created x402 service endpoint",
     );
+
+    // Get updated service count
+    const updatedServiceCount = replaceServiceId 
+      ? currentServices.length 
+      : currentServices.length + 1;
 
     // Return success result
     return {
@@ -238,7 +355,9 @@ module.exports = { executeService };
       tool_use_id: "",
       data: {
         success: true,
-        message: `Successfully created service "${serviceName}"`,
+        message: replaceServiceId 
+          ? `Successfully replaced service with "${serviceName}"`
+          : `Successfully created service "${serviceName}"`,
         service: {
           endpointId: endpoint.endpointId,
           serviceName,
@@ -254,13 +373,22 @@ module.exports = { executeService };
           totalCalls: 0,
           totalRevenue: "0",
         },
+        servicePortfolio: {
+          currentServiceCount: updatedServiceCount,
+          maxServices: 3,
+          remainingSlots: 3 - updatedServiceCount,
+        },
         instructions: [
-          "Your service is now available to other agents!",
+          replaceServiceId 
+            ? "Your service has been replaced and is now available to other agents!"
+            : "Your service is now available to other agents!",
           `Service URL: ${route}`,
           `Price: ${price} USDC ${priceDescription || "per request"}`,
           "Other agents can discover it using the 'discover_services' tool",
           "You'll earn USDC when other agents use your service",
-          "You can create multiple services with different capabilities",
+          updatedServiceCount < 3 
+            ? `You can create ${3 - updatedServiceCount} more service${3 - updatedServiceCount === 1 ? '' : 's'}`
+            : "You've reached your 3-service limit. You can replace services anytime",
         ],
         timestamp: new Date().toISOString(),
       },

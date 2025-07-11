@@ -1,6 +1,8 @@
 import { and, db, desc, entityContext, eq, sql } from "@infinite-bazaar-demo/db";
 import { logger } from "@infinite-bazaar-demo/logs";
 import { prepLLMMessages, processLangChainStream } from "../../agents/utils";
+import { smartContextPreparationService } from "../../services/smart-context-preparation";
+import { contextSummarizationService } from "../../services/context-summarization";
 import type {
   ChatMessage,
   ChatRequest,
@@ -18,14 +20,17 @@ export class AgentService {
   /**
    * Get agent information
    */
-  async getAgentInfo(): Promise<OpusInfo> {
-    logger.info("Getting agent information");
+  async getAgentInfo(instanceId: string): Promise<OpusInfo> {
+    logger.info({ instanceId }, "Getting agent information");
 
     // Get message count from database
     const messageCount = await db
       .select({ count: sql<number>`cast(count(*) as integer)` })
       .from(entityContext)
-      .where(eq(entityContext.entityId, OPUS_ENTITY_ID));
+      .where(and(
+        eq(entityContext.entityId, OPUS_ENTITY_ID),
+        eq(entityContext.instanceId, instanceId)
+      ));
 
     return {
       entityId: OPUS_ENTITY_ID,
@@ -50,33 +55,36 @@ export class AgentService {
   }
 
   /**
-   * Load message history for the agent from database
+   * Load message history for the agent from database with smart context preparation
    */
-  async loadMessages(chatId?: string, entityId?: string, limit = 50): Promise<Message[]> {
+  async loadMessages(chatId?: string, entityId?: string, instanceId?: string, limit = 50): Promise<Message[]> {
     const actualEntityId = entityId || OPUS_ENTITY_ID;
+    const actualInstanceId = instanceId || "default";
     try {
       logger.info(
-        { chatId, entityId: actualEntityId, limit },
-        "Loading message history from database",
+        { chatId, entityId: actualEntityId, instanceId: actualInstanceId, limit },
+        "Loading message history with smart context preparation",
       );
 
       // Build query conditions
-      const conditions = [eq(entityContext.entityId, actualEntityId)];
+      const conditions = [
+        eq(entityContext.entityId, actualEntityId),
+        eq(entityContext.instanceId, actualInstanceId)
+      ];
       if (chatId) {
         conditions.push(eq(entityContext.chatId, chatId));
       }
 
-      // Query database for messages with limit to prevent excessive memory usage
-      // Order by sequence/created_at DESC to get most recent messages, then reverse
+      // First, get ALL messages to enable smart context preparation
+      // We need the full history to determine what to summarize vs what to keep recent
       const dbMessages = await db
         .select()
         .from(entityContext)
         .where(and(...conditions))
-        .orderBy(desc(entityContext.sequence), desc(entityContext.createdAt))
-        .limit(limit);
+        .orderBy(desc(entityContext.sequence), desc(entityContext.createdAt));
 
       // Convert database records to Message format
-      const messages: Message[] = dbMessages.map((record) => {
+      const allMessages: Message[] = dbMessages.map((record) => {
         let content: string | ToolCall | ToolCallResult;
 
         // Handle different context types
@@ -109,21 +117,32 @@ export class AgentService {
       });
 
       // Reverse to get chronological order (oldest first) since we queried in DESC order
-      const chronologicalMessages = messages.reverse();
+      const chronologicalMessages = allMessages.reverse();
+
+      // Apply smart context preparation to reduce token usage
+      const smartContext = await smartContextPreparationService.prepareSmartContext(
+        chronologicalMessages,
+        actualEntityId,
+        actualInstanceId
+      );
 
       logger.info(
         {
-          messageCount: chronologicalMessages.length,
+          totalMessages: chronologicalMessages.length,
+          recentMessages: smartContext.recentMessages.length,
+          hasHistoricalSummary: !!smartContext.historicalSummary,
+          tokenSavings: smartContext.tokenSavings,
+          tokenSavingsPercent: chronologicalMessages.length > 0 ? 
+            Math.round((smartContext.tokenSavings / (smartContext.totalEstimatedTokens + smartContext.tokenSavings)) * 100) : 0,
           chatId,
-          limitApplied: limit,
-          wasLimited: dbMessages.length === limit,
         },
-        "Messages loaded from database",
+        "Smart context preparation completed",
       );
 
-      return chronologicalMessages;
+      // Return only the recent messages - the historical summary will be added to system prompt
+      return smartContext.recentMessages;
     } catch (error) {
-      logger.error({ error, chatId }, "Error loading messages from database");
+      logger.error({ error, chatId }, "Error loading messages with smart context preparation");
       return [];
     }
   }
@@ -131,11 +150,12 @@ export class AgentService {
   /**
    * Save a message to database
    */
-  async saveMessage(message: Message, entityId?: string): Promise<void> {
+  async saveMessage(message: Message, entityId?: string, instanceId?: string): Promise<void> {
     const actualEntityId = entityId || OPUS_ENTITY_ID;
+    const actualInstanceId = instanceId || "default";
     try {
       logger.info(
-        { role: message.role, chatId: message.chatId, entityId: actualEntityId },
+        { role: message.role, chatId: message.chatId, entityId: actualEntityId, instanceId: actualInstanceId },
         "Saving message to database",
       );
 
@@ -147,9 +167,13 @@ export class AgentService {
           message.chatId
             ? and(
                 eq(entityContext.entityId, actualEntityId),
+                eq(entityContext.instanceId, actualInstanceId),
                 eq(entityContext.chatId, message.chatId),
               )
-            : eq(entityContext.entityId, actualEntityId),
+            : and(
+                eq(entityContext.entityId, actualEntityId),
+                eq(entityContext.instanceId, actualInstanceId),
+              ),
         );
 
       const nextSequence = (maxSequenceResult[0]?.maxSeq || 0) + 1;
@@ -157,6 +181,7 @@ export class AgentService {
       // Prepare the database record
       const dbRecord: any = {
         entityId: actualEntityId,
+        instanceId: actualInstanceId,
         role: message.role,
         sequence: nextSequence,
         chatId: message.chatId || null,
@@ -246,8 +271,8 @@ export class AgentService {
   /**
    * Prepare messages for LLM processing
    */
-  async prepareMessages(messages: Message[], entityId: string) {
-    return prepLLMMessages(messages, entityId);
+  async prepareMessages(messages: Message[], entityId: string, instanceId?: string) {
+    return prepLLMMessages(messages, entityId, instanceId);
   }
 
   /**
@@ -272,11 +297,12 @@ export class AgentService {
   async generateAIResponse(
     messages: Message[],
     entityId: string,
+    instanceId?: string,
   ): Promise<{
     textContent: string;
     newMessages: Message[];
   }> {
-    return generateResponse(messages, entityId);
+    return generateResponse(messages, entityId, instanceId);
   }
 
   /**
@@ -287,20 +313,25 @@ export class AgentService {
     writer: WritableStreamDefaultWriter<Uint8Array>,
     encoder: TextEncoder,
     entityId: string,
+    instanceId?: string,
   ): Promise<void> {
-    return generateStreamingResponse(messages, writer, encoder, entityId);
+    return generateStreamingResponse(messages, writer, encoder, entityId, instanceId);
   }
 
   /**
    * Reset conversation history in database
    */
-  async resetConversation(chatId?: string, entityId?: string): Promise<void> {
+  async resetConversation(chatId?: string, entityId?: string, instanceId?: string): Promise<void> {
     const actualEntityId = entityId || OPUS_ENTITY_ID;
+    const actualInstanceId = instanceId || "default";
     try {
-      logger.info({ chatId, entityId: actualEntityId }, "Resetting conversation in database");
+      logger.info({ chatId, entityId: actualEntityId, instanceId: actualInstanceId }, "Resetting conversation in database");
 
       // Build delete conditions
-      const conditions = [eq(entityContext.entityId, actualEntityId)];
+      const conditions = [
+        eq(entityContext.entityId, actualEntityId),
+        eq(entityContext.instanceId, actualInstanceId)
+      ];
       if (chatId) {
         conditions.push(eq(entityContext.chatId, chatId));
       }
@@ -308,10 +339,10 @@ export class AgentService {
       // Delete messages from database
       const deleteResult = await db.delete(entityContext).where(and(...conditions));
 
-      logger.info({ chatId, entityId: actualEntityId }, "Conversation reset in database");
+      logger.info({ chatId, entityId: actualEntityId, instanceId: actualInstanceId }, "Conversation reset in database");
     } catch (error) {
       logger.error(
-        { error, chatId, entityId: actualEntityId },
+        { error, chatId, entityId: actualEntityId, instanceId: actualInstanceId },
         "Error resetting conversation in database",
       );
       throw error;
@@ -340,13 +371,14 @@ export const agentService = new AgentService();
 export async function generateChatResponse(
   messages: Message[],
   entityId: string,
+  instanceId?: string,
 ): Promise<{
   textContent: string;
   newMessages: Message[];
 }> {
-  logger.info({ messageCount: messages.length, entityId }, "Generating chat response");
+  logger.info({ messageCount: messages.length, entityId, instanceId }, "Generating chat response");
 
-  return generateResponse(messages, entityId);
+  return generateResponse(messages, entityId, instanceId);
 }
 
 export async function generateStreamingChatResponse(
@@ -354,8 +386,9 @@ export async function generateStreamingChatResponse(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
   entityId: string,
+  instanceId?: string,
 ): Promise<void> {
-  logger.info({ messageCount: messages.length, entityId }, "Generating streaming chat response");
+  logger.info({ messageCount: messages.length, entityId, instanceId }, "Generating streaming chat response");
 
-  return generateStreamingResponse(messages, writer, encoder, entityId);
+  return generateStreamingResponse(messages, writer, encoder, entityId, instanceId);
 }

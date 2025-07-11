@@ -91,4 +91,6 @@ export {
   x402ServiceCalls,
   entityContext,
   agentRelationships,
+  contextSummaries,
+  chats,
 } from "./schema.js";

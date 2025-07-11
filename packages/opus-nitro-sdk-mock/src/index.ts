@@ -1,11 +1,12 @@
+import "./environment";
 import * as process from "node:process";
 import { agentRoutes } from "@/modules/agent";
 import { toolsRoutes } from "@/modules/tools";
+import { internalRoutes } from "@/modules/internal/internal.routes";
 import { authMiddleware } from "@/pkg/middleware/auth";
 import { customLogger } from "@/pkg/middleware/custom-logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import "./environment";
 
 console.log("[OPUS-NITRO-SDK-MOCK] NODE_ENV", process.env.NODE_ENV);
 console.log("[OPUS-NITRO-SDK-MOCK] PORT", process.env.PORT || 3105);
@@ -61,12 +62,16 @@ app.get("/health", (c) => {
 // Apply auth middleware to all routes except health check
 app.use("/agent/*", authMiddleware());
 app.use("/v1/mcp/*", authMiddleware());
+app.use("/internal/*", authMiddleware());
 
 // Register agent routes
 app.basePath("/agent").route("/", agentRoutes);
 
 // Register MCP tools routes (v1)
 app.route("/v1/mcp", toolsRoutes);
+
+// Register internal routes
+app.route("/internal", internalRoutes);
 
 export type AppType = typeof app;
 
