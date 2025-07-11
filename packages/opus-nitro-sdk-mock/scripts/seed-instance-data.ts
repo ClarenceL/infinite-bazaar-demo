@@ -217,7 +217,9 @@ async function seedInstanceData(instanceId: string) {
     console.log(`Creating entities for instance ${instanceId}...`);
 
     for (const entity of ENTITIES_TO_SEED) {
-      console.log(`Creating entity ${entity.entity_id}...`);
+      // Create unique entity_id by appending instance ID
+      const uniqueEntityId = `${entity.entity_id}_${instanceId}`;
+      console.log(`Creating entity ${uniqueEntityId}...`);
 
       await db.execute(sql`
         INSERT INTO entities (
@@ -226,7 +228,7 @@ async function seedInstanceData(instanceId: string) {
           chat_order, created_at, updated_at
         )
         VALUES (
-          ${entity.entity_id},
+          ${uniqueEntityId},
           ${instanceId},
           ${entity.entity_type},
           ${entity.name},
@@ -254,7 +256,7 @@ async function seedInstanceData(instanceId: string) {
           updated_at = NOW()
       `);
 
-      console.log(`✅ Upserted entity ${entity.entity_id}`);
+      console.log(`✅ Upserted entity ${uniqueEntityId}`);
     }
 
     // 2. Create the global chat

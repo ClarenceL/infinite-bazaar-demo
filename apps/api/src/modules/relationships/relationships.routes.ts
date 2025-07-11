@@ -52,20 +52,23 @@ export const relationshipsRoutes = new Hono()
   // Get complete graph data endpoint for polling
   .get("/graph", async (c) => {
     try {
-      // Create cache key
-      const cacheKey = "graph:complete";
+      // Get instanceId from query params
+      const instanceId = c.req.query("instanceId");
+      
+      // Create cache key with instanceId
+      const cacheKey = `graph:${instanceId || "all"}`;
 
       // Check cache first
       const cachedResponse = cache.get(cacheKey);
       if (cachedResponse) {
-        logger.info({ cached: true }, "Returning cached graph data");
+        logger.info({ cached: true, instanceId }, "Returning cached graph data");
         return c.json(cachedResponse);
       }
 
-      logger.info({ cached: false }, "Fetching graph data from DB");
+      logger.info({ cached: false, instanceId }, "Fetching graph data from DB");
 
       // Get complete graph data
-      const graphData = await relationshipsService.getGraphData();
+      const graphData = await relationshipsService.getGraphData(instanceId);
 
       const response = {
         success: true,
@@ -94,17 +97,20 @@ export const relationshipsRoutes = new Hono()
   // Get entities only
   .get("/entities", async (c) => {
     try {
-      const cacheKey = "entities:all";
+      // Get instanceId from query params
+      const instanceId = c.req.query("instanceId");
+      
+      const cacheKey = `entities:${instanceId || "all"}`;
 
       const cachedResponse = cache.get(cacheKey);
       if (cachedResponse) {
-        logger.info({ cached: true }, "Returning cached entities");
+        logger.info({ cached: true, instanceId }, "Returning cached entities");
         return c.json(cachedResponse);
       }
 
-      logger.info({ cached: false }, "Fetching entities from DB");
+      logger.info({ cached: false, instanceId }, "Fetching entities from DB");
 
-      const entities = await relationshipsService.getEntities();
+      const entities = await relationshipsService.getEntities(instanceId);
 
       const response = {
         success: true,
@@ -133,17 +139,20 @@ export const relationshipsRoutes = new Hono()
   // Get relationships only
   .get("/relationships", async (c) => {
     try {
-      const cacheKey = "relationships:all";
+      // Get instanceId from query params
+      const instanceId = c.req.query("instanceId");
+      
+      const cacheKey = `relationships:${instanceId || "all"}`;
 
       const cachedResponse = cache.get(cacheKey);
       if (cachedResponse) {
-        logger.info({ cached: true }, "Returning cached relationships");
+        logger.info({ cached: true, instanceId }, "Returning cached relationships");
         return c.json(cachedResponse);
       }
 
-      logger.info({ cached: false }, "Fetching relationships from DB");
+      logger.info({ cached: false, instanceId }, "Fetching relationships from DB");
 
-      const relationships = await relationshipsService.getRelationships();
+      const relationships = await relationshipsService.getRelationships(instanceId);
 
       const response = {
         success: true,

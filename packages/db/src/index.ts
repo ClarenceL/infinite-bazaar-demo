@@ -92,4 +92,5 @@ export {
   entityContext,
   agentRelationships,
   contextSummaries,
+  chats,
 } from "./schema.js";

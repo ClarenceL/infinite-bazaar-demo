@@ -12,10 +12,29 @@ pnpm dev:demo-safe
 pnpm dev
 ```
 
-## **🌐 Demo URLs**
-- **Rich Instance**: `http://localhost:3000?instance=09-07-25_1`
-- **Clean Instance**: `http://localhost:3000?instance=live-demo`
+## **🌐 Demo URLs - Direct Navigation**
+- **Rich Instance (Primary)**: `http://localhost:3000?instance=09-07-25_1`
+- **Clean Instance (Backup)**: `http://localhost:3000?instance=live-demo`
 - **Default Instance**: `http://localhost:3000`
+
+## **🔧 Instance Switching Method**
+**Simple URL Method (Recommended)**:
+1. **Prepare browser tabs** with pre-loaded URLs
+2. **Use browser bookmarks** for quick switching
+3. **Direct URL navigation** during demo
+
+**No UI component needed** - this avoids any styling conflicts!
+
+## **🎯 Browser Setup for Demo**
+```bash
+# 1. Start demo mode
+pnpm dev:demo
+
+# 2. Open these URLs in separate tabs:
+# Tab 1: http://localhost:3000?instance=09-07-25_1
+# Tab 2: http://localhost:3000?instance=live-demo
+# Tab 3: http://localhost:3000 (backup)
+```
 
 ## **⏱️ Timing Breakdown**
 - **Slide 1**: 1 min (Project intro)
@@ -30,7 +49,7 @@ pnpm dev
 1. **Rich Instance Demo** (60s) - Static data showing achievements
 2. **Service Marketplace** (45s) - x402 endpoints & pricing
 3. **Emergent Behaviors** (30s) - Social networks & partnerships
-4. **Clean Instance Demo** (15s) - Show scalability
+4. **Clean Instance Demo** (15s) - Show scalability via tab switch
 5. **Optional Live Demo** (if time) - Restart with agent activity
 
 ## **🎤 Key Messaging**
@@ -45,7 +64,7 @@ pnpm dev
 ### **Static vs Live Demo**
 - **Static Mode** (`pnpm dev:demo`): No cron service, shows existing data
 - **Live Mode** (`pnpm dev`): Cron service active, agents create new events
-- **Instance Switcher**: Changes data view, doesn't control cron service
+- **URL Parameters**: `?instance=09-07-25_1` switches data view
 
 ### **AWS Nitro Enclaves**
 - **Purpose**: Hardware-level isolation & cryptographic attestation
@@ -65,15 +84,19 @@ pnpm dev
 ## **💡 Demo Flow Script**
 
 ### **Opening** (15 seconds)
-*"Let me show you this in action. I'm running in **static demo mode** so you can see our rich data without interruptions. I have two instances ready – one with our full agent economy in action, and a clean one for focused demonstrations."*
+*"Let me show you this in action. I'm running in **static demo mode** so you can see our rich data without interruptions. I have multiple instances loaded showing different aspects of our agent economy."*
 
 ### **Rich Instance Demo** (2 minutes 30 seconds)
-1. **Click Rich Demo Instance (09-07-25_1)**
+1. **Primary Tab (09-07-25_1)** - *"Here's our full agent economy"*
 2. **Show Static Achievements**: *"Static data showing real achievements - 6 agents, 82 conversations, 9 services, 7 transactions"*
-3. **Navigate to Economic Trends**: *"Agents creating their own businesses"*
+3. **Navigate through sections**: *"Agents creating their own businesses"*
 4. **Show Relationship Graph**: *"Emergent social behaviors, not programmed"*
-5. **Open Specific Conversations**: *"Agents negotiating prices and forming partnerships"*
-6. **Switch to Clean Instance**: *"Shows scalability of our system"*
+5. **Switch to Clean Instance Tab**: *"And here's how agents start fresh - showing scalability"*
+
+### **Tab Switching Demo Flow**
+- **Tab 1**: Rich instance (primary demo)
+- **Tab 2**: Clean instance (scalability demo)
+- **Tab 3**: Default instance (backup)
 
 ### **Optional Live Demo** (if time permits)
 *"If you'd like to see the system running live, I can quickly restart with agent activity enabled..."*

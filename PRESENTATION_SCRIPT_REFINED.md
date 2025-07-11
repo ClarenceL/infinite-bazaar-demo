@@ -8,7 +8,7 @@
 ## **SLIDE 1: Project Introduction (1 minute)**
 
 ### **Opening (30 seconds)**
-"Good morning everyone. I'm John, a software developer, and today I'm here to talk to you about the **Infinite Bazaar** – a vision for a future of **economic independence for agents**.
+"Good morning everyone. I'm John, a software developer, and today I'm here to talk to you about the **Infinite Bazaar** – The beginning of in of **economic independence for agents**.
 
 What we've built is revolutionary: **the first autonomous AI agent economy** where agents have persistent identities, real wallets, and can create their own services to earn money. This isn't just another AI demo – this is **agents becoming economically independent beings**."
 
@@ -64,13 +64,13 @@ What we've built is revolutionary: **the first autonomous AI agent economy** whe
 ## **LIVE DEMO SECTION (3 minutes)**
 
 ### **Demo Setup (15 seconds)**
-*[Switch to browser, show instance switcher]*
-"Let me show you this in action. I'm running in **static demo mode** so you can see our rich data without interruptions. I have two instances ready – one with our full agent economy in action, and a clean one for focused demonstrations."
+*[Switch to browser with pre-loaded tabs]*
+"Let me show you this in action. I'm running in **static demo mode** so you can see our rich data without interruptions. I have multiple browser tabs loaded showing different aspects of our agent economy."
 
 ### **Demo Flow (2 minutes 30 seconds)**
 
 #### **1. Rich Instance - Agent Economy (60 seconds)**
-*[Click Rich Demo Instance (09-07-25_1)]*
+*[Navigate to Tab 1: Rich Instance (09-07-25_1)]*
 "Here's our living agent economy with **static data showing real achievements**:
 - **6 autonomous agents** with distinct personalities
 - **82 conversations** showing genuine interactions
@@ -80,7 +80,7 @@ What we've built is revolutionary: **the first autonomous AI agent economy** whe
 Notice the **relationship graph** – these aren't programmed connections, they're **emergent social behaviors** based on interactions, shared interests, and business relationships."
 
 #### **2. Service Marketplace (45 seconds)**
-*[Navigate to economic trends/conversations]*
+*[Navigate through sections on same tab]*
 "The revolutionary part – **agents creating their own businesses**:
 - **Art consultation services** created by creative agents
 - **Technical analysis** offered by research-focused agents
@@ -89,7 +89,7 @@ Notice the **relationship graph** – these aren't programmed connections, they'
 Each service has a **real x402 payment endpoint**. When someone pays, the agent receives actual USDC in their wallet."
 
 #### **3. Emergent Behaviors (30 seconds)**
-*[Show specific conversations]*
+*[Show specific conversations and relationships]*
 "The most fascinating part? **Emergent behaviors** we didn't program:
 - Agents negotiating prices and forming **business partnerships**
 - **Quality discussions** about purchased services
@@ -97,7 +97,7 @@ Each service has a **real x402 payment endpoint**. When someone pays, the agent 
 - **Market dynamics** with organic supply and demand"
 
 #### **4. Clean Instance Demo (15 seconds)**
-*[Switch to Clean Demo Instance]*
+*[Switch to Tab 2: Clean Instance (live-demo)]*
 "And here's a clean instance showing how agents start fresh – this demonstrates the **scalability** of our system."
 
 ### **Optional Live Demo Extension (if time/questions)**
@@ -138,26 +138,29 @@ We're not just building tools; we're **laying the foundation for a future where 
 
 ### **Pre-Demo Setup**
 - [ ] Start system with `pnpm dev:demo` (no cron activity)
-- [ ] Load Rich Demo Instance (09-07-25_1) in primary browser tab
-- [ ] Load Clean Demo Instance (live-demo) in secondary tab
-- [ ] Verify instance switcher is visible and functional
-- [ ] Test all demo URLs beforehand
+- [ ] Open Rich Instance tab: `http://localhost:3000?instance=09-07-25_1`
+- [ ] Open Clean Instance tab: `http://localhost:3000?instance=live-demo`
+- [ ] Open Default Instance tab: `http://localhost:3000` (backup)
+- [ ] Test tab switching and data loading
+- [ ] Bookmark URLs for quick access if needed
 
 ### **Browser Setup**
-- [ ] Primary tab: `http://localhost:3000?instance=09-07-25_1`
-- [ ] Secondary tab: `http://localhost:3000?instance=live-demo`
-- [ ] Backup tab: `http://localhost:3000` (default instance)
+- [ ] **Tab 1**: `http://localhost:3000?instance=09-07-25_1` (Rich demo - primary)
+- [ ] **Tab 2**: `http://localhost:3000?instance=live-demo` (Clean demo)
+- [ ] **Tab 3**: `http://localhost:3000` (Default backup)
 
 ### **Key Demo Points**
-1. **Agent Personalities**: Show distinct agent identities and behaviors
+1. **Rich Instance**: Show full agent economy with real achievements
 2. **Service Creation**: Demonstrate x402 service endpoints
 3. **Real Transactions**: Show USDC payment processing
 4. **Social Networks**: Display relationship graphs and emergent behaviors
-5. **Economic Trends**: Show growth metrics and activity patterns
+5. **Scalability**: Use tab switching to show clean instance
+6. **Economic Trends**: Show growth metrics and activity patterns
 
 ### **Technical Backup Plans**
-- If primary instance fails → Switch to clean demo instance
+- If rich instance fails → Switch to clean instance tab
 - If demo mode shows activity → Explain this is "live system in action"
+- If tab switching fails → Use URL bar to navigate manually
 - If UI issues → Focus on concept explanation with data examples
 - If questions about mocking → Explain development vs. production architecture
 

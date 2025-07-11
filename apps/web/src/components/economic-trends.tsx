@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, DollarSign, Activity, Users, ShoppingCart, ChevronDown, ChevronUp } from "lucide-react";
+import { useInstanceId } from "@/lib/instance";
 
 interface EconomicData {
   transactionVolume: {
@@ -48,26 +49,7 @@ export function EconomicTrends({ className }: EconomicTrendsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [instanceId, setInstanceId] = useState<string>("default");
-
-  // Fetch current instance ID from API
-  const fetchInstanceId = async () => {
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/instance`,
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.instanceId) {
-          setInstanceId(data.instanceId);
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching instance ID:", err);
-      // Keep default instanceId on error
-    }
-  };
+  const instanceId = useInstanceId(); // Use the URL parameter hook
 
   const fetchEconomicData = async () => {
     try {
@@ -95,13 +77,8 @@ export function EconomicTrends({ className }: EconomicTrendsProps) {
   };
 
   useEffect(() => {
-    // First get the instance ID, then start polling
-    const initializeData = async () => {
-      await fetchInstanceId();
-      fetchEconomicData();
-    };
-
-    initializeData();
+    // Start polling immediately
+    fetchEconomicData();
   }, []);
 
   // Set up polling when instanceId is available

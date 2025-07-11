@@ -60,6 +60,60 @@ export const chatRoutes = new Hono()
     });
   })
 
+  // Check if instance exists, create if not
+  .post("/instance/ensure", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { instanceId } = body;
+      
+      if (!instanceId || instanceId === 'default') {
+        return c.json({
+          success: true,
+          instanceId: 'default',
+          existed: true,
+          message: "Default instance always exists"
+        });
+      }
+
+      // Check if instance has any entities
+      const entityCount = await chatService.getInstanceEntityCount(instanceId);
+      
+      if (entityCount > 0) {
+        return c.json({
+          success: true,
+          instanceId,
+          existed: true,
+          message: `Instance ${instanceId} already exists with ${entityCount} entities`
+        });
+      }
+
+      // Instance doesn't exist, create it
+      logger.info({ instanceId }, "Creating new instance with seed data");
+      
+      // Call the seed script (we'll implement this)
+      const seedResult = await chatService.createInstance(instanceId);
+      
+      return c.json({
+        success: true,
+        instanceId,
+        existed: false,
+        created: true,
+        entities: seedResult.entityCount,
+        message: `Instance ${instanceId} created successfully with ${seedResult.entityCount} entities`
+      });
+      
+    } catch (error) {
+      logger.error({ error }, "Error ensuring instance exists");
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+        500,
+      );
+    }
+  })
+
   // Get messages endpoint for polling
   .get("/messages", async (c) => {
     try {

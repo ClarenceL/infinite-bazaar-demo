@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useInstanceId } from "@/lib/instance";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
+import { Play, Square, Loader2 } from "lucide-react";
 
 interface Entity {
   id: string;
@@ -53,6 +57,15 @@ interface Tooltip {
   relationship?: Relationship | BidirectionalGroup;
 }
 
+interface CronJobStatus {
+  instanceId: string;
+  isRunning: boolean;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  cycleInterval: string;
+  jobId?: string;
+}
+
 // Color theme pool for entities (reusing from chat-container)
 const COLOR_THEMES = [
   { bg: "fill-purple-500", border: "stroke-purple-300", text: "text-purple-100" },
@@ -74,7 +87,11 @@ export function RelationshipGraph() {
   const [tooltip, setTooltip] = useState<Tooltip>({ visible: false, x: 0, y: 0, content: "" });
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(0);
   const [viewBoxKey, setViewBoxKey] = useState<number>(0); // Force viewBox recalculation
-  const [instanceId, setInstanceId] = useState<string>("default");
+  const instanceId = useInstanceId(); // Use the URL parameter hook
+
+  // Cron control state
+  const [cronStatus, setCronStatus] = useState<CronJobStatus | null>(null);
+  const [isCronToggling, setIsCronToggling] = useState(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const nodePositions = useRef<Map<string, NodePosition>>(new Map());
@@ -85,24 +102,7 @@ export function RelationshipGraph() {
   const maxSimulationSteps = 300; // Stop simulation after this many steps
   const lastDataHash = useRef<string>("");
 
-  // Fetch current instance ID from API
-  const fetchInstanceId = async () => {
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/instance`,
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.instanceId) {
-          setInstanceId(data.instanceId);
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching instance ID:", err);
-      // Keep default instanceId on error
-    }
-  };
+
 
   // Create a hash of the graph data to detect changes
   const createDataHash = (data: GraphData): string => {
@@ -427,23 +427,84 @@ export function RelationshipGraph() {
     }
   };
 
+  // Fetch cron status
+  const fetchCronStatus = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/cron/status/${instanceId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setCronStatus(data.status);
+      }
+    } catch (error) {
+      // Silent fail for cron status checks
+    }
+  };
+
+  // Toggle cron job (start/stop)
+  const toggleCronJob = async () => {
+    if (!cronStatus) return;
+    
+    try {
+      setIsCronToggling(true);
+      
+      const endpoint = cronStatus.isRunning ? 'stop' : 'start';
+      const response = await fetch(`${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/cron/${endpoint}/${instanceId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: endpoint === 'start' ? JSON.stringify({ cycleInterval: "1 minute" }) : undefined,
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        if (endpoint === 'start') {
+          setCronStatus(data.status);
+        } else {
+          await fetchCronStatus(); // Refresh status after stopping
+        }
+        toast({
+          title: "Success",
+          description: `Cron job ${cronStatus.isRunning ? 'stopped' : 'started'}`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to toggle cron job",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to connect to API",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCronToggling(false);
+    }
+  };
+
   // Polling setup
   useEffect(() => {
-    // First get the instance ID, then start polling
-    const initializeGraph = async () => {
-      await fetchInstanceId();
+    // Start polling when instanceId is available
+    if (instanceId) {
       fetchGraphData();
-    };
-
-    initializeGraph();
-  }, []);
+      fetchCronStatus(); // Fetch cron status on mount
+    }
+  }, [instanceId]);
 
   // Set up polling when instanceId is available
   useEffect(() => {
     if (!instanceId) return;
 
-    // Set up polling every 5 seconds
-    const interval = setInterval(fetchGraphData, 5000);
+    // Set up polling every 5 seconds for graph data and cron status
+    const interval = setInterval(() => {
+      fetchGraphData();
+      fetchCronStatus();
+    }, 5000);
 
     return () => {
       clearInterval(interval);
@@ -583,6 +644,41 @@ export function RelationshipGraph() {
             </span>
           )}
         </p>
+        <div className="mt-2 flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleCronJob}
+            disabled={isCronToggling || !cronStatus}
+            className="h-7 px-2 text-xs flex items-center gap-1 border-slate-600 hover:border-slate-500 bg-slate-800/50 hover:bg-slate-700/50"
+          >
+            {isCronToggling ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : cronStatus?.isRunning ? (
+              <Square className="h-3 w-3" />
+            ) : (
+              <Play className="h-3 w-3" />
+            )}
+            <span className="hidden sm:inline">
+              {cronStatus?.isRunning ? "Stop" : "Start"}
+            </span>
+          </Button>
+          <span className="text-slate-400 text-xs">
+            {cronStatus?.isRunning ? (
+              <>
+                Running
+                {cronStatus?.nextRunAt && (
+                  <span className="hidden sm:inline">
+                    {" • Next: "}
+                    {new Date(cronStatus.nextRunAt).toLocaleTimeString()}
+                  </span>
+                )}
+              </>
+            ) : (
+              "Stopped"
+            )}
+          </span>
+        </div>
       </div>
 
       {/* Graph */}

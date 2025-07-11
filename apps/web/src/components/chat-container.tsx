@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Clock, Zap, MessageSquare, Wrench, CheckCirc
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getToolResultRenderer } from "./tool-results";
+import { useInstanceId } from "@/lib/instance";
 
 interface ChatMessage {
   id: string;
@@ -107,7 +108,7 @@ export function ChatContainer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [instanceId, setInstanceId] = useState<string>("default");
+  const instanceId = useInstanceId(); // Use the URL parameter hook
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [showUserMessages, setShowUserMessages] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -291,23 +292,16 @@ export function ChatContainer() {
     });
   };
 
-  // Fetch current instance ID from API
-  const fetchInstanceId = async () => {
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/instance`,
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.instanceId) {
-          setInstanceId(data.instanceId);
-        }
+  // Get instance ID from URL or API
+  const getInstanceId = () => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlInstanceId = urlParams.get('instance');
+      if (urlInstanceId) {
+        return urlInstanceId;
       }
-    } catch (err) {
-      console.error("Error fetching instance ID:", err);
-      // Keep default instanceId on error
     }
+    return instanceId;
   };
 
   // Scroll to bottom when new messages arrive
@@ -326,8 +320,9 @@ export function ChatContainer() {
   // Fetch messages from API
   const fetchMessages = async () => {
     try {
+      const currentInstanceId = getInstanceId();
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/messages?excludeUserMessages=${!showUserMessages}&instanceId=${instanceId}`,
+        `${process.env.NEXT_PUBLIC_INFINITE_BAZAAR_API_URL || "http://localhost:3104"}/api/chat/messages?excludeUserMessages=${!showUserMessages}&instanceId=${currentInstanceId}`,
       );
 
       if (!response.ok) {
@@ -429,14 +424,11 @@ export function ChatContainer() {
 
   // Two-phase polling: initial load + streaming updates
   useEffect(() => {
-    // First get the instance ID, then start polling
-    const initializeChat = async () => {
-      await fetchInstanceId();
+    // Start fetching messages when instanceId is available
+    if (instanceId) {
       fetchMessages();
-    };
-
-    initializeChat();
-  }, []);
+    }
+  }, [instanceId]);
 
   // Set up polling when instanceId is available
   useEffect(() => {
@@ -602,6 +594,8 @@ export function ChatContainer() {
       </div>
     );
   };
+
+
 
   if (error) {
     return (

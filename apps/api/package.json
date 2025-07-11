@@ -18,6 +18,7 @@
     "@infinite-bazaar-demo/logs": "workspace:*",
     "@infinite-bazaar-demo/typescript-config": "workspace:*",
     "@supabase/supabase-js": "^2.39.3",
+    "agenda": "^5.0.0",
     "axios": "^1.8.4",
     "cache-manager": "^6.4.1",
     "dotenv": "^16.4.7",
